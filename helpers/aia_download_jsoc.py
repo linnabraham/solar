@@ -36,6 +36,8 @@ def data_download_aia(ref_date:str, del_t1, del_t2, wavelength, fovx, fovy, cade
         #cutout,
         )
     print(q)
+    #import sys
+    #sys.exit(0)
     requests = client.request_data(q,method='url-tar')
     print(type(requests))
     print(requests)
