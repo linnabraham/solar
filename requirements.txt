@@ -1,5 +1,0 @@
-sunpy
-sunkit-instruments
-xarray
-#aiapy
-nc-time-axis
