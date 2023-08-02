@@ -1,2 +1,5 @@
 sunpy
-aiapy
+sunkit-instruments
+xarray
+#aiapy
+nc-time-axis
