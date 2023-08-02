@@ -11,7 +11,7 @@ from celluloid import Camera
 import drms
 from time import time
 import os
-
+from aiapy.calibrate import correct_degradation, normalize_exposure, register, update_pointing
 
 class solardemo:
     def __init__(self, event_list_path = None, date_cols = None):
@@ -123,7 +123,15 @@ class solardemo:
         anim = animation.FuncAnimation(fig, animate, frames = len(flux['a_flux']) + 1, interval = 1, blit=False)
         plt.show()
     @staticmethod
-    def anim_ts_sync(map1, flux):
+    def anim_ts_sync(map1, flux, vmax=500):
+
+
+        map1_lists = []
+
+        for amap in map1_list:
+            map1.append(normalize_exposure(amap))
+        map1 = sunpy.map.Map(map1_lists, sequence=True)
+
         print("Length of time series", len(flux['a_flux']))
         print("Length of map sequence", len(map1))
         xmin = flux['a_flux'].time[0].values
@@ -150,7 +158,7 @@ class solardemo:
             #ax1.cla()
             fig = flux['a_flux'][:i].plot(ax=ax2)
             # the following line returns an object of type matplotlib.image.AxesImage
-            map1[i].plot(axes=ax1, norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
+            map1[i].plot(axes=ax1, norm=ImageNormalize(vmin=0, vmax=vmax, stretch=SqrtStretch()))
             #print(type(fig2), "dtype for fig2")
 
             ax2.set_xlim([xmin, xmax])
@@ -215,19 +223,66 @@ class solardemo:
         else:
             return records, filenames
 
+    @staticmethod
+    def download_data(qstr, email, dest=None):
+        client = drms.Client(email=email)
+        export = client.export(qstr, method="url", protocol="fits")
+
+        # create a unique dirname using the timestamp of download
+        if not dest:
+            dirname = f"data/{int(time())}"
+        os.makedirs(dirname)
+        print("Files are downloaded to :", dirname)
+        downloaded_files = export.download(dirname)
+
+    @staticmethod
+    def query_AIA(t_start, t_end, wavelength:int, email, exposure=None):
+        """
+        Function to query JSOC for AIA images with optional filters
+
+        Parameters:
+        start and end timestamps
+        wavelength
+        email: JSOC email
+        exposure(optional)
+
+        Returns:
+        The query string used
+        """
+
+        client = drms.Client(email=email)
+        keys = ["EXPTIME", "QUALITY", "T_OBS", "T_REC", "WAVELNTH"]
+
+        qstr = f"aia.lev1_euv_12s[{t_start}Z-{t_end}Z][? WAVELNTH={wavelength} ?]{{image}}"
+
+        if exposure:
+            qstr = f"aia.lev1_euv_12s[{t_start}Z-{t_end}Z][? EXPTIME<{exposure} AND WAVELNTH={wavelength} ?]{{image}}"
+        print(f"Querying data -> {qstr}")
+
+        records, filenames = client.query(qstr, key=keys, seg="image")
+        print(f"{len(records)} records retrieved. \n")
+        print(records)
+        return qstr
 
 
-#
 
 if __name__=="__main__":
     from glob import glob
     import sys
-    #sys.exit(0)
+
     aia_171_dir = "/home/linn/july/solar/data/1690551846"
     aia_171_paths = glob(os.path.join(aia_171_dir,"*.fits"))
 
     aia_131_dir = "/home/linn/july/solar/data/1690543290"
     aia_131_paths = glob(os.path.join(aia_131_dir, "*.fits"))
+
+    #aia_maps = sunpy.map.Map(aia_131_paths, sequence=True)
+    #aia_l5 = []
+    #for amap in aia_maps:
+    #    aia_l5.append(normalize_exposure(amap))
+    #aia_l5_maps = sunpy.map.Map(aia_l5, sequence=True)
+    #aia_l5_maps.peek(norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
+    #plt.show()
 
     hmi_dir = "/home/linn/july/solar/data/1690906835"
     hmi_paths = glob(os.path.join(hmi_dir, "*.fits"))
@@ -249,12 +304,14 @@ if __name__=="__main__":
     flare_end = "2014-01-07T18:58:00"
 
     sf.read_flare(flux_datapath, flare_start, flare_end)
-    sf.flux = solardemo.resample_flux(mapseq = sf.aia[171], flux = sf.flux)
+    #sf.flux = solardemo.resample_flux(mapseq = sf.aia[171], flux = sf.flux)
+    sf.flux = solardemo.resample_flux(mapseq = sf.aia[131], flux = sf.flux)
     #sf.flux['a_flux'].plot()
     #plt.show()
-    solardemo.anim_sync(sf.flux)
+    #solardemo.anim_sync(sf.flux)
     #solardemo.anim_ts_sync(sf.aia[171], sf.flux)
-    #email = os.environ.get('JSOC_EMAIL')
+    solardemo.anim_ts_sync(sf.aia[131], sf.flux, vmax=200)
+    email = os.environ.get('JSOC_EMAIL')
     #sf.download_HMI(flare_start, flare_end, email)
     #solardemo.anim_ts_sync_all(sf.aia[171], sf.aia[131], sf.hmi, sf.flux) 
 
