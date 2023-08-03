@@ -7,11 +7,13 @@ import sunpy.map
 from astropy.visualization import ImageNormalize, SqrtStretch
 import matplotlib.animation as animation
 from matplotlib.animation import FFMpegWriter
-from celluloid import Camera
+#from celluloid import Camera
 import drms
 from time import time
 import os
+import sys
 from aiapy.calibrate import correct_degradation, normalize_exposure, register, update_pointing
+import astropy.units as u
 
 class solardemo:
     def __init__(self, event_list_path = None, date_cols = None):
@@ -87,6 +89,27 @@ class solardemo:
         flux = flux.sel(time=t_obs, method='nearest')
         return flux
 
+    @staticmethod
+    def anim_AIA(mapseq: sunpy.map.Map):
+        fig = plt.figure()
+        ax = fig.add_subplot(projection=mapseq.maps[0])
+        anim = mapseq.plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
+        plt.colorbar()
+        writergif = animation.PillowWriter(fps=5) 
+        anim.save("aia_131_demo.gif", writer=writergif)
+        plt.show()
+
+    @staticmethod
+    def l1_to_l15(level_1_maps: sunpy.map.Map):
+
+        level_15_maps = []
+
+        for a_map in level_1_maps:
+            map_normalized = normalize_exposure(a_map)
+            level_15_maps.append(map_normalized)
+
+        sequence = sunpy.map.Map(level_15_maps, sequence=True)
+        return sequence
 
     @staticmethod
     def anim_ims(map1, map2):
@@ -122,14 +145,14 @@ class solardemo:
 
         anim = animation.FuncAnimation(fig, animate, frames = len(flux['a_flux']) + 1, interval = 1, blit=False)
         plt.show()
+
     @staticmethod
     def anim_ts_sync(map1, flux, vmax=500):
 
-
         map1_lists = []
 
-        for amap in map1_list:
-            map1.append(normalize_exposure(amap))
+        for amap in map1:
+            map1_lists.append(normalize_exposure(amap))
         map1 = sunpy.map.Map(map1_lists, sequence=True)
 
         print("Length of time series", len(flux['a_flux']))
@@ -139,9 +162,8 @@ class solardemo:
         print(xmin, map1[0].meta['t_obs'])
         print(xmax, map1[-1].meta['t_obs'])
 
-        writer = FFMpegWriter(fps=5)
+        #writer = FFMpegWriter(fps=5)
 
-        import sys
         #sys.exit(0)
 
         fig = plt.figure()
@@ -273,28 +295,22 @@ if __name__=="__main__":
     aia_171_dir = "/home/linn/july/solar/data/1690551846"
     aia_171_paths = glob(os.path.join(aia_171_dir,"*.fits"))
 
-    aia_131_dir = "/home/linn/july/solar/data/1690543290"
+    #aia_131_dir = "/home/linn/july/solar/data/1690543290"
+    aia_131_dir = "/home/linn/july/solar/data/1690534254"
     aia_131_paths = glob(os.path.join(aia_131_dir, "*.fits"))
 
-    #aia_maps = sunpy.map.Map(aia_131_paths, sequence=True)
-    #aia_l5 = []
-    #for amap in aia_maps:
-    #    aia_l5.append(normalize_exposure(amap))
-    #aia_l5_maps = sunpy.map.Map(aia_l5, sequence=True)
-    #aia_l5_maps.peek(norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
-    #plt.show()
 
     hmi_dir = "/home/linn/july/solar/data/1690906835"
-    hmi_paths = glob(os.path.join(hmi_dir, "*.fits"))
+    #hmi_paths = glob(os.path.join(hmi_dir, "*.fits"))
 
     sf = solardemo()
 
-    sf.read_hmi(file_paths = hmi_paths)
+    #sf.read_hmi(file_paths = hmi_paths)
     #sf.hmi.peek()
     #solardemo.anim_HMI(sf.hmi)
     #plt.show()
 
-    sf.read_aia(key=171, file_paths = aia_171_paths)
+    #sf.read_aia(key=171, file_paths = aia_171_paths)
     sf.read_aia(key=131, file_paths = aia_131_paths)
 
     #solardemo.anim_ims(sf.aia[171], sf.aia[131])
@@ -308,10 +324,16 @@ if __name__=="__main__":
     sf.flux = solardemo.resample_flux(mapseq = sf.aia[131], flux = sf.flux)
     #sf.flux['a_flux'].plot()
     #plt.show()
+
+    aia_l15_maps = solardemo.l1_to_l15(sf.aia[131])
+    solardemo.anim_AIA(aia_l15_maps)
+    #solardemo.anim_AIA(sf.aia[131])
+
+    sys.exit(0)
     #solardemo.anim_sync(sf.flux)
     #solardemo.anim_ts_sync(sf.aia[171], sf.flux)
-    solardemo.anim_ts_sync(sf.aia[131], sf.flux, vmax=200)
-    email = os.environ.get('JSOC_EMAIL')
+    #solardemo.anim_ts_sync(sf.aia[131], sf.flux, vmax=200)
+    #email = os.environ.get('JSOC_EMAIL')
     #sf.download_HMI(flare_start, flare_end, email)
     #solardemo.anim_ts_sync_all(sf.aia[171], sf.aia[131], sf.hmi, sf.flux) 
 
