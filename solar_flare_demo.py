@@ -63,6 +63,24 @@ class solardemo:
     def read_aia(self, key, file_paths = []):
         self.aia[key] = sunpy.map.Map(file_paths, sequence=True)
 
+    @staticmethod
+    def downscale_map(mapseq: sunpy.map.Map, dim):
+        """
+        Function for reducing the size of a sunpy map sequence by downscaling it to a 
+        lower resolution using sunpy.map.Map resample function
+
+        Returns:
+        A sunpy map sequence
+        """
+        import astropy.units as u
+        downscaled_maps = []
+        new_dim = dim * u.pixel
+        for smap in mapseq:
+            small_map = smap.resample(new_dim)
+            downscaled_maps.append(small_map)
+        sun_down = sunpy.map.Map(downscaled_maps, sequence=True)
+        return sun_down
+
     def read_hmi(self, file_paths):
         self.hmi = sunpy.map.Map(file_paths, sequence=True)
 
@@ -99,6 +117,7 @@ class solardemo:
         anim.save("aia_131_demo.gif", writer=writergif)
         plt.show()
 
+    @staticmethod
     @staticmethod
     def l1_to_l15(level_1_maps: sunpy.map.Map):
 
@@ -286,21 +305,28 @@ class solardemo:
         print(records)
         return qstr
 
+    @staticmethod
+    def aia_to_png(mapseq: sunpy.map.Map, dest):
+        fig = plt.figure()
+        ax = fig.add_subplot(projection=mapseq.maps[0])
+        for i in range(len(mapseq)):
+            mapseq[i].plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
+            plt.savefig(f"{dest}/image_{i:03d}.png")
 
 
 if __name__=="__main__":
     from glob import glob
     import sys
 
-    aia_171_dir = "/home/linn/july/solar/data/1690551846"
-    aia_171_paths = glob(os.path.join(aia_171_dir,"*.fits"))
+    #aia_171_dir = "/home/linn/july/solar/data/1690551846"
+    #aia_171_paths = glob(os.path.join(aia_171_dir,"*.fits"))
 
     #aia_131_dir = "/home/linn/july/solar/data/1690543290"
     aia_131_dir = "/home/linn/july/solar/data/1690534254"
     aia_131_paths = glob(os.path.join(aia_131_dir, "*.fits"))
 
 
-    hmi_dir = "/home/linn/july/solar/data/1690906835"
+    #hmi_dir = "/home/linn/july/solar/data/1690906835"
     #hmi_paths = glob(os.path.join(hmi_dir, "*.fits"))
 
     sf = solardemo()
@@ -312,23 +338,25 @@ if __name__=="__main__":
 
     #sf.read_aia(key=171, file_paths = aia_171_paths)
     sf.read_aia(key=131, file_paths = aia_131_paths)
-
+    sf.aia[131] = solardemo.downscale_map(sf.aia[131], dim=[512, 512])
     #solardemo.anim_ims(sf.aia[171], sf.aia[131])
 
-    flux_datapath = '/home/linn/july/data/XRS/sci_gxrs-l2-irrad_g15_d20140107_v0-0-0.nc'
+    flux_datapath = '/home/linn/july/solar/data/XRS/sci_gxrs-l2-irrad_g15_d20140107_v0-0-0.nc'
     flare_start = "2014-01-07T18:04:00"
     flare_end = "2014-01-07T18:58:00"
 
-    sf.read_flare(flux_datapath, flare_start, flare_end)
+    #sf.read_flare(flux_datapath, flare_start, flare_end)
     #sf.flux = solardemo.resample_flux(mapseq = sf.aia[171], flux = sf.flux)
-    sf.flux = solardemo.resample_flux(mapseq = sf.aia[131], flux = sf.flux)
+    #sf.flux = solardemo.resample_flux(mapseq = sf.aia[131], flux = sf.flux)
     #sf.flux['a_flux'].plot()
     #plt.show()
 
-    aia_l15_maps = solardemo.l1_to_l15(sf.aia[131])
-    solardemo.anim_AIA(aia_l15_maps)
+    #solardemo.anim_AIA(aia_l15_maps)
     #solardemo.anim_AIA(sf.aia[131])
-
+    #solardemo.capture_AIA(sf.aia[131])
+    aia_l15_maps = solardemo.l1_to_l15(sf.aia[131])
+    #solardemo.capture_AIA(aia_l15_maps)
+    solardemo.aia_to_png(aia_l15_maps, "aia_flare_512")
     sys.exit(0)
     #solardemo.anim_sync(sf.flux)
     #solardemo.anim_ts_sync(sf.aia[171], sf.flux)
