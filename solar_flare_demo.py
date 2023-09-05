@@ -313,6 +313,104 @@ class solardemo:
             mapseq[i].plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
             plt.savefig(f"{dest}/image_{i:03d}.png")
 
+    @staticmethod
+    def get_from_page(url, patt_list,  ext=".fits"):
+        """
+        A function to find all links with a particular extension present in a webpage that matches a pattern list
+
+        Parameters:
+        url: URL of the webpage to scrape
+        patt_list: A list of strings any of which should match with the lists of urls extracted
+        ext: extension of files we are interested in
+
+        Returns:
+        None
+        A text file containing the selected links is created in the current directory
+        """
+
+        from bs4 import BeautifulSoup
+        import requests
+        import subprocess
+
+        r  = requests.get(url)
+        data = r.text
+        soup = BeautifulSoup(data)
+
+        output_file = 'output.txt'
+        with open(output_file, 'a') as file:
+            for link in soup.find_all('a'):
+                name = link.get('href')
+                if name is not None and name.endswith(ext):
+                    for pattern in patt_list:
+                        if pattern in name:
+                            #print(name)
+                            # TODO: Issue with an extra dot appearing in links breaking the link
+                            subprocess.run(['echo', url+name], stdout=file, text=True)
+
+    @staticmethod
+    def find_dates(events: pd.DataFrame, start_date, end_date):
+        """
+        Function to find dates from the GOES flare catalogue that match with a specific time window
+        used by AARPS authors
+
+        Parameters:
+        events: The GOES event list as pandas dataframe
+        start_date: The starting date from the AARPS database to consider in datetime.date format
+        end_date: The ending date to consider in datetime.date format
+
+        Returns:
+        A list containing all the dates as strings in the format "YYYY.MM.DD"
+        """
+
+        import datetime
+        current_date = start_date
+        flare_num = 0
+        allDates = []
+        while current_date <= end_date:
+            current_date += datetime.timedelta(days=1)
+            desired_time = datetime.time(hour=15, minute=48)
+            look_startdatetime = datetime.datetime.combine(current_date, desired_time)
+            desired_time = datetime.time(hour=21, minute=48)
+            look_enddatetime = datetime.datetime.combine(current_date, desired_time)
+
+            for _, row in events.iterrows():
+                fl_start_datetime = row['start_time'].to_pydatetime()
+                fl_end_datetime = row['end_time'].to_pydatetime()
+
+                # TODO: should boundaries be inclusive
+                # Check if the flare start time falls between the start and end of the observation window
+                if fl_start_datetime > look_startdatetime and fl_start_datetime < look_enddatetime:
+                    # Check if the flare ends before the time window ends
+                    if fl_end_datetime < look_enddatetime:
+                        flare_num += 1
+                        #print(flare_num, "Found GOES FLARE:", fl_start_datetime, "->", fl_end_datetime)
+                        year = fl_start_datetime.date().year
+                        month = fl_start_datetime.date().month
+                        day = fl_start_datetime.date().day
+                        datestr = f"{year}.{month:0>2d}.{day:0>2d}"
+                        allDates.append(datestr)
+        return allDates
+
+    @staticmethod
+    def download_AARPS(baseurl="https://umbra.nascom.nasa.gov/contributed/AIA_AARPS/"):
+        """
+        Function to download AIA active region patches as fits files from folders
+        from a website. The folders are named in YYYYMM format
+        """
+        import datetime
+        events = solardemo.read_event_list("./data/GOES_event_list.csv", date_cols = ["event_date","start_time","peak_time","end_time"])
+        start_date = datetime.date(year=2010, month=6, day=1)
+        end_date = datetime.date(year=2018, month=12, day=31)
+
+        allDates = solardemo.find_dates(events, start_date, end_date)
+        assert isinstance(allDates[0],str)
+        # Loop to create the url for the AARPS webpage one page per month to be passed to the get_from_page function
+        for year in range(2010, 2019):
+            for month in range (1,13):
+                comb = str(year)+ f"{month:0>2d}"
+                page = baseurl + comb
+                solardemo.get_from_page(page, allDates)
+
 
 if __name__=="__main__":
     from glob import glob
