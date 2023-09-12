@@ -40,7 +40,7 @@ if __name__=="__main__":
 
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train),
                                             output_types=tf.float32,
-                                            output_shapes=[6, 512, 512])
+                                            output_shapes=[7, 512, 512])
     labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_train),
                                             output_types = tf.int32,
                                             output_shapes = ())
@@ -51,7 +51,7 @@ if __name__=="__main__":
 
     # force channels-first ordering
     backend.set_image_data_format('channels_first')
-    model = AlexNet.build(width=512, height=512, depth=6, classes=1, reg=0.0002)
+    model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3))
 
