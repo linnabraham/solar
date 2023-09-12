@@ -52,9 +52,13 @@ if __name__=="__main__":
     # force channels-first ordering
     backend.set_image_data_format('channels_first')
     model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
+
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3))
 
-    history = model.fit(dataset, epochs=10, shuffle=True)
+    history = model.fit(dataset, epochs=50, shuffle=True)
+
+    predictions = model.predict(dataset)
+    print(predictions)
 
 
