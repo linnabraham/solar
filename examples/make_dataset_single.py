@@ -76,6 +76,9 @@ if __name__=="__main__":
         # iterate over the 7 channels in single fits
         for channel_num in range(1, header['NTIMES']+1):
             data = hdul[channel_num].data
+            if data is None:
+                print("Empty data encountered in ", file_name)
+                continue
             header = hdul[channel_num].header
             extname = f"T_IMG{channel_num:0>2d}"
             nimgs = data.shape[0]
