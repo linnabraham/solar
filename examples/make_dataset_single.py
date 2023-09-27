@@ -60,13 +60,12 @@ def pad_or_scale(data:np.ndarray, height, width):
 
 
 if __name__=="__main__":
-    from solar_flare_demo import solardemo
-    sf = solardemo()
 
     flare_start = "2014-01-07T18:04:00"
     flare_end = "2014-01-07T18:58:00"
 
-    aarp_data_path = "../AARPS_3563_fits/"
+    aarp_data_path = sys.argv[1]
+    dest = sys.argv[2]
     counter = 0
     # iterate over individual fits file in folder
     for file_name in os.listdir(aarp_data_path):
