@@ -90,7 +90,10 @@ if __name__=="__main__":
                 new_img = pad_or_scale(img, 512, 512)
                 hdu = fits.PrimaryHDU(data=new_img)
                 new_hdul = fits.HDUList([hdu])
-                fits_filename = f'AARPS_3563_{timestamp}_{wavelength}.fits'
-                new_hdul.writeto(fits_filename, overwrite=True)
+                file_name_noext = os.path.splitext(file_name)[0]
+                aarp_id, wavelength = file_name_noext.split("_")[3:5]
+                fits_filename = f'{aarp_id}_{wavelength}_{timestamp}.fits'
+                if dest:
+                    new_hdul.writeto(os.path.join(dest,fits_filename))
                 counter+=1
 
