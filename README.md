@@ -10,6 +10,7 @@ resizes to a fixed size and saves it as a single FITS file. If there is some dat
 the user is notified. The destination to save the extracted files should also be passed to the script
 + The `check_data.py` reads the extracted files and select those for which simultaneous observations exists in the non UV passbands. 
 It dumps these filenames as a list into the metadata file named `solar_dataset.json` which is read by the training script.
++ The `train_alexnet.py` file does the actual training. The AlexNet model is implemented in the `helpers/alexnet.py` script.
 
 
 ## Data download
