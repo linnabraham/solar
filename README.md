@@ -1,5 +1,17 @@
 # Solar Flare Prediction
 
+## ML Training (2023-09-27)
+
++ Data used for current training comes from the AARPS database
++ It consists of one FITS file for every day of observation and for every pass band and for every Active Region
++ Each of these FITS files consists of multiple datacubes which span the 7 hr observation
++ The `examples/make_dataset_single.py` reads files in the directory unpacks the FITS files into individual images 
+resizes to a fixed size and saves it as a single FITS file. If there is some data integrity issue the file is skipped and 
+the user is notified. The destination to save the extracted files should also be passed to the script
++ The `check_data.py` reads the extracted files and select those for which simultaneous observations exists in the non UV passbands. 
+It dumps these filenames as a list into the metadata file named `solar_dataset.json` which is read by the training script.
+
+
 ## Data download
 
 Scripts in the `helpers` directory
