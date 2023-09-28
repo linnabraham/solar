@@ -5,6 +5,10 @@ import tensorflow as tf
 import numpy as np
 from helpers.alexnet import AlexNet
 from tensorflow.keras import backend
+import wandb
+from wandb.keras import WandbCallback
+
+wandb.init(project="AARP_Train")
 
 def read_fits(file_path):
     hdul = fits.open(file_path)
@@ -28,7 +32,7 @@ def label_generator(collection):
 
 
 if __name__=="__main__":
-    json_path = "AARPS_Fixed_Size/dataset.json"
+    json_path = "solar_dataset.json"
     with open(json_path) as f:
         data = json.load(f)
 
@@ -56,7 +60,7 @@ if __name__=="__main__":
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3))
 
-    history = model.fit(dataset, epochs=50, shuffle=True)
+    history = model.fit(dataset, epochs=50, shuffle=True, callbacks=[WandbCallback()])
 
     predictions = model.predict(dataset)
     print(predictions)
