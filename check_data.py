@@ -25,20 +25,21 @@ for group_key, group_df in grouped:
         if set([int(item) for item in group_df['Wavelength'].values]) == set(fixed_bands):
             concat_list.append(group_df)
             training.append({
-             "0": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[0]].values[0]),
-             "1": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[1]].values[0]),
-             "2": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[2]].values[0]),
-             "3": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[3]].values[0]),
-             "4": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[4]].values[0]),
-             "5": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[5]].values[0]),
-             "6": os.path.join(src_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[6]].values[0]),
+             "0": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[0]].values[0]),
+             "1": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[1]].values[0]),
+             "2": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[2]].values[0]),
+             "3": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[3]].values[0]),
+             "4": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[4]].values[0]),
+             "5": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[5]].values[0]),
+             "6": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[6]].values[0]),
              "label": "1"
                })
 
 print("No. of timestamps in 7 fixed bands", fixed_bands, " = ",  len(concat_list))
 
-#plt.hist(obs_ts)
-#plt.savefig("obs_ts_hist.png")
+plt.hist(obs_ts)
+plt.savefig("obs_ts_hist.png")
+#sys.exit(0)
 
 metadata = { "name" : "Fixed size AARPS",
         "description" : "Active Region patches from AARPS database downscaled or padded to a fixed resolution and unpacked",
