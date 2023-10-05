@@ -58,6 +58,5 @@ if __name__=="__main__":
         print("Adding links to file..")
         with open(output_file, 'a') as file:
             for link in gen:
-                #print(link)
-                fullpath = os.path.join(baseurl,link)
+                fullpath = os.path.join(page,link)
                 subprocess.run(['echo', fullpath], stdout=file, text=True)
