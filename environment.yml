@@ -1,5 +1,3 @@
-name: solarconda
-
 channels:
   - conda-forge
   - defaults
