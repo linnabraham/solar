@@ -306,6 +306,16 @@ class solardemo:
         return qstr
 
     @staticmethod
+    def capture_AIA(mapseq: sunpy.map.Map):
+        fig = plt.figure()
+        ax = fig.add_subplot(projection=mapseq.maps[0])
+        writer = FFMpegWriter(fps=30)
+        with writer.saving(fig, "writer_test.mp4", len(mapseq)):
+            for i in range(len(mapseq)):
+                mapseq[i].plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=500, stretch=SqrtStretch()))
+                writer.grab_frame()
+
+    @staticmethod
     def aia_to_png(mapseq: sunpy.map.Map, dest):
         fig = plt.figure()
         ax = fig.add_subplot(projection=mapseq.maps[0])
