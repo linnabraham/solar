@@ -8,3 +8,4 @@ dependencies:
   - xarray
   - aiapy
   - nc-time-axis
+  - beautifulsoup4
