@@ -9,7 +9,8 @@ from tensorflow.keras.callbacks import ModelCheckpoint, Callback, TensorBoard
 import wandb
 from wandb.keras import WandbCallback
 import sys
-
+import logging
+tf.get_logger().setLevel(logging.WARNING)
 wandb.init(project="AARP_Train")
 
 class SaveHistoryCallback(Callback):
