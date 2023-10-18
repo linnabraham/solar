@@ -121,4 +121,5 @@ if __name__=="__main__":
         print("[INFO] compiling model...")
         model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
 
-        history = model.fit(train_data, validation_data=val_data,  epochs=50, shuffle=True, callbacks=[mc,hc, WandbCallback()])
+        history = model.fit(train_data, validation_data=val_data,  epochs=50, shuffle=True, callbacks=[mc,hc, WandbCallback(save_model=(False),save_graph=(False))])
+        wandb.finish()
