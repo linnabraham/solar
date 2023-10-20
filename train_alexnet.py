@@ -98,28 +98,18 @@ if __name__=="__main__":
     hc = SaveHistoryCallback(history_path)
 
 
-    # Define a function to accumulate the size of the dataset
-    def accumulate_size(count, _):
-            return count + 1
+    train_size = np.floor(0.8 * len(x_train))
+    print("Train split length", train_size)
 
-    # Initialize a counter
-    initial_count = tf.constant(0)
-
-    # Use the reduce method to count the elements in the dataset
-    dataset_size = dataset.reduce(initial_count, accumulate_size)
-    dataset_size = dataset_size.numpy()
-    train_size = np.floor(0.8*dataset_size)
-    print("Train spit length", train_size)
     train_data = dataset.take(train_size)
     val_data = dataset.skip(train_size)
     train_data = train_data.batch(8)
     val_data = val_data.batch(8)
 
-    with tf.device('/CPU:0'):
-        model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
+    model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
 
-        print("[INFO] compiling model...")
-        model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
+    print("[INFO] compiling model...")
+    model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
 
-        history = model.fit(train_data, validation_data=val_data,  epochs=50, shuffle=True, callbacks=[mc,hc, WandbCallback(save_model=(False),save_graph=(False))])
-        wandb.finish()
+    history = model.fit(train_data, validation_data=val_data,  epochs=50, shuffle=True, callbacks=[mc,hc, WandbCallback(save_model=(False),save_graph=(False))])
+    wandb.finish()
