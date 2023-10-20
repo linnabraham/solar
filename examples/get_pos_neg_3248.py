@@ -42,6 +42,9 @@ if __name__=="__main__":
 
     main_class = goes_df['goes_class'].apply(lambda x: x[0])
     urls_x = urldf[urldf['AARP'].isin(goes_df['harpnum'][main_class=='X'])]
+    print("Writing to file -> list of urls for  all X-class flares")
+    urls_x.to_csv(os.path.join(parent_dir,f"data/aarps_pos_{n_urls_x}.csv"), index=False, header=None)
+
     grouped =  urls_x.groupby(['AARP','Datetime'])
     x_groups = grouped.ngroups
     n_urls_x = len(urls_x)
@@ -50,5 +53,5 @@ if __name__=="__main__":
     all_neg = urldf[urldf['flared_labels']==0]
     print("Number of non-flaring AR observations (urls)",len(all_neg))
     balanced_neg = all_neg[:n_urls_x]
-    print("Saving list of urls")
-    balanced_neg.urls.to_csv(os.path.join(parent_dir,f"data/aarps_neg_{n_urls_x}.csv"), index=False, header=None)
+    print("Writing to file -> list of urls for non-flaring ARs (balanced)")
+    #balanced_neg.urls.to_csv(os.path.join(parent_dir,f"data/aarps_neg_{n_urls_x}.csv"), index=False, header=None)
