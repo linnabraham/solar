@@ -87,6 +87,11 @@ if __name__=="__main__":
                 img = data[nimg]
                 obstime_key = f"T_IMG{nimg:0>2d}"
                 timestamp = header[obstime_key]
+                if timestamp == 'NaN':
+                    print("Processing file", file_name)
+                    print("Data missing in header", obstime_key)
+                    print("Skipping")
+                    continue
                 new_img = pad_or_scale(img, 512, 512)
                 hdu = fits.PrimaryHDU(data=new_img)
                 new_hdul = fits.HDUList([hdu])
