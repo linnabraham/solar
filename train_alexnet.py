@@ -10,6 +10,8 @@ import wandb
 from wandb.keras import WandbCallback
 import sys
 import logging
+import tensorflow_addons as tfa
+
 tf.get_logger().setLevel(logging.WARNING)
 wandb.init(project="AARP_Train")
 
@@ -49,6 +51,10 @@ def img_generator(collection):
 def label_generator(collection):
     for element in collection:
         yield element
+
+def rescale(image, label):
+    image = tf.image.per_image_standardization(image)
+    return image, label
 
 
 if __name__=="__main__":
@@ -98,18 +104,25 @@ if __name__=="__main__":
     hc = SaveHistoryCallback(history_path)
 
 
-    train_size = np.floor(0.8 * len(x_train))
+    train_size = np.floor(0.1 * len(x_train))
+    test_size  = np.floor(0.9 * len(x_train))
+    val_size = np.floor(0.5 * 0.1 * len(x_train))
     print("Train split length", train_size)
+    print("Val split length", val_size)
+    print("Test split length", test_size)
 
     train_data = dataset.take(train_size)
-    val_data = dataset.skip(train_size)
-    train_data = train_data.batch(8)
-    val_data = val_data.batch(8)
+    rest_data = dataset.skip(train_size)
+    val_data = rest_data.take(val_size)
+
+    train_data = train_data.shuffle(buffer_size=1000).map(rescale).batch(32)
+    val_data = val_data.shuffle(buffer_size=1000).map(rescale).batch(32)
 
     model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
 
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
 
-    history = model.fit(train_data, validation_data=val_data,  epochs=50, shuffle=True, callbacks=[mc,hc, WandbCallback(save_model=(False),save_graph=(False))])
+    history = model.fit(train_data, validation_data=val_data,  verbose=1, epochs=50, shuffle=True, callbacks=[mc,hc, 
+        WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
