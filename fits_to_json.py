@@ -2,9 +2,12 @@
 import os, sys
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
 
 pos_data_dir = sys.argv[1]
 neg_data_dir = sys.argv[2]
+
+fixed_bands = [94, 131, 171, 193, 211, 304, 335]
 
 def create_dict(data_dir, label):
 
@@ -17,12 +20,15 @@ def create_dict(data_dir, label):
     fname_df['Wavelength'] = fname_df['Wavelength'].astype(int)
     fname_df['AARPID'] = fname_df['AARPID'].astype(int)
     print("unique length of timestamps", len(pd.unique(fname_df['Timestamp'])))
-    grouped =  fname_df.groupby(['AARPID','Timestamp'])
     obs_ts = []
     training = []
     concat_list = []
-    fixed_bands = [94, 131, 171, 193, 211, 304, 335]
+    # iterate over a group of images with different wavelengths but same timestamp and aarp id
+    grouped =  fname_df.groupby(['AARPID','Timestamp'])
     for group_key, group_df in grouped:
+        # convert np.int64 to int for json serialization
+        group_aarp_id = int(group_key[0])
+        group_timestamp = group_key[1]
         obs_ts.append(len(group_df))
         if len(group_df)==7:
             if set([int(item) for item in group_df['Wavelength'].values]) == set(fixed_bands):
@@ -35,40 +41,42 @@ def create_dict(data_dir, label):
                  "4": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[4]].values[0]),
                  "5": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[5]].values[0]),
                  "6": os.path.join(data_dir, group_df['filename'].loc[group_df['Wavelength']==fixed_bands[6]].values[0]),
-                 "label": label 
+                 "label": label,
+                 "aarp_id": group_aarp_id,
+                 "timestamp": group_timestamp
                    }
                 training.append(training_entry)
     print("No. of timestamps in 7 fixed bands", fixed_bands, " = ",  len(concat_list))
     return training
-    #print (training)
 
+def write_file(metadata: dict, filename="solar_dataset_X.json"):
 
-#plt.hist(obs_ts)
-#plt.savefig("obs_ts_hist.png")
-trainings = []
-tr_entries = create_dict(pos_data_dir, label="1")
-trainings.extend(tr_entries)
-tr_entries = create_dict(neg_data_dir, label="0")
-trainings.extend(tr_entries)
+    with open(filename, "w") as write_file:
+        json.dump(metadata, write_file, indent=4)
 
-metadata = { "name" : "Fixed size AARPS",
-        "description" : "Active Region patches from AARPS database downscaled or padded to a fixed resolution and unpacked",
-#        "channels" : {
-#            "0" : fixed_bands[0],
-#            "1" : fixed_bands[1],
-#            "2" : fixed_bands[2],
-#            "3" : fixed_bands[3],
-#            "4" : fixed_bands[4],
-#            "5" : fixed_bands[5],
-#            "6" : fixed_bands[6]
-#            },
-        "training" : trainings
-        }
+if __name__=="__main__":
+    #plt.hist(obs_ts)
+    #plt.savefig("obs_ts_hist.png")
+    trainings = []
+    tr_entries = create_dict(pos_data_dir, label="1")
+    trainings.extend(tr_entries)
+    tr_entries = create_dict(neg_data_dir, label="0")
+    trainings.extend(tr_entries)
 
+    metadata = { "name" : "Fixed size AARPS",
+            "description" : "Active Region patches from AARPS database downscaled or padded to a fixed resolution and unpacked",
+            "channels" : {
+                "0" : fixed_bands[0],
+                "1" : fixed_bands[1],
+                "2" : fixed_bands[2],
+                "3" : fixed_bands[3],
+                "4" : fixed_bands[4],
+                "5" : fixed_bands[5],
+                "6" : fixed_bands[6]
+                },
+            "training" : trainings
+            }
 
-import json
-pretty = json.dumps(metadata, indent=4)
-#print(pretty)
-
-with open(f"solar_dataset.json", "w") as write_file:
-    json.dump(metadata, write_file, indent=4)
+    write_file(metadata)
+    pretty = json.dumps(metadata, indent=4)
+    #print(pretty)
