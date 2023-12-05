@@ -104,9 +104,9 @@ if __name__=="__main__":
     hc = SaveHistoryCallback(history_path)
 
 
-    train_size = np.floor(0.1 * len(x_train))
-    test_size  = np.floor(0.9 * len(x_train))
-    val_size = np.floor(0.5 * 0.1 * len(x_train))
+    train_size = np.floor(0.6 * len(x_train))
+    test_size  = np.floor(0.2 * len(x_train))
+    val_size = np.floor(0.2 * len(x_train))
     print("Train split length", train_size)
     print("Val split length", val_size)
     print("Test split length", test_size)
@@ -115,8 +115,8 @@ if __name__=="__main__":
     rest_data = dataset.skip(train_size)
     val_data = rest_data.take(val_size)
 
-    train_data = train_data.shuffle(buffer_size=1000).map(rescale).batch(32)
-    val_data = val_data.shuffle(buffer_size=1000).map(rescale).batch(32)
+    train_data = train_data.map(rescale).batch(128)
+    val_data = val_data.map(rescale).batch(128)
 
     model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
 
