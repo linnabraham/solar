@@ -1,4 +1,8 @@
 #!/bin/env python
+"""
+Script for creating two separate text files for positive and negative aarp urls to be downloaded 
+It takes the full list of AARP urls as input and assigns labels using the GOES event list catalogue
+"""
 import pandas as pd
 import sys,os
 
@@ -26,32 +30,41 @@ def match_noaa_to_harpnum(x):
     else:
         return match[0]
 
-if __name__=="__main__":
+if __name__ == "__main__":
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.abspath(os.path.join(cur_dir,".."))
+
     aarps_full_df = pd.read_csv(os.path.join(parent_dir,"data/aarps_full_urlist.txt"), header=None, names=['urls'])
-    urldf = split_urllist(aarps_full_df,'urls')
     noaa_to_harps = pd.read_csv(os.path.join(parent_dir,"data/all_harps_with_noaa_ars.txt"), delim_whitespace=True)
     orginal_map = noaa_to_harps.copy()
-    noaa_to_harps = split_ondupes(noaa_to_harps)
-    flared_harps = pd.unique(noaa_to_harps.HARPNUM)
     goes_df = pd.read_csv(os.path.join(parent_dir,"data/GOES_event_list.csv"))
     orginal_goes = goes_df.copy()
-    goes_df['harpnum'] =  goes_df['noaa_active_region'].apply(match_noaa_to_harpnum)
+
+    urldf = split_urllist(aarps_full_df,'urls')
+    noaa_to_harps = split_ondupes(noaa_to_harps)
+    flared_harps = pd.unique(noaa_to_harps.HARPNUM)
     urldf['flared_labels'] = urldf.AARP.apply(lambda x: 1 if x in flared_harps else 0)
 
+    # sub select only AARPS that have resulted in X class flares
     main_class = goes_df['goes_class'].apply(lambda x: x[0])
+    goes_df['harpnum'] =  goes_df['noaa_active_region'].apply(match_noaa_to_harpnum)
     urls_x = urldf[urldf['AARP'].isin(goes_df['harpnum'][main_class=='X'])]
+
     print("Writing to file -> list of urls for  all X-class flares")
     urls_x.to_csv(os.path.join(parent_dir,f"data/aarps_pos_{n_urls_x}.csv"), index=False, header=None)
 
+    # find number of flares to be selected from negative samples
     grouped =  urls_x.groupby(['AARP','Datetime'])
     x_groups = grouped.ngroups
     n_urls_x = len(urls_x)
+
     print("Number of X-class flare urls", n_urls_x)
     print("X-class flare urls grouped by Wavelength", x_groups)
+
+    # select the first n non flaring aarps 
     all_neg = urldf[urldf['flared_labels']==0]
     print("Number of non-flaring AR observations (urls)",len(all_neg))
     balanced_neg = all_neg[:n_urls_x]
+
     print("Writing to file -> list of urls for non-flaring ARs (balanced)")
-    #balanced_neg.urls.to_csv(os.path.join(parent_dir,f"data/aarps_neg_{n_urls_x}.csv"), index=False, header=None)
+    balanced_neg.urls.to_csv(os.path.join(parent_dir,f"data/aarps_neg_{n_urls_x}.csv"), index=False, header=None)
