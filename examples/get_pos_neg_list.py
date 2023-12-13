@@ -54,22 +54,22 @@ if __name__ == "__main__":
     flared_harps = pd.unique(noaa_to_harps.HARPNUM)
     urldf['flared_labels'] = urldf.AARP.apply(lambda x: 1 if x in flared_harps else 0)
 
+    goes_df['harpnum'] =  goes_df['noaa_active_region'].apply(match_noaa_to_harpnum)
+    goes_df.to_csv("data/GOES_limb_removed.csv", index=False)
     # sub select only AARPS that have resulted in X class flares
     main_class = goes_df['goes_class'].apply(lambda x: x[0])
-    goes_df['harpnum'] =  goes_df['noaa_active_region'].apply(match_noaa_to_harpnum)
     urls_x = urldf[urldf['AARP'].isin(goes_df['harpnum'][main_class=='X'])]
     print("Selecting only X class flares")
 
-    print("Writing to file -> list of urls for flaring AARPS")
-    urls_x.to_csv(os.path.join(parent_dir,f"data/aarps_pos_{n_urls_x}.csv"), index=False, header=None)
-
+    n_urls_x = len(urls_x)
+    print("Number of X-class flare urls: ", n_urls_x)
     # find number of flares to be selected from negative samples
     grouped =  urls_x.groupby(['AARP','Datetime'])
     x_groups = grouped.ngroups
-    n_urls_x = len(urls_x)
-
-    print("Number of X-class flare urls: ", n_urls_x)
     print("X-class flare urls grouped by same AARP ID and Timestamp: ", x_groups)
+
+    print("Writing to file -> list of urls for flaring AARPS")
+    #urls_x.to_csv(os.path.join(parent_dir,f"data/aarps_pos_{n_urls_x}.csv"), index=False, header=None)
 
     # select the first n non flaring aarps 
     all_neg = urldf[urldf['flared_labels']==0]
@@ -78,4 +78,4 @@ if __name__ == "__main__":
     balanced_neg = all_neg[:n_urls_x]
 
     print("Writing to file -> list of urls for non-flaring ARs")
-    balanced_neg.urls.to_csv(os.path.join(parent_dir,f"data/aarps_neg_{n_urls_x}.csv"), index=False, header=None)
+    #balanced_neg.to_csv(os.path.join(parent_dir,f"data/aarps_neg_{n_urls_x}.csv"), index=False, header=None)
