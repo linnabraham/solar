@@ -1,9 +1,11 @@
 #!/bin/env python
 """
-This script is meant to read the positive and negative AARPS we have selected
-and the json file containing the metadata for all the files extracted from these AARPS fits 
-files. It selects the central timestamp from the 11 images taken each hour
+This scripts creates a new json file from an existing json file 
+that lists all the individual aarp images 
+It selects only the central timestamp from the 11 images taken each hour
+for inclusion in the new json file
 """
+
 import os
 from astropy.io import fits
 import json
