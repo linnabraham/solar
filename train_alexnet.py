@@ -56,9 +56,7 @@ def rescale(image, label):
     image = tf.image.per_image_standardization(image)
     return image, label
 
-
-if __name__=="__main__":
-    json_path = "solar_dataset.json"
+def dataset_from_json(json_path):
     with open(json_path) as f:
         data = json.load(f)
 
@@ -68,6 +66,13 @@ if __name__=="__main__":
                  ]
         y_train = [p['label'] for p in data.get('training')]
 
+        x_val  = [
+                [os.path.join(os.path.dirname(json_path), c[str(i)]) for i in range(7)]
+                 for c in data.get('validation')
+                 ]
+        y_val = [p['label'] for p in data.get('validation')]
+
+
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train),
                                             output_types=tf.float32,
                                             output_shapes=[7, 512, 512])
@@ -75,8 +80,24 @@ if __name__=="__main__":
                                             output_types = tf.int32,
                                             output_shapes = ())
 
-    dataset = tf.data.Dataset.zip((images, labels))
+    train_ds = tf.data.Dataset.zip((images, labels))
 
+    images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_val),
+                                            output_types=tf.float32,
+                                            output_shapes=[7, 512, 512])
+    labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_val),
+                                            output_types = tf.int32,
+                                            output_shapes = ())
+
+    val_ds = tf.data.Dataset.zip((images, labels))
+
+    return train_ds, val_ds
+
+
+if __name__=="__main__":
+    json_path = "solar_dataset.json"
+
+    train_ds, val_ds = dataset_from_json(json_path=json_path)
 
     # force channels-first ordering
     backend.set_image_data_format('channels_first')
