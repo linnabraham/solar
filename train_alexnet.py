@@ -124,26 +124,14 @@ if __name__=="__main__":
     history_path = os.path.join(outdir,'history.json')
     hc = SaveHistoryCallback(history_path)
 
-
-    train_size = np.floor(0.6 * len(x_train))
-    test_size  = np.floor(0.2 * len(x_train))
-    val_size = np.floor(0.2 * len(x_train))
-    print("Train split length", train_size)
-    print("Val split length", val_size)
-    print("Test split length", test_size)
-
-    train_data = dataset.take(train_size)
-    rest_data = dataset.skip(train_size)
-    val_data = rest_data.take(val_size)
-
-    train_data = train_data.map(rescale).batch(128)
-    val_data = val_data.map(rescale).batch(128)
+    train_ds = train_ds.map(rescale).batch(128)
+    val_ds = val_ds.map(rescale).batch(128)
 
     model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
 
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
 
-    history = model.fit(train_data, validation_data=val_data,  verbose=1, epochs=50, shuffle=True, callbacks=[mc,hc, 
+    history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=150, shuffle=True, callbacks=[mc,hc, 
         WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
