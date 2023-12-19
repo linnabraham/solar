@@ -1,9 +1,10 @@
 #!/bin/env python
 """
-This scripts creates a new json file from an existing json file 
-that lists all the individual aarp images 
-It selects only the central timestamp from the 11 images taken each hour
-for inclusion in the new json file
+This scripts read multi hour aarp data from folders and obtains the central
+timestamp of each 11 image sequence into a list of desired timestamps
+Then it reads the training, validation and test sections in an existing json metadata file 
+and if any of the timestamp matches with desired timestamps in the lists add this to the
+corresponding section in a new json metadata file
 """
 
 import os
