@@ -1,5 +1,15 @@
 # Solar Flare Prediction
 
+## ML Training (2023-12-19)
+
++ We first create a json metadata (`solar_dataset_X.json`) file using the `fits_to_json.py` script. This adds the paths of individual aarp images in 
+group of 7 passbands as individual dicts in three lists (training, validation or test). Filtering based on aarp location data is 
+done at this stage.
++ To make the dataset more manageable in size we only take the central image from each of the 11 consecutive images taken every hour.
+This is done using the `filter_ds.py` script which creates a `solar_dataset.json` file.
++ This is the file that is read by the `train_alexnet.py` script. `evaluate_alexnet.py` script does the evaluation on trained model.
++ The `integ_grad.py` is for model interpretation using Integrated gradient pixel attribution technique.
+
 ## ML Training (2023-10-05)
 
 + The `examples/scrape_aarps.py` is used to create the full url list from AARPS
