@@ -86,5 +86,31 @@ for timestamp in tqdm(desired_ts, desc="Timestamps"):
 print(len(new_training))
 data['training'] = new_training
 
+new_validation = []
+# filter existing timestamps to only select those in the new subset
+for timestamp in tqdm(desired_ts, desc="Timestamps"):
+    for entry in data['validation']:
+        # use only first filename as all other wavelengths have same timestamp
+        first_filename = entry["0"] 
+        if timestamp not in first_filename:
+            continue
+        else:
+            new_validation.append(entry)
+print(len(new_validation))
+data['validation'] = new_validation
+
+new_test = []
+# filter existing timestamps to only select those in the new subset
+for timestamp in tqdm(desired_ts, desc="Timestamps"):
+    for entry in data['test']:
+        # use only first filename as all other wavelengths have same timestamp
+        first_filename = entry["0"] 
+        if timestamp not in first_filename:
+            continue
+        else:
+            new_test.append(entry)
+print(len(new_test))
+data['test'] = new_test
+
 with open("solar_dataset.json","w") as write_file:
     json.dump(data, write_file, indent=4)
