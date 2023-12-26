@@ -9,6 +9,8 @@ done at this stage.
 This is done using the `filter_ds.py` script which creates a `solar_dataset.json` file.
 + This is the file that is read by the `train_alexnet.py` script. `evaluate_alexnet.py` script does the evaluation on trained model.
 + The `integ_grad.py` is for model interpretation using Integrated gradient pixel attribution technique.
++ The `helpers/get_location.py` script is used to incorporate location of each 7h aarp by reading the FITS headers and create 
+a metadata table with more information that is saved as `aarp_dataframe.csv`
 
 ## ML Training (2023-10-05)
 
