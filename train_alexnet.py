@@ -11,6 +11,7 @@ from wandb.keras import WandbCallback
 import sys
 import logging
 import tensorflow_addons as tfa
+import argparse
 
 tf.get_logger().setLevel(logging.WARNING)
 wandb.init(project="AARP_Train")
@@ -38,7 +39,7 @@ def read_fits(file_path):
 
 def _parse_images(imgs:list):
     #TODO: dont hardocode height and width
-    images = np.zeros((len(imgs),512, 512))
+    images = np.zeros((len(imgs), height, width))
     for i, img in enumerate(imgs):
         image = read_fits(file_path=img)
         images[i,:,:] = image
@@ -75,7 +76,7 @@ def dataset_from_json(json_path):
 
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train),
                                             output_types=tf.float32,
-                                            output_shapes=[7, 512, 512])
+                                            output_shapes=[7, height, width])
     labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_train),
                                             output_types = tf.int32,
                                             output_shapes = ())
@@ -84,7 +85,7 @@ def dataset_from_json(json_path):
 
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_val),
                                             output_types=tf.float32,
-                                            output_shapes=[7, 512, 512])
+                                            output_shapes=[7, height, width])
     labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_val),
                                             output_types = tf.int32,
                                             output_shapes = ())
@@ -95,6 +96,13 @@ def dataset_from_json(json_path):
 
 
 if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-input_shape', type=tuple_type, default=(512,512))
+    args = parser.parse_args()
+
+    height = args.input_shape[0]
+    width = args.input_shape[1]
+
     json_path = "solar_dataset.json"
 
     train_ds, val_ds = dataset_from_json(json_path=json_path)
@@ -127,7 +135,7 @@ if __name__=="__main__":
     train_ds = train_ds.map(rescale).batch(128)
     val_ds = val_ds.map(rescale).batch(128)
 
-    model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
+    model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
 
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)

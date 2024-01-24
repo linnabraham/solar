@@ -37,7 +37,7 @@ def rescale(image, label):
     return image, label
 
 def get_trained_model(METRICS):
-    model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
+    model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
     model.load_weights("outputs/best_model.h5")
@@ -49,7 +49,7 @@ def read_fits(file_path):
 
 def _parse_images(imgs:list):
     #TODO: dont hardocode height and width
-    images = np.zeros((len(imgs),512, 512))
+    images = np.zeros((len(imgs),height, width))
     for i, img in enumerate(imgs):
         image = read_fits(file_path=img)
         images[i,:,:] = image
@@ -133,7 +133,7 @@ def get_attributions_mask(images, model):
     m_steps=50
     alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps+1) # Generate m_steps intervals for integral_approximation() below.
 
-    baseline = tf.zeros(shape=(7, 512, 512))
+    baseline = tf.zeros(shape=(7, height, width))
     interpolated_images = interpolate_images(baseline, images, alphas=alphas)
 
     path_gradients = compute_gradients(
@@ -159,6 +159,13 @@ def get_attributions_mask(images, model):
 
 
 if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-input_shape', type=tuple_type, default=(512,512))
+    args = parser.parse_args()
+
+    height = args.input_shape[0]
+    width = args.input_shape[1]
+    
     json_path = "solar_dataset.json"
     with open(json_path) as f:
         data = json.load(f)

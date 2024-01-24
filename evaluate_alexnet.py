@@ -6,6 +6,8 @@ import numpy as np
 import tensorflow as tf
 from helpers.alexnet import AlexNet
 from tensorflow.keras import backend
+import argparse
+
 
 def read_fits(file_path):
     hdul = fits.open(file_path)
@@ -13,7 +15,7 @@ def read_fits(file_path):
 
 def _parse_images(imgs:list):
     #TODO: dont hardocode height and width
-    images = np.zeros((len(imgs),512, 512))
+    images = np.zeros((len(imgs),height, width))
     for i, img in enumerate(imgs):
         image = read_fits(file_path=img)
         images[i,:,:] = image
@@ -48,7 +50,13 @@ def print_results(dataset, model):
     print(results)
 
 if __name__=="__main__":
-    json_path = "solar_dataset.json"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-input_shape', type=tuple_type, default=(512,512))
+    args = parser.parse_args()
+
+    height = args.input_shape[0]
+    width = args.input_shape[1]
+json_path = "solar_dataset.json"
     with open(json_path) as f:
         data = json.load(f)
 
@@ -60,7 +68,7 @@ if __name__=="__main__":
 
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_test),
                                             output_types=tf.float32,
-                                            output_shapes=[7, 512, 512])
+                                            output_shapes=[7, height, width])
     labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_test),
                                             output_types = tf.int32,
                                             output_shapes = ())
@@ -71,7 +79,7 @@ if __name__=="__main__":
     # force channels-first ordering
     backend.set_image_data_format('channels_first')
 
-    model = AlexNet.build(width=512, height=512, depth=7, classes=1, reg=0.0002)
+    model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
 
     test_data = dataset.map(rescale)
 
