@@ -6,7 +6,22 @@ import numpy as np
 import tensorflow as tf
 from helpers.alexnet import AlexNet
 from tensorflow.keras import backend
+from math import log
 import argparse
+
+def cross_entropy(p, q):
+     eps = 1e-15
+     return -sum([p[i]*log(q[i]+eps) for i in range(len(p))])
+
+def get_true_labels_predicted_probs(dataset, model):
+    test_inputs = dataset.map(lambda x,y: x)
+    test_labels = dataset.map(lambda x,y: y)
+    # a shape error occurs unless we use some batching
+    test_inputs = test_inputs.batch(32)
+    predictions = model.predict(test_inputs)
+    true_labels = np.array(list(test_labels.as_numpy_iterator()))
+    true_labels = true_labels.reshape(-1, 1)
+    return true_labels, predictions
 
 
 def read_fits(file_path):
@@ -100,9 +115,26 @@ json_path = "solar_dataset.json"
     first_filenames = [test_item[0] for test_item in x_test]
     first_filenames = np.array(first_filenames)
 
-    true_labels, predicted_labels = get_true_predicted_labels(dataset=test_data, model=model)
+    true_labels, predictions = get_true_labels_predicted_probs(dataset=test_data, model=model)
+
+    threshold = classification_threshold
+    predicted_labels = [ 1 if prediction > threshold else 0 for prediction in predictions ]
     predicted_labels = np.array(predicted_labels)
-    results = np.column_stack((first_filenames, predicted_labels))
+
+    losses = []
+
+    for i in range(len(true_labels)):
+        
+        p = true_labels
+        q = predictions
+        # create the distribution for each event {0, 1}
+        expected = [1.0 - p[i], p[i]]
+        predicted = [1.0 - q[i], q[i]]
+
+        # calculate cross entropy for the two events
+        ce = cross_entropy(expected, predicted)
+        losses.append(ce)
+    losses = np.array(losses)
 
     from sklearn.metrics import confusion_matrix
     cm = confusion_matrix(true_labels, predicted_labels)
@@ -111,4 +143,5 @@ json_path = "solar_dataset.json"
     #test_data = test_data.batch(32)
     #print_results(test_data, model)
 
-    #np.savetxt("predictions.csv", results, delimiter=',', fmt='%s' )
+    results = np.column_stack((first_filenames, predictions, losses, true_labels, predicted_labels))
+    np.savetxt(f"predictions_on_test_thresh_{threshold}.csv", results, delimiter=',', fmt='%s' )
