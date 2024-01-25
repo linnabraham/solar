@@ -57,6 +57,11 @@ def rescale(image, label):
     image = tf.image.per_image_standardization(image)
     return image, label
 
+def sqrt_transform(image, label):
+    image = tf.where(image < 0, tf.zeros_like(image), image)
+    image = tf.math.sqrt(image)
+    return image, label
+
 def dataset_from_json(json_path):
     with open(json_path) as f:
         data = json.load(f)
@@ -132,8 +137,8 @@ if __name__=="__main__":
     history_path = os.path.join(outdir,'history.json')
     hc = SaveHistoryCallback(history_path)
 
-    train_ds = train_ds.map(rescale).batch(128)
-    val_ds = val_ds.map(rescale).batch(128)
+    train_ds = train_ds.map(sqrt_transform).map(rescale).batch(128)
+    val_ds = val_ds.map(sqrt_transform).map(rescale).batch(128)
 
     model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
 
