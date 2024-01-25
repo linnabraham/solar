@@ -9,10 +9,17 @@ from math import log
 
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import matplotlib
 import sunpy.visualization.colormaps as cm
-sdoaia131 = matplotlib.colormaps['sdoaia131']#
+sdoaia94 = matplotlib.colormaps['sdoaia94']
+sdoaia131 = matplotlib.colormaps['sdoaia131']
+sdoaia171 = matplotlib.colormaps['sdoaia171']
+sdoaia193 = matplotlib.colormaps['sdoaia193']
+sdoaia211 = matplotlib.colormaps['sdoaia211']
+sdoaia304 = matplotlib.colormaps['sdoaia304']
+sdoaia335 = matplotlib.colormaps['sdoaia335']
 import json
 import os,sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -247,39 +254,22 @@ if __name__=="__main__":
         images_pre = images.copy()
         print(images.shape)
         images = tf.image.per_image_standardization(images)
-        attribution_mask  = get_attributions_mask(images, model) # channel=channel vmax=1000, cmap=sdoaia131, alpha=0.4
-        print("Shape of attribution mask", attribution_mask.shape)
-        sys.exit(0)
-        mask_max = np.max(attribution_mask)
-        mask_min = np.min(attribution_mask)
-
-        if channel==1:
-            cmap=sdoaia131
-
-        fig, axes = plt.subplots(1, 3, figsize=(30, 30))
-
-        plt.subplot(1,  3, 1)
-
-        plt.imshow(attribution_mask, vmax = 0.2*mask_max, cmap=plt.cm.jet)
-        plt.imshow(images_pre[1], vmax=1000, cmap=cmap, alpha=alpha)
-
-        plt.subplot(1,  3, 2)
-        plt.imshow(attribution_mask, vmax = 0.2*mask_max, cmap=plt.cm.jet)
-
-        plt.subplot(1,  3, 3)
-        plt.imshow(np.sqrt(images_pre[1]), cmap=cmap)
-        plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
-        fig.tight_layout()
+        attribution_masks  = get_attributions_mask(images, model) # channel=channel vmax=1000, cmap=sdoaia131, alpha=0.4
 
         images = np.expand_dims(images, axis=0)
         prediction = model.predict(images)
-        #print(prediction)
         expected = [ 1.0 - int(label), int(label)]
         predicted = [ 1.0 - prediction, prediction]
         ce = cross_entropy(expected, predicted)
         ce = np.abs(ce)
 
-        plt.savefig(f"overlay_mask_{ce:.5f}_{count}_{aarpid}_{ts}_{alpha}_.png", bbox_inches="tight")
+        pdf_path = f"overlay_mask_{ce:.5f}_{count}_{aarpid}_{ts}_{alpha}_all.pdf"
+        with PdfPages(os.path.join(base_path,pdf_path)) as pdf:
+            for i in range(7):
+                attribution_mask = attribution_masks[:,:,i]
+                plot_single_channel_attribution(attribution_mask, images_pre, channel=i )
+                pdf.savefig()
         #dataset = tf.data.Dataset.from_tensor_slices((images, label))
+        plt.close()
         count += 1
 
