@@ -102,7 +102,7 @@ def dataset_from_json(json_path):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-input_shape', type=tuple_type, default=(512,512))
+    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
     args = parser.parse_args()
 
     height = args.input_shape[0]
