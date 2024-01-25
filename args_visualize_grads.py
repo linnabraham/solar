@@ -1,37 +1,27 @@
-import os,sys
-import json
-from astropy.io import fits
-import numpy as np
+#!/bin/env python
+
+"""
+Script that reads the json metadata file used for training
+Iterates through the list of testing images
+Predicts on each of the 7 passband images and computes the cross-entropy loss
+Plots the Integrated Gradients attribution mask for each channel
+Saves it as a pdf file to directory based on the true label of the sample
+"""
+
 import tensorflow as tf
 from helpers.alexnet import AlexNet
 from tensorflow.keras import backend
 from math import log
-
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import matplotlib
 import sunpy.visualization.colormaps as cm
-sdoaia94 = matplotlib.colormaps['sdoaia94']
-sdoaia131 = matplotlib.colormaps['sdoaia131']
-sdoaia171 = matplotlib.colormaps['sdoaia171']
-sdoaia193 = matplotlib.colormaps['sdoaia193']
-sdoaia211 = matplotlib.colormaps['sdoaia211']
-sdoaia304 = matplotlib.colormaps['sdoaia304']
-sdoaia335 = matplotlib.colormaps['sdoaia335']
 import json
 import os,sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 from astropy.io import fits
-
-import tensorflow as tf
-import logging
-#tf.get_logger().setLevel(logging.ERROR)
-import sys
-sys.path.append('..')
-from tensorflow.keras import backend
-from helpers.alexnet import AlexNet
 #from functools import lru_cache
 import argparse
 
@@ -172,17 +162,15 @@ def plot_single_channel_attribution(attribution_mask, images_pre, channel=1):
     mask_max = np.max(attribution_mask)
     mask_min = np.min(attribution_mask)
 
-    channel_cmap = {0:sdoaia94,
-                    1:sdoaia131,
-                    2:sdoaia171,
-                    3:sdoaia193,
-                    4:sdoaia211,
-                    5:sdoaia304,
-                    6:sdoaia335}
+    aia_cmaps = {0:'sdoaia94',
+                    1:'sdoaia131',
+                    2:'sdoaia171',
+                    3:'sdoaia193',
+                    4:'sdoaia211',
+                    5:'sdoaia304',
+                    6:'sdoaia335'}
 
-    #if channel==1:
-    #    cmap=sdoaia131
-    cmap = channel_cmap[channel]
+    cmap = matplotlib.colormaps[aia_cmaps[channel]]
 
     fig, axes = plt.subplots(1, 3, figsize=(30, 30))
 
@@ -235,43 +223,51 @@ if __name__=="__main__":
 
     model = get_trained_model(METRICS)
 
-    # p is true labels
-    p = [ int(label) for label in y_test]
-    #q = predictions
     count = 0
-    channel = 1
+
+    # set the transparency value to be used for overlaying mask on actual image
     alpha = 0.6
+
+    # iterate over each individual sample in the testing set
     for row, label, aarpid, ts  in zip(x_test, y_test, aarpid_test, ts_test):
+
         if label == 0:
             base_path = "pdfgrad/non-flared"
-            #print("Skipping because label is 0")
-            #continue
         else:
             base_path = "pdfgrad/flared"
-        print(type(label), label)
+
+        print("True label", label)
         print("Saving to base path", base_path)
         print("AARP ID", aarpid)
         print("Timestamp", ts)
+
         #images = tf.data.Dataset.from_generator(generator = lambda: img_generator(row),
         #        output_types = tf.float32,
         #        output_shapes = [7, 512, 512])
 
         images = _parse_images(row)
+
+        # apply the sqrt transform that is done during training
         images = np.where(images<0, np.zeros_like(images), images)
         images = np.sqrt(images)
+
+        # create a copy of the images before standardizing for visual plotting
         images_pre = images.copy()
-        print(images.shape)
+
         images = tf.image.per_image_standardization(images)
-        attribution_masks  = get_attributions_mask(images, model) # channel=channel vmax=1000, cmap=sdoaia131, alpha=0.4
+        attribution_masks  = get_attributions_mask(images, model)
 
         images = np.expand_dims(images, axis=0)
         prediction = model.predict(images)
+
+        # compute the cross-entropy loss for the sample
         expected = [ 1.0 - int(label), int(label)]
         predicted = [ 1.0 - prediction, prediction]
         ce = cross_entropy(expected, predicted)
         ce = np.abs(ce)
 
         pdf_path = f"overlay_mask_{ce:.5f}_{count}_{aarpid}_{ts}_{alpha}_all.pdf"
+
         with PdfPages(os.path.join(base_path,pdf_path)) as pdf:
             for i in range(7):
                 attribution_mask = attribution_masks[:,:,i]
