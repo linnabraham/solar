@@ -37,6 +37,8 @@ def rescale(image, label):
     return image, label
 
 def get_trained_model(METRICS):
+    global height
+    global width
     model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
@@ -48,7 +50,8 @@ def read_fits(file_path):
     return hdul[0].data
 
 def _parse_images(imgs:list):
-    #TODO: dont hardocode height and width
+    global height
+    global width
     images = np.zeros((len(imgs),height, width))
     for i, img in enumerate(imgs):
         image = read_fits(file_path=img)
@@ -132,7 +135,8 @@ def get_attributions_mask(images, model):
 
     m_steps=50
     alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps+1) # Generate m_steps intervals for integral_approximation() below.
-
+    global height
+    global width
     baseline = tf.zeros(shape=(7, height, width))
     interpolated_images = interpolate_images(baseline, images, alphas=alphas)
 
@@ -153,19 +157,50 @@ def get_attributions_mask(images, model):
                                            m_steps=240)
     #image_channel = images_org[channel]
     attributions = np.moveaxis(ig_attributions, 0, 2)
-    attribution_mask = tf.reduce_sum(tf.math.abs(attributions), axis=-1)
-    #attribution_mask = tf.math.abs(attributions)
+    #attribution_mask = tf.reduce_sum(tf.math.abs(attributions), axis=-1)
+    attribution_mask = tf.math.abs(attributions)
     return attribution_mask
 
+def plot_single_channel_attribution(attribution_mask, images_pre, channel=1):
+    mask_max = np.max(attribution_mask)
+    mask_min = np.min(attribution_mask)
+
+    channel_cmap = {0:sdoaia94,
+                    1:sdoaia131,
+                    2:sdoaia171,
+                    3:sdoaia193,
+                    4:sdoaia211,
+                    5:sdoaia304,
+                    6:sdoaia335}
+
+    #if channel==1:
+    #    cmap=sdoaia131
+    cmap = channel_cmap[channel]
+
+    fig, axes = plt.subplots(1, 3, figsize=(30, 30))
+
+    plt.subplot(1,  3, 1)
+
+    plt.imshow(attribution_mask, vmax = 0.2*mask_max, cmap=plt.cm.jet)
+    plt.imshow(images_pre[channel], vmax=1000, cmap=cmap, alpha=alpha)
+
+    plt.subplot(1,  3, 2)
+    plt.imshow(attribution_mask, vmax = 0.2*mask_max, cmap=plt.cm.jet)
+
+    plt.subplot(1,  3, 3)
+    plt.imshow(images_pre[channel], cmap=cmap)
+    plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
+    fig.tight_layout()
+    return fig
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-input_shape', type=tuple_type, default=(512,512))
+    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
     args = parser.parse_args()
 
     height = args.input_shape[0]
     width = args.input_shape[1]
-    
+
     json_path = "solar_dataset.json"
     with open(json_path) as f:
         data = json.load(f)
