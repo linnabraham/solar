@@ -242,15 +242,23 @@ if __name__=="__main__":
     channel = 1
     alpha = 0.6
     for row, label, aarpid, ts  in zip(x_test, y_test, aarpid_test, ts_test):
-        if label == "0":
-            print("Skipping because label is 0")
-            continue
-        print(type(label))
+        if label == 0:
+            base_path = "pdfgrad/non-flared"
+            #print("Skipping because label is 0")
+            #continue
+        else:
+            base_path = "pdfgrad/flared"
+        print(type(label), label)
+        print("Saving to base path", base_path)
+        print("AARP ID", aarpid)
+        print("Timestamp", ts)
         #images = tf.data.Dataset.from_generator(generator = lambda: img_generator(row),
         #        output_types = tf.float32,
         #        output_shapes = [7, 512, 512])
 
         images = _parse_images(row)
+        images = np.where(images<0, np.zeros_like(images), images)
+        images = np.sqrt(images)
         images_pre = images.copy()
         print(images.shape)
         images = tf.image.per_image_standardization(images)
