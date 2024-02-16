@@ -14,7 +14,6 @@ import tensorflow_addons as tfa
 import argparse
 
 tf.get_logger().setLevel(logging.WARNING)
-wandb.init(project="AARP_Train")
 
 class SaveHistoryCallback(Callback):
     def __init__(self, file_path):
@@ -99,18 +98,9 @@ def dataset_from_json(json_path):
 
     return train_ds, val_ds
 
-
-if __name__=="__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
-    args = parser.parse_args()
-
+def get_compiled_model(args):
     height = args.input_shape[0]
     width = args.input_shape[1]
-
-    json_path = "solar_dataset.json"
-
-    train_ds, val_ds = dataset_from_json(json_path=json_path)
 
     # force channels-first ordering
     backend.set_image_data_format('channels_first')
@@ -124,27 +114,55 @@ if __name__=="__main__":
                                   name="recall"),
           tf.keras.metrics.AUC(num_thresholds=100, curve='PR', name='auc_pr'),
     ]
-
-    pid = os.getpid()
-    output = "outputs"
-    outdir = os.path.join(output,str(pid))
-    os.makedirs(outdir)
-
-    model_path = os.path.join(output,"best_model.h5")
-    mc = ModelCheckpoint(model_path, monitor='val_loss', \
-            mode='min', verbose=1, save_best_only=True)
-
-    history_path = os.path.join(outdir,'history.json')
-    hc = SaveHistoryCallback(history_path)
-
-    train_ds = train_ds.map(sqrt_transform).map(rescale).batch(128)
-    val_ds = val_ds.map(sqrt_transform).map(rescale).batch(128)
-
     model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
 
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
+    return model
 
-    history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=150, shuffle=True, callbacks=[mc,hc, 
+def get_savepaths(create_dirs=False):
+    pid = os.getpid()
+    output = "outputs"
+    outdir = os.path.join(output,str(pid))
+    if create_dirs:
+        os.makedirs(outdir)
+
+    model_path = os.path.join(output,"best_model.h5")
+
+    history_path = os.path.join(outdir,'history.json')
+    return model_path, history_path
+
+if __name__=="__main__":
+
+    wandb.init(project="AARP_Train")
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
+    parser.add_argument('-json_path', default="solar_dataset.json")
+    parser.add_argument('-batch_size', type=int, default=32)
+    parser.add_argument('-epochs', type=int, default=150)
+
+    args = parser.parse_args()
+
+    json_path = args.json_path
+    batch_size = args.batch_size
+    epochs = args.epochs
+
+    train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
+    model = get_compiled_model(args)
+
+    model_path, history_path = get_savepaths(create_dirs=True)
+
+    mc = ModelCheckpoint(model_path, monitor='val_loss', \
+            mode='min', verbose=1, save_best_only=True)
+
+    hc = SaveHistoryCallback(history_path)
+
+    #train_ds = train_ds.map(sqrt_transform).map(rescale).batch(128)
+    #val_ds = val_ds.map(sqrt_transform).map(rescale).batch(128)
+    train_ds = train_ds.map(rescale).batch(batch_size)
+    val_ds = val_ds.map(rescale).batch(batch_size)
+
+    history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
         WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
