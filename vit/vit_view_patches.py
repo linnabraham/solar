@@ -43,8 +43,6 @@ if __name__=="__main__":
     patch_size = 36  # Size of the patches to be extract from the input images
     image_size = 512
     num_patches = (image_size // patch_size) ** 2
-    projection_dim = 64
-    num_heads = 4
     fits_img_path = ["/data/linn/newpipe_extracted_pos/1321_131_2012-01-16T15:42:02Z.fits"]
     image = read_fits_cube(fits_img_path, 512, 512)
     image = np.moveaxis(image, 0, 2)
