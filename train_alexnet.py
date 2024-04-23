@@ -126,17 +126,18 @@ def get_compiled_model(args):
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
     return model
 
-def get_savepaths(create_dirs=False):
-    pid = os.getpid()
-    output = "outputs"
-    outdir = os.path.join(output,str(pid))
+def get_savepaths_wandb(output, create_dirs=False):
+    wandb.init(project="AARP_Train")
+    outdir = os.path.join(output, wandb.run.name)
     if create_dirs:
-        os.makedirs(outdir)
+        if not os.path.exists(outdir):
+            print("Creating directory for storing run info", outdir)
+            os.mkdir(outdir)
+    return outdir
 
-    model_path = os.path.join(output,"best_model.h5")
-
-    history_path = os.path.join(outdir,'history.json')
-    return model_path, history_path
+def save_arguments(args, filename):
+    with open(filename, 'w') as f:
+        json.dump(vars(args), f)
 
 if __name__=="__main__":
     import tensorflow_addons as tfa
@@ -153,6 +154,21 @@ if __name__=="__main__":
     json_path = args.json_path
     batch_size = args.batch_size
     epochs = args.epochs
+
+    if not os.path.exists("outputs"):
+        print("Creating directory for storing outputs across runs named outputs")
+        os.mkdir("outputs")
+
+    # get directory to store individual run info
+    outdir = get_savepaths_wandb(output, create_dirs=True)
+
+    model_path = os.path.join(outdir,"best_model.h5")
+    history_path = os.path.join(outdir,'history.json')
+
+    print("Using the following paths for saving best model and history:", model_path, history_path)
+
+    print("Saving the command line arguments to cmdline_args.json")
+    save_arguments(args, os.path.join(outdir,"cmdline_args.json"))
 
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     model = get_compiled_model(args)
