@@ -1,4 +1,10 @@
 #!/bin/env python
+"""
+Read the GOES event list, harps and NOAA match mapping and the url list 
+scraped from the AARPS homepage.
+Saves to disk a lists of URLs for each of the positive and negative classes
+containing a balanced number of AARPS from each class.
+"""
 
 import pandas as pd
 import matplotlib.pyplot as plt
