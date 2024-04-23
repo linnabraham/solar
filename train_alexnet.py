@@ -7,7 +7,8 @@ import sys
 import logging
 import argparse
 import tensorflow as tf
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, Callback
+
 tf.get_logger().setLevel(logging.WARNING)
 
 class SaveHistoryCallback(Callback):
@@ -144,10 +145,10 @@ if __name__=="__main__":
     from wandb.keras import WandbCallback
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
-    parser.add_argument('-json_path', default="solar_dataset.json")
-    parser.add_argument('-batch_size', type=int, default=32)
-    parser.add_argument('-epochs', type=int, default=150)
+    parser.add_argument('-input_shape', '--input_shape', nargs='+', type=int, default=(512,512))
+    parser.add_argument('-json_path', '--json_path', default="solar_dataset.json")
+    parser.add_argument('-batch_size', '--batch_size', type=int, default=32)
+    parser.add_argument('-epochs', '--epochs', type=int, default=150)
 
     args = parser.parse_args()
 
@@ -173,17 +174,17 @@ if __name__=="__main__":
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     model = get_compiled_model(args)
 
-    model_path, history_path = get_savepaths(create_dirs=True)
-
+    print("Monitoring val_loss for saving best model")
     mc = ModelCheckpoint(model_path, monitor='val_loss', \
             mode='min', verbose=1, save_best_only=True)
 
     hc = SaveHistoryCallback(history_path)
 
-    #train_ds = train_ds.map(sqrt_transform).map(rescale).batch(128)
-    #val_ds = val_ds.map(sqrt_transform).map(rescale).batch(128)
-    train_ds = train_ds.map(rescale).batch(batch_size)
-    val_ds = val_ds.map(rescale).batch(batch_size)
+
+    #train_ds = train_ds.map(rescale).batch(batch_size)
+    #val_ds = val_ds.map(rescale).batch(batch_size)
+    train_ds = train_ds.map(sqrt_transform).map(rescale).batch(batch_size)
+    val_ds = val_ds.map(sqrt_transform).map(rescale).batch(batch_size)
 
     history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
         WandbCallback(save_model=(False),save_graph=(False))])
