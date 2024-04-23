@@ -1,18 +1,13 @@
 import json
 import os
 from astropy.io import fits
-import tensorflow as tf
 import numpy as np
-from helpers.alexnet import AlexNet
-from tensorflow.keras import backend
-from tensorflow.keras.callbacks import ModelCheckpoint, Callback, TensorBoard
 import wandb
-from wandb.keras import WandbCallback
 import sys
 import logging
-import tensorflow_addons as tfa
 import argparse
-
+import tensorflow as tf
+from tensorflow.keras.callbacks import ModelCheckpoint
 tf.get_logger().setLevel(logging.WARNING)
 
 class SaveHistoryCallback(Callback):
@@ -99,6 +94,9 @@ def dataset_from_json(json_path):
     return train_ds, val_ds
 
 def get_compiled_model(args):
+    from tensorflow.keras import backend
+    from helpers.alexnet import AlexNet
+
     height = args.input_shape[0]
     width = args.input_shape[1]
 
@@ -133,8 +131,8 @@ def get_savepaths(create_dirs=False):
     return model_path, history_path
 
 if __name__=="__main__":
-
-    wandb.init(project="AARP_Train")
+    import tensorflow_addons as tfa
+    from wandb.keras import WandbCallback
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
