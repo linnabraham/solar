@@ -11,8 +11,37 @@ import numpy as np
 from tqdm import tqdm
 import concurrent.futures
 from astropy.io import fits
-from modified_pipeline_part3new import unpack_7h_fits, pad_scale
 from simple_padding import downscale_and_pad
+
+def unpack_7h_fits(fits_path):
+    hdul = fits.open(fits_path)
+    main_header = hdul[0].header
+    wavelength = main_header['WAVELNTH']
+    harpnum = main_header['HARPNUM']
+    obs_start = main_header['T_START']
+    images = []
+    timestamps = []
+    for hour_num in range(1,main_header['NTIMES']+1):
+        data = hdul[hour_num].data
+        if data is None:
+            print("Empty data encountered in hour number",hour_num, fits_path)
+            continue
+            #return None
+        header = hdul[hour_num].header
+        extname = f"T_IMG{hour_num:0>2d}"
+        nimgs = data.shape[0]
+        # iterate over 11 images in a single fits extension
+        for nimg in range(nimgs):
+            img = data[nimg]
+            obstime_key = f"T_IMG{nimg:0>2d}"
+            timestamp = header[obstime_key]
+            if timestamp == 'NaN':
+                print("timstamp missing in header", obstime_key, fits_path)
+                #return None
+                continue
+            images.append(img)
+            timestamps.append(timestamp)
+    return harpnum, wavelength, obs_start, timestamps, images
 
 def save_to_fits(image, harpnum, wavelength, obs_start, timestamp, dest):
     hdu = fits.PrimaryHDU(data=image)
