@@ -31,17 +31,19 @@ def read_fits(file_path):
     hdul = fits.open(file_path)
     return hdul[0].data
 
-def _parse_images(imgs:list):
-    #TODO: dont hardocode height and width
+def _parse_images(imgs:list, args):
+    height = args.input_shape[0]
+    width  = args.input_shape[1]
+
     images = np.zeros((len(imgs), height, width))
     for i, img in enumerate(imgs):
         image = read_fits(file_path=img)
         images[i,:,:] = image
     return images
 
-def img_generator(collection):
+def img_generator(collection, args):
     for element in collection:
-        yield _parse_images(element)
+        yield _parse_images(element, args)
 
 def label_generator(collection):
     for element in collection:
@@ -56,7 +58,7 @@ def sqrt_transform(image, label):
     image = tf.math.sqrt(image)
     return image, label
 
-def dataset_from_json(json_path):
+def parse_json(json_path):
     with open(json_path) as f:
         data = json.load(f)
 
@@ -71,9 +73,15 @@ def dataset_from_json(json_path):
                  for c in data.get('validation')
                  ]
         y_val = [p['label'] for p in data.get('validation')]
+    return x_train, y_train, x_val, y_val
 
+def dataset_from_json(json_path, args):
+    height = args.input_shape[0]
+    width  = args.input_shape[1]
 
-    images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train),
+    x_train, y_train, x_val, y_val = parse_json(json_path)
+
+    images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train, args),
                                             output_types=tf.float32,
                                             output_shapes=[7, height, width])
     labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_train),
@@ -82,7 +90,7 @@ def dataset_from_json(json_path):
 
     train_ds = tf.data.Dataset.zip((images, labels))
 
-    images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_val),
+    images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_val, args),
                                             output_types=tf.float32,
                                             output_shapes=[7, height, width])
     labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(y_val),
