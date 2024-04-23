@@ -99,4 +99,4 @@ if __name__=="__main__":
     #urldf.to_csv("data/urls_to_download.csv", index=False)
     #urldf['urls'][urldf['label']==1].to_csv("data/urls_pos_wget.csv", index=False, header=None)
     #TODO:incorporate grouping by wavelength and then shuffling to select the negative AARPS
-    urldf['urls'][urldf['label']==0][:5000].to_csv("data/urls_neg_wget.csv", index=False, header=None)
+    urldf['urls'][urldf['label']==0][-5000:].to_csv("data/urls_neg_wget.csv", index=False, header=None)
