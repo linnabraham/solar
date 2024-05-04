@@ -190,8 +190,8 @@ def validate_model(model, val_dl, loss_func):
 if __name__== "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-batch-size", "--batch-size", default=32)
-    parser.add_argument("-epochs", "--epochs", default=5)
+    parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
+    parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
     args = parser.parse_args()
 
