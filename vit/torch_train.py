@@ -93,8 +93,7 @@ def train_loop():
 
         start_time = time.time()
 
-        num_threads = torch.get_num_threads()
-        print(f"Number of CPU threads used by PyTorch: {num_threads}")
+        print(f"Epoch:{epoch}")
 
         for step, (inputs, labels) in enumerate(train_loader):
 
@@ -211,6 +210,7 @@ if __name__== "__main__":
     validation_dataset = aia_euv('../solar_dataset.json', subset='validation')
     test_dataset = aia_euv('../solar_dataset.json', subset='test')
 
+    print("Checking data specifications")
     for i in range(len(train_dataset)):
         features, label = train_dataset[i]
         print(features.shape)
@@ -224,11 +224,10 @@ if __name__== "__main__":
     val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"Using device {device}")
 
     torch.cuda.reset_peak_memory_stats()
 
-    print(f"Using device {device}")
-    torch.cuda.set_per_process_memory_fraction(0.1)
-
     model.to(device)
+
     train_loop()
