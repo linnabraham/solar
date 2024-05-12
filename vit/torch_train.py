@@ -14,6 +14,7 @@ import argparse
 import os,sys
 import wandb
 import math
+from tqdm import tqdm
 
 class SaveBestModel:
     def __init__(self, monitor='val_loss', mode='min'):
@@ -95,7 +96,7 @@ def train_loop():
 
         print(f"Epoch:{epoch}")
 
-        for step, (inputs, labels) in enumerate(train_loader):
+        for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
 
             current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
             #print(f"Allocated GPU memory ({current_memory} MB)")
@@ -152,7 +153,7 @@ def validate_model(model, val_dl, loss_func):
         FP = 0
         TN = 0
         FN = 0
-        for i, (images, labels) in enumerate(val_dl):
+        for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
             images, labels = images.to(device), labels.to(device)
 
             # Forward pass ➡
