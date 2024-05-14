@@ -70,7 +70,7 @@ class DeepFlare_ViT(BaseModel):
         dropout_prob = kwargs.pop('dropout',0.3)
         if n_passbands is None or height is None or n_classes is None:
             raise ValueError("Number of input passbands (filters) must be given!")
-        self.model = ViT(image_size=height,patch_size=64,num_classes=n_classes,
+        self.model = ViT(image_size=height,patch_size=16,num_classes=n_classes,
                          dim=1024,depth=4,heads=16,channels=n_passbands,mlp_dim=9,
                          dropout=dropout_prob,emb_dropout=dropout_prob,pool="mean")
 def train_loop():
