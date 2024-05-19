@@ -7,6 +7,7 @@ from vit_pytorch import ViT
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 import json
 from astropy.io import fits
 import time
@@ -15,6 +16,10 @@ import os,sys
 import wandb
 import math
 from tqdm import tqdm
+from captum.attr import IntegratedGradients
+import matplotlib.pyplot as plt
+import matplotlib
+import sunpy.visualization.colormaps as cm
 
 class SaveBestModel:
     def __init__(self, monitor='val_loss', mode='min'):
@@ -26,7 +31,7 @@ class SaveBestModel:
         else:
             self.best_value = float('-inf')
             self.monitor_op = lambda x, y: x > y
-        
+
     def __call__(self, val_metric, model, filepath):
         if self.monitor_op(val_metric, self.best_value):
             print(f"Validation {self.monitor}: {val_metric} improved from {self.best_value} to {val_metric}. Saving model...")
@@ -36,8 +41,9 @@ class SaveBestModel:
             print(f"Validation {self.monitor}: {val_metric} did not improve from {self.best_value}.")
 
 class aia_euv(Dataset):
-    def __init__(self, json_path, subset):
+    def __init__(self, json_path, subset, transform=None):
         self.data = self._load_data(json_path, subset)
+        self.transform = transform
 
     def _load_data(self, json_file, subset):
         with open(json_file, 'r') as f:
@@ -53,6 +59,8 @@ class aia_euv(Dataset):
         features = np.stack(features, axis=0)  # Stack along a new axis
         label = item['label']
         features = torch.tensor(features, dtype=torch.float32)
+        if self.transform:
+            features = self.transform(features)
         label = torch.tensor(label, dtype=torch.long)
         return features, label
 
@@ -134,7 +142,10 @@ def train_loop():
 
         epoch_loss = running_loss / len(train_dataset)
         print(f"Epoch loss: {epoch_loss}")
-        
+
+        ig_val_loader = DataLoader(validation_dataset, batch_size = 64, shuffle=False)
+        log_ig_attributes(model, ig_val_loader, batch_idx=0)
+
         epoch_time = time.time() - start_time
         print(f"Time taken to run single epoch: {epoch_time/60} mins")
 
@@ -143,6 +154,27 @@ def train_loop():
 
         max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
         print(f"Maximum GPU memory reserved: {max_memory_reserved}")
+
+def log_ig_attributes(model, val_dl, batch_idx=0, channel=0):
+    model.eval()
+    for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
+        if i == batch_idx:
+            for idx, (label, image) in enumerate(zip(labels.numpy(), images.numpy())):
+                if label == 1:
+                    img = images[idx].clone().to(device)
+                    lb = labels[idx].clone().to(device)
+                    ig_b0 = ig_attributions_b0(model, img, lb)
+                    image = image[channel,:,:]
+                    image = np.where(image < 0, 0, image)
+                    cmap = matplotlib.colormaps[aia_cmaps[channel]]
+                    plt.imshow(np.sqrt(image), cmap=cmap, origin='lower')
+                    ig_b0 = ig_b0[channel,:,:]
+                    plt.imshow(ig_b0, origin='lower', alpha=0.4)
+                    plt.colorbar()
+                    plt.contour(ig_b0, origin='lower')
+                    plt.title("Square root transformed image")
+                    wandb.log({"aia_94":plt})
+                    plt.close()
 
 def validate_model(model, val_dl, loss_func):
     model.eval()
@@ -187,6 +219,23 @@ def validate_model(model, val_dl, loss_func):
             recall = 0
     return val_loss / len(val_dl.dataset), correct / len(val_dl.dataset), precision, recall
 
+def ig_attributions_b0(model, images, labels):
+    images = images.unsqueeze(0)
+    labels = labels.unsqueeze(0)
+    baseline_zero = torch.zeros_like(images)
+    ig = IntegratedGradients(model)
+    ig_b0, _ = ig.attribute(images, baseline_zero, target=labels, n_steps=100,
+                            internal_batch_size=1,
+                                        return_convergence_delta=True)
+    ig_b0 = ig_b0.squeeze().detach().cpu().numpy()
+    return ig_b0
+
+class CustomTransform:
+    def __call__(self, x):
+        x[x <= 0] = 1
+        x = torch.log(x)
+        return x
+
 if __name__== "__main__":
 
     parser = argparse.ArgumentParser()
@@ -204,12 +253,20 @@ if __name__== "__main__":
         config= args_dict
             )
 
+    aia_cmaps = {0:'sdoaia94',
+                    1:'sdoaia131',
+                    2:'sdoaia171',
+                    3:'sdoaia193',
+                    4:'sdoaia211',
+                    5:'sdoaia304',
+                    6:'sdoaia335'}
+
     vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
     model = vit_model.model
 
-    train_dataset = aia_euv('../solar_dataset.json', subset='training')
-    validation_dataset = aia_euv('../solar_dataset.json', subset='validation')
-    test_dataset = aia_euv('../solar_dataset.json', subset='test')
+    train_dataset = aia_euv('../solar_dataset.json', subset='training', transform=transforms.Compose([CustomTransform()]))
+    validation_dataset = aia_euv('../solar_dataset.json', subset='validation', transform=transforms.Compose([CustomTransform()]))
+    test_dataset = aia_euv('../solar_dataset.json', subset='test', transform=transforms.Compose([CustomTransform()]))
 
     print("Checking data specifications")
     for i in range(len(train_dataset)):
