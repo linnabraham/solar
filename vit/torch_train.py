@@ -6,7 +6,7 @@ from base import BaseModel
 from vit_pytorch import ViT
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, RandomSampler
 from torchvision import transforms
 import json
 from astropy.io import fits
@@ -20,6 +20,7 @@ from captum.attr import IntegratedGradients
 import matplotlib.pyplot as plt
 import matplotlib
 import sunpy.visualization.colormaps as cm
+from matplotlib.colors import LinearSegmentedColormap
 
 class SaveBestModel:
     def __init__(self, monitor='val_loss', mode='min'):
@@ -143,8 +144,10 @@ def train_loop():
         epoch_loss = running_loss / len(train_dataset)
         print(f"Epoch loss: {epoch_loss}")
 
-        ig_val_loader = DataLoader(validation_dataset, batch_size = 64, shuffle=False)
-        log_ig_attributes(model, ig_val_loader, batch_idx=0)
+        val_ds = aia_euv('../solar_dataset.json', subset='validation')
+
+        ig_val_loader = DataLoader(val_ds, batch_size = 64, shuffle=True)
+        log_ig_attributes(model, ig_val_loader, batch_idx=0, channel=0)
 
         epoch_time = time.time() - start_time
         print(f"Time taken to run single epoch: {epoch_time/60} mins")
@@ -157,24 +160,23 @@ def train_loop():
 
 def log_ig_attributes(model, val_dl, batch_idx=0, channel=0):
     model.eval()
-    for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
-        if i == batch_idx:
-            for idx, (label, image) in enumerate(zip(labels.numpy(), images.numpy())):
-                if label == 1:
-                    img = images[idx].clone().to(device)
-                    lb = labels[idx].clone().to(device)
-                    ig_b0 = ig_attributions_b0(model, img, lb)
-                    image = image[channel,:,:]
-                    image = np.where(image < 0, 0, image)
-                    cmap = matplotlib.colormaps[aia_cmaps[channel]]
-                    plt.imshow(np.sqrt(image), cmap=cmap, origin='lower')
-                    ig_b0 = ig_b0[channel,:,:]
-                    plt.imshow(ig_b0, origin='lower', alpha=0.4)
-                    plt.colorbar()
-                    plt.contour(ig_b0, origin='lower')
-                    plt.title("Square root transformed image")
-                    wandb.log({"aia_94":plt})
-                    plt.close()
+    images_batch, labels_batch = next(iter(val_dl))
+    for idx,(images,labels) in tqdm(enumerate(zip(images_batch,labels_batch))):
+        if labels.numpy() == 1:
+            img = images.clone().to(device)
+            lb = labels.clone().to(device)
+            ig_b0 = ig_attributions_b0(model, img, lb)
+            image = images[channel,:,:]
+            cmap = matplotlib.colormaps[aia_cmaps[channel]]
+            plt.imshow(image, cmap=cmap, origin='lower')
+            ig_b0 = ig_b0[channel,:,:]
+            vmax = np.max(ig_b0)
+            vmin = 0.1 * vmax
+            plt.imshow(ig_b0, origin='lower', alpha=0.3)
+            plt.colorbar()
+            plt.title(f"AIA 94 image idx:{idx}")
+            wandb.log({"aia_94":plt})
+            plt.close()
 
 def validate_model(model, val_dl, loss_func):
     model.eval()
@@ -261,6 +263,11 @@ if __name__== "__main__":
                     5:'sdoaia304',
                     6:'sdoaia335'}
 
+    default_cmap = LinearSegmentedColormap.from_list('custom blue',
+                                                         [(0, '#ffffff'),
+                                                          (0.25, '#0000ff'),
+                                                          (1, '#0000ff')], N=256)
+
     vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
     model = vit_model.model
 
@@ -279,7 +286,7 @@ if __name__== "__main__":
     print("test size", len(test_dataset))
 
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
-    val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
+    val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
