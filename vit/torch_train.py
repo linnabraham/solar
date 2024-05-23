@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import sunpy.visualization.colormaps as cm
 from matplotlib.colors import LinearSegmentedColormap
+import pickle
 
 class SaveBestModel:
     def __init__(self, monitor='val_loss', mode='min'):
@@ -88,6 +89,7 @@ def train_loop():
     threshold = 5000  # GPU memory threshold measured in megabytes
 
     n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
+    print(f"Length of training data", len(train_loader.dataset))
     print(f"Steps per epoch:{n_steps_per_epoch}")
 
     wandb_dir = wandb.run.name
@@ -147,7 +149,7 @@ def train_loop():
         val_ds = aia_euv('../solar_dataset.json', subset='validation')
 
         ig_val_loader = DataLoader(val_ds, batch_size = 64, shuffle=True)
-        log_ig_attributes(model, ig_val_loader, batch_idx=0, channel=0)
+        #log_ig_attributes(model, ig_val_loader, batch_idx=0, channel=0)
 
         epoch_time = time.time() - start_time
         print(f"Time taken to run single epoch: {epoch_time/60} mins")
@@ -233,8 +235,13 @@ def ig_attributions_b0(model, images, labels):
     return ig_b0
 
 class CustomTransform:
+    def __init__(self, means, stds):
+        self.means = torch.tensor(means).view(-1, 1, 1)  # Shape (7, 1, 1) for broadcasting
+        self.stds = torch.tensor(stds).view(-1, 1, 1)    # Shape (7, 1, 1) for broadcasting
+
     def __call__(self, x):
-        x[x <= 0] = 1
+        x[x < 0] = 0
+        x[x == 0] = 1
         x = torch.log(x)
         return x
 
@@ -271,9 +278,15 @@ if __name__== "__main__":
     vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
     model = vit_model.model
 
-    train_dataset = aia_euv('../solar_dataset.json', subset='training', transform=transforms.Compose([CustomTransform()]))
-    validation_dataset = aia_euv('../solar_dataset.json', subset='validation', transform=transforms.Compose([CustomTransform()]))
-    test_dataset = aia_euv('../solar_dataset.json', subset='test', transform=transforms.Compose([CustomTransform()]))
+    with open('stats.pkl', 'rb') as f:
+        stats = pickle.load(f)
+
+    means = [stats['mean'][f'channel_{i}'] for i in range(7)]
+    stds = [stats['std'][f'channel_{i}'] for i in range(7)]
+
+    train_dataset = aia_euv('../solar_dataset.json', subset='training', transform=transforms.Compose([CustomTransform(means, stds)]))
+    validation_dataset = aia_euv('../solar_dataset.json', subset='validation', transform=transforms.Compose([CustomTransform(means, stds)]))
+    #test_dataset = aia_euv('../solar_dataset.json', subset='test', transform=transforms.Compose([CustomTransform()]))
 
     print("Checking data specifications")
     for i in range(len(train_dataset)):
