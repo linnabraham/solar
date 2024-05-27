@@ -6,7 +6,7 @@ from base import BaseModel
 from vit_pytorch import ViT
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from torch.utils.data import Dataset, DataLoader, RandomSampler
+from torch.utils.data import Dataset, DataLoader, RandomSampler, Subset
 from torchvision import transforms
 import json
 from astropy.io import fits
@@ -241,6 +241,27 @@ def ig_attributions_b0(model, images, labels):
     gs_b0 = gs_b0.squeeze().detach().cpu().numpy()
     return ig_b0, gs_b0
 
+def get_datasubset(train_dataset, validation_dataset):
+    num_samples = 100
+
+    #sampler = RandomSampler(train_dataset, num_samples=num_samples)
+    #train_loader = DataLoader(train_dataset, batch_size = args.batch_size, sampler=sampler)
+
+    train_size = len(train_dataset)
+    indices = list(range(train_size))
+    np.random.seed(42)
+    np.random.shuffle(indices)
+    ##subset_indices = indices[:int(0.01 * train_size)]  # 10% of the dataset
+    subset_indices = indices[:args.batch_size]  # 10% of the dataset
+    subset_dataset = Subset(train_dataset, subset_indices)
+    train_loader = DataLoader(subset_dataset, batch_size = args.batch_size, shuffle=True)
+
+    val_size = len(validation_dataset)
+    indices = list(range(val_size))
+    subset_indices = indices[:args.batch_size]  # 10% of the dataset
+    subset_ds_val = Subset(validation_dataset, subset_indices)
+    val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=True)
+    return train_loader, val_loader
 
 class CustomTransform:
     def __init__(self, means, stds):
