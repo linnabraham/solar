@@ -16,7 +16,7 @@ import os,sys
 import wandb
 import math
 from tqdm import tqdm
-from captum.attr import IntegratedGradients
+from captum.attr import IntegratedGradients, GradientShap
 import matplotlib.pyplot as plt
 import matplotlib
 import sunpy.visualization.colormaps as cm
@@ -167,15 +167,18 @@ def log_ig_attributes(model, val_dl, batch_idx=0, channel=0):
         if labels.numpy() == 1:
             img = images.clone().to(device)
             lb = labels.clone().to(device)
-            ig_b0 = ig_attributions_b0(model, img, lb)
+            ig_b0, gs_b0 = ig_attributions_b0(model, img, lb)
+            print("Shape of gradshap")
+            print(gs_b0.shape)
             image = images[channel,:,:]
             cmap = matplotlib.colormaps[aia_cmaps[channel]]
             plt.imshow(image, cmap=cmap, origin='lower')
-            ig_b0 = ig_b0[channel,:,:]
-            vmax = np.max(ig_b0)
-            vmin = 0.1 * vmax
-            plt.imshow(ig_b0, origin='lower', alpha=0.3)
+            #ig_b0 = ig_b0[channel,:,:]
+            #plt.imshow(ig_b0, origin='lower', alpha=0.3)
+            gs_b0_single = gs_b0[channel,:,:]
+            plt.imshow(gs_b0_single, origin='lower', alpha=0.3)
             plt.colorbar()
+            plt.contour(ig_b0, origin='lower')
             plt.title(f"AIA 94 image idx:{idx}")
             wandb.log({"aia_94":plt})
             plt.close()
@@ -232,7 +235,12 @@ def ig_attributions_b0(model, images, labels):
                             internal_batch_size=1,
                                         return_convergence_delta=True)
     ig_b0 = ig_b0.squeeze().detach().cpu().numpy()
-    return ig_b0
+    gs = GradientShap(model)
+    gs_b0, _ = gs.attribute(images, baseline_zero, target=labels, n_samples=50, 
+                                                stdevs=0.0001,return_convergence_delta=True)
+    gs_b0 = gs_b0.squeeze().detach().cpu().numpy()
+    return ig_b0, gs_b0
+
 
 class CustomTransform:
     def __init__(self, means, stds):
@@ -286,7 +294,6 @@ if __name__== "__main__":
 
     train_dataset = aia_euv('../solar_dataset.json', subset='training', transform=transforms.Compose([CustomTransform(means, stds)]))
     validation_dataset = aia_euv('../solar_dataset.json', subset='validation', transform=transforms.Compose([CustomTransform(means, stds)]))
-    #test_dataset = aia_euv('../solar_dataset.json', subset='test', transform=transforms.Compose([CustomTransform()]))
 
     print("Checking data specifications")
     for i in range(len(train_dataset)):
@@ -296,7 +303,6 @@ if __name__== "__main__":
 
     print("train size", len(train_dataset))
     print("validation size", len(validation_dataset))
-    print("test size", len(test_dataset))
 
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
     val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=True)
@@ -307,5 +313,4 @@ if __name__== "__main__":
     torch.cuda.reset_peak_memory_stats()
 
     model.to(device)
-
     train_loop()
