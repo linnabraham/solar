@@ -85,8 +85,8 @@ def dir_to_dataset(dir_path, label):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-pos-data", "--pos-data")
-    parser.add_argument("-neg-data", "--neg-data")
+    parser.add_argument("-pos-data", "--pos-data", help="The absolute path for the positive class data")
+    parser.add_argument("-neg-data", "--neg-data", help="The absolute path for the negative class data")
     args = parser.parse_args()
 
     pos_dir_path = args.pos_data
