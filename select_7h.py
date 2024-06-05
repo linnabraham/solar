@@ -5,7 +5,7 @@ import numpy as np
 
 if __name__=="__main__":
 
-    table_path = "table_data_shapes.csv"
+    table_path = "data/table_data_shapes.csv"
     df = pd.read_csv(table_path, index_col=0)
 
     df.min_lon = df.min_lon.replace(-999999, np.nan)
