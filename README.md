@@ -6,8 +6,8 @@
 + Paper that introduces the dataset can be found here https://doi.org/10.3847/1538-4357/ac9c06
 ## Data processing (2024-06-05)
 + The scripts used for obtaining and pre-processing the data are `modified_pipeline.py`, `gen_table_7h.py`, `select_7h.py`, `extract_7h.py` and `csv_to_json.py`. 
-+ The data pipeline has slightly changed and now we are using `dir_to_json.py`.
-+ The json file is what is finally fed into the network during training.
++ The data pipeline has slightly changed and now we are using `dir_to_json.py` instead of `csv_to_json.py`.
++ The `solar_dataset.json` file is what is finally fed into the network during training.
 
 ## ML Training (2023-12-19)
 
