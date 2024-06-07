@@ -5,17 +5,15 @@ import torch
 import math
 from tqdm import tqdm
 import time
-import torchvision.models as models
 from torch.utils.data import Dataset, DataLoader, RandomSampler
 from torchvision.transforms import v2
 import pickle
 import torch.nn as nn
-from typing import Any, Optional
 from sklearn.metrics import precision_score, recall_score, confusion_matrix
 import numpy as np
 import os
 import wandb
-from utils.torch_utils import global_parser, SaveBestModel#, validate_model
+from utils.torch_utils import global_parser, SaveBestModel
 from aia_ds import aia_euv, CustomTransform
 
 class AlexNet(nn.Module):
@@ -64,7 +62,6 @@ def train_loop():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    #criterion = torch.nn.CrossEntropyLoss()
     criterion = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
@@ -188,6 +185,9 @@ def validate_model(model, val_dl, loss_func, num_samples, device, threshold=0.5)
     return val_loss/num_samples, correct/num_samples, np.mean(np.array(precision)), np.mean(np.array(recall))
 
 def dummy_data(dataset, num_samples, batch_size):
+    """
+    Create a small dataset for testing by sampling from our actual dataset
+    """
     sampler = RandomSampler(dataset, num_samples=num_samples)
     dl_loader  = DataLoader(dataset, batch_size=batch_size, sampler=sampler)
     return dl_loader
@@ -199,13 +199,10 @@ if __name__=="__main__":
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
     args = parser.parse_args()
-    #print(args)
 
     args_dict = vars(args)
     print("Args dict:", args_dict)
 
-    #model = models.alexnet(num_classes=1)
-    #model.features[0].in_channels = 7
     model = AlexNet(num_classes=1)
 
     project_name = "flare_torch"
