@@ -22,6 +22,7 @@ import matplotlib
 import sunpy.visualization.colormaps as cm
 from matplotlib.colors import LinearSegmentedColormap
 import pickle
+from torchvision.transforms import v2
 
 class SaveBestModel:
     def __init__(self, monitor='val_loss', mode='min'):
@@ -313,8 +314,12 @@ if __name__== "__main__":
     means = [stats['mean'][f'channel_{i}'] for i in range(7)]
     stds = [stats['std'][f'channel_{i}'] for i in range(7)]
 
-    train_dataset = aia_euv('../solar_dataset.json', subset='training', transform=transforms.Compose([CustomTransform(means, stds)]))
-    validation_dataset = aia_euv('../solar_dataset.json', subset='validation', transform=transforms.Compose([CustomTransform(means, stds)]))
+    train_dataset = aia_euv('../solar_dataset.json', subset='training', transform=v2.Compose([
+        CustomTransform(means, stds),
+        v2.RandomHorizontalFlip(p=0.5),
+        v2.RandomVerticalFlip(p=0.5)
+        ]))
+    validation_dataset = aia_euv('../solar_dataset.json', subset='validation', transform=v2.Compose([CustomTransform(means, stds)]))
 
     print("Checking data specifications")
     for i in range(len(train_dataset)):
