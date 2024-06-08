@@ -8,54 +8,50 @@ import time
 from torch.utils.data import Dataset, DataLoader, RandomSampler
 from torchvision.transforms import v2
 import pickle
-import torch.nn as nn
 from sklearn.metrics import precision_score, recall_score, confusion_matrix
 import numpy as np
 import os
 import wandb
 from utils.torch_utils import global_parser, SaveBestModel
 from aia_ds import aia_euv, CustomTransform
+from torch_alexnet import AlexNet
 
-class AlexNet(nn.Module):
-    def __init__(self, num_classes: int = 1000, dropout: float = 0.5) -> None:
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(7, 64, kernel_size=11, stride=4, padding=2),  # Change 3 to 7
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(64, 192, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(192, 384, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-        )
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(256 * 6 * 6, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=dropout),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, num_classes),
-            nn.Sigmoid()
-        )
+def train_one_epoch(model, train_loader, optimizer, criterion, epoch, n_steps_per_epoch, threshold):
+    model.train()
+    running_loss = 0.0
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
-        return x
+    for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
 
-def train_loop():
-    
-    threshold = 5000  # GPU memory threshold measured in megabytes
+        current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
+        #print(f"Allocated GPU memory ({current_memory} MB)")
+
+        #memory_reserved = torch.cuda.memory_reserved() / (1024 ** 2)
+        #print(f"GPU memory reserved: {memory_reserved}")
+
+        if current_memory > threshold:
+            print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
+            sys.exit(0)
+
+        inputs, labels = inputs.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(inputs).squeeze()
+        labels = labels.float()
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item() * inputs.size(0)
+        metrics = {"train/batch_loss": loss,
+                   "train/epoch": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch
+                   }
+        if step + 1 < n_steps_per_epoch:
+            # Log train metrics to wandb 
+            wandb.log(metrics)
+    return running_loss    
+
+def train_loop(model, train_loader, val_loader, args, device):
+
+    print("train loader size", len(train_loader.dataset))
+    print("validation loader size", len(val_loader.dataset))
 
     wandb_dir = wandb.run.name
     output_dir = os.path.join("output", wandb_dir)
@@ -67,84 +63,50 @@ def train_loop():
 
     # initialize the callback
     save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
-
-    #num_samples = 150 
-    num_samples = len(val_loader.dataset)
-    print(f"Randomly sampling {num_samples} items from validation dataset")
-
-    #train_loader = dummy_data(train_dataset, num_samples=num_samples, 
-    #        batch_size=args.batch_size)
-
-    #val_loader = dummy_data(validation_dataset, num_samples=num_samples, 
-    #        batch_size=args.batch_size)
-
-    print("train size", len(train_loader.dataset))
-    print("validation size", len(val_loader.dataset))
+    
+    threshold = 5000  # GPU memory threshold measured in megabytes
 
     n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
     print(f"Steps per epoch:{n_steps_per_epoch}")
 
     for epoch in range(args.epochs):
-        model.train()
-        running_loss = 0.0
-
         start_time = time.time()
 
         print(f"Epoch:{epoch}")
 
-        for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
+        running_loss = train_one_epoch(model, train_loader, optimizer, criterion, epoch,
+                n_steps_per_epoch, threshold)
 
-            current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
-            #print(f"Allocated GPU memory ({current_memory} MB)")
-
-            #memory_reserved = torch.cuda.memory_reserved() / (1024 ** 2)
-            #print(f"GPU memory reserved: {memory_reserved}")
-
-            if current_memory > threshold:
-                print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
-                sys.exit(0)
-
-            inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(inputs).squeeze()
-            labels = labels.float()
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item() * inputs.size(0)
-            metrics = {"train/train_loss": loss,
-                       "train/epoch": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch
-                       }
-            if step + 1 < n_steps_per_epoch:
-                # Log train metrics to wandb 
-                wandb.log(metrics)
-
-
-        val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion, num_samples = num_samples, device=device)
+        val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion,
+                 num_samples=None)
 
         val_metrics = {"val/val_loss": val_loss, 
                        "val/val_accuracy": accuracy,
                        "val/precision":precision,
                        "val/recall":recall}
 
-        print(val_metrics)
-        wandb.log({**metrics, **val_metrics})
+        epoch_loss = running_loss / len(train_dataset)
+
+        wandb.log({"train/loss":epoch_loss, **val_metrics})
 
         # run the callback to save the model
         save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
-        epoch_loss = running_loss / len(train_dataset)
-        print(f"Epoch loss: {epoch_loss}")
-
         epoch_time = time.time() - start_time
-        print(f"Time taken to run single epoch: {epoch_time/60} mins")
-
         max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
-        print(f"Maximum GPU memory usage: {max_memory} MB")
-
         max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
+
+        print(val_metrics)
+        print(f"Epoch loss: {epoch_loss}")
+        print(f"Time taken to run single epoch: {epoch_time/60} mins")
+        print(f"Maximum GPU memory usage: {max_memory} MB")
         print(f"Maximum GPU memory reserved: {max_memory_reserved}")
 
-def validate_model(model, val_dl, loss_func, num_samples, device, threshold=0.5):
+def validate_model(model, val_dl, loss_func, threshold=0.5, num_samples=None):
+    """
+    Note that if a sampling loader is used to load a subset len(val_dl.dataset) gives the
+    wrong number of samples. In this case one needs to provide the actual number of samples
+    as the num_samples variable
+    """
     model.eval()
     val_loss = 0.
     correct = 0
@@ -154,6 +116,12 @@ def validate_model(model, val_dl, loss_func, num_samples, device, threshold=0.5)
     total_fp = 0
     total_fn = 0
     total_tp = 0
+
+    if num_samples is None:
+        num_samples = len(val_dl.dataset) 
+    else:
+        print(f"Randomly sampling {num_samples} items from validation dataset")
+
     with torch.inference_mode():
         for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
             images, labels = images.to(device), labels.to(device)
@@ -232,10 +200,19 @@ if __name__=="__main__":
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
     val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
 
+    num_samples = 150
+
+    train_loader = dummy_data(train_dataset, num_samples=num_samples, 
+            batch_size=args.batch_size)
+
+    val_loader = dummy_data(validation_dataset, num_samples=num_samples, 
+            batch_size=args.batch_size)
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
 
     torch.cuda.reset_peak_memory_stats()
 
     model.to(device)
-    train_loop()
+    train_loop(model, train_loader, val_loader, args, device=device)
+
