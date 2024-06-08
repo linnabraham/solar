@@ -5,6 +5,7 @@ and does the desired padding to a fixed shape and saves to disk
 as individual fits files with a suitably encoded filename
 Multithreading is used for parallelization
 """
+import argparse
 import pandas as pd
 import os
 import numpy as np
@@ -67,6 +68,11 @@ def resize_and_save_in_parallel(files_to_process, dest, targ_shape=(512,512)):
             executor.map(save_to_fits, pad_and_scaled, [harpnum]*77, [wavelength]*77, [obs_start]*77, timestamps, [dest]*77)
 
 if __name__=="__main__":
+    parser = argparse.ArgumentParser() 
+    parser.add_argument("-pos-data", "--pos-data")
+    parser.add_argument("-neg-data", "--neg-data")
+    args = parser.parse_args()
+
     selected_7h = "data/selected_7h.csv"
     targ_shape = (512, 512)
 
@@ -80,7 +86,7 @@ if __name__=="__main__":
     pos_files = df.fits_fullpath[df.label==1]
     print("Working on postive samples first")
     print("Files to extract", len(pos_files))
-    dest="/data/linn/E5_extracted_pos"
+    dest = args.pos_data
     if not os.path.exists(dest):
         os.mkdir(dest)
     print("Saving to ", dest)
@@ -89,7 +95,7 @@ if __name__=="__main__":
     neg_files = df.fits_fullpath[df.label==0]
     print("Working on negative samples")
     print("Files to extract", len(neg_files))
-    dest="/data/linn/E5_extracted_neg"
+    dest = args.neg_data
     if not os.path.exists(dest):
         os.mkdir(dest)
     print("Saving to ", dest)
