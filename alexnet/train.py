@@ -48,59 +48,6 @@ def train_one_epoch(model, train_loader, optimizer, criterion, epoch, n_steps_pe
             wandb.log(metrics)
     return running_loss    
 
-def train_loop(model, train_loader, val_loader, args, device):
-
-    print("train loader size", len(train_loader.dataset))
-    print("validation loader size", len(val_loader.dataset))
-
-    wandb_dir = wandb.run.name
-    output_dir = os.path.join("output", wandb_dir)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-    # initialize the callback
-    save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
-    
-    threshold = 5000  # GPU memory threshold measured in megabytes
-
-    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
-    print(f"Steps per epoch:{n_steps_per_epoch}")
-
-    for epoch in range(args.epochs):
-        start_time = time.time()
-
-        print(f"Epoch:{epoch}")
-
-        running_loss = train_one_epoch(model, train_loader, optimizer, criterion, epoch,
-                n_steps_per_epoch, threshold)
-
-        val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion,
-                 num_samples=None)
-
-        val_metrics = {"val/val_loss": val_loss, 
-                       "val/val_accuracy": accuracy,
-                       "val/precision":precision,
-                       "val/recall":recall}
-
-        epoch_loss = running_loss / len(train_dataset)
-
-        wandb.log({"train/loss":epoch_loss, **val_metrics})
-
-        # run the callback to save the model
-        save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
-        epoch_time = time.time() - start_time
-        max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
-        max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
-
-        print(val_metrics)
-        print(f"Epoch loss: {epoch_loss}")
-        print(f"Time taken to run single epoch: {epoch_time/60} mins")
-        print(f"Maximum GPU memory usage: {max_memory} MB")
-        print(f"Maximum GPU memory reserved: {max_memory_reserved}")
-
 def validate_model(model, val_dl, loss_func, threshold=0.5, num_samples=None):
     """
     Note that if a sampling loader is used to load a subset len(val_dl.dataset) gives the
@@ -152,6 +99,60 @@ def validate_model(model, val_dl, loss_func, threshold=0.5, num_samples=None):
 
     return val_loss/num_samples, correct/num_samples, np.mean(np.array(precision)), np.mean(np.array(recall))
 
+def train_loop(model, train_loader, val_loader, args, device):
+
+    print("train loader size", len(train_loader.dataset))
+    print("validation loader size", len(val_loader.dataset))
+
+    wandb_dir = wandb.run.name
+    output_dir = os.path.join("output", wandb_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    criterion = torch.nn.BCELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+    # initialize the callback
+    save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
+    
+    threshold = 5000  # GPU memory threshold measured in megabytes
+
+    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
+    print(f"Steps per epoch:{n_steps_per_epoch}")
+
+    for epoch in range(args.epochs):
+        start_time = time.time()
+
+        print(f"Epoch:{epoch}")
+
+        running_loss = train_one_epoch(model, train_loader, optimizer, criterion, epoch,
+                n_steps_per_epoch, threshold)
+
+        val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion,
+                 num_samples=None)
+
+        val_metrics = {"val/val_loss": val_loss, 
+                       "val/val_accuracy": accuracy,
+                       "val/precision":precision,
+                       "val/recall":recall}
+
+        epoch_loss = running_loss / len(train_dataset)
+
+        wandb.log({"train/epoch":epoch, "train/loss":epoch_loss, **val_metrics})
+
+        # run the callback to save the model
+        save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
+        epoch_time = time.time() - start_time
+        max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
+        max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
+
+        print(val_metrics)
+        print(f"Epoch loss: {epoch_loss}")
+        print(f"Time taken to run single epoch: {epoch_time/60} mins")
+        print(f"Maximum GPU memory usage: {max_memory} MB")
+        print(f"Maximum GPU memory reserved: {max_memory_reserved}")
+
+
 def dummy_data(dataset, num_samples, batch_size):
     """
     Create a small dataset for testing by sampling from our actual dataset
@@ -192,7 +193,8 @@ if __name__=="__main__":
         v2.RandomVerticalFlip(p=0.5)
         ]))
 
-    validation_dataset = aia_euv(args.json_path, subset='validation', transform=v2.Compose([CustomTransform(means, stds, zscore=True)]))
+    validation_dataset = aia_euv(args.json_path, subset='validation', transform=v2.Compose([
+        CustomTransform(means, stds, zscore=True)]))
 
     print("train size", len(train_dataset))
     print("validation size", len(validation_dataset))
@@ -200,13 +202,13 @@ if __name__=="__main__":
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
     val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
 
-    num_samples = 150
+    #num_samples = 150
 
-    train_loader = dummy_data(train_dataset, num_samples=num_samples, 
-            batch_size=args.batch_size)
+    #train_loader = dummy_data(train_dataset, num_samples=num_samples, 
+    #        batch_size=args.batch_size)
 
-    val_loader = dummy_data(validation_dataset, num_samples=num_samples, 
-            batch_size=args.batch_size)
+    #val_loader = dummy_data(validation_dataset, num_samples=num_samples, 
+    #        batch_size=args.batch_size)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
