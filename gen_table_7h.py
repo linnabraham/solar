@@ -3,6 +3,7 @@
 Script that reads the 7h FITS files and creates a table with metadata
 including longitude, image shapes etc to use for selection
 """
+import argparse
 import pandas as pd
 import numpy as np
 from astropy.io import fits
@@ -87,13 +88,17 @@ def process_dir(dirpath, label):
 
 
 if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-pos-data', '--pos-data')
+    parser.add_argument('-neg-data', '--neg-data')
+    args = parser.parse_args()
 
     rows = []
 
-    pos_comp_path = "/data/linn/newpipe_compressed/pos/*.fits"
+    pos_comp_path = f"{args.pos_data}/*.fits"
     process_dir(pos_comp_path, 1)
 
-    neg_comp_path = "/data/linn/newpipe_compressed/neg/*.fits"
+    pos_comp_path = f"{args.neg_data}/*.fits"
     process_dir(neg_comp_path, 0)
 
     table = pd.DataFrame(rows)
