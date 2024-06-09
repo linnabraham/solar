@@ -18,7 +18,6 @@ from torch_alexnet import AlexNet
 
 def train_one_epoch(model, train_loader, optimizer, criterion, epoch, n_steps_per_epoch, threshold):
     model.train()
-    running_loss = 0.0
 
     for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
 
@@ -39,14 +38,13 @@ def train_one_epoch(model, train_loader, optimizer, criterion, epoch, n_steps_pe
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
-        running_loss += loss.item() * inputs.size(0)
-        metrics = {"train/batch_loss": loss,
-                   "train/epoch": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch
+        metrics = {"train/train_loss": loss.item(),
+                   "train/epoch": (epoch + (step + 1) / n_steps_per_epoch)
                    }
         if step + 1 < n_steps_per_epoch:
             # Log train metrics to wandb 
             wandb.log(metrics)
-    return running_loss    
+    return metrics
 
 def validate_model(model, val_dl, loss_func, threshold=0.5, num_samples=None):
     """
