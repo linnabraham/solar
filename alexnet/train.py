@@ -129,9 +129,9 @@ def train_loop(model, train_dataset, val_dataset, args, output_dir, device):
     for epoch in range(args.epochs):
         start_time = time.time()
 
-        print(f"Epoch:{epoch}")
+        print(f"Epoch:{epoch+1}")
 
-        running_loss = train_one_epoch(model, train_loader, optimizer, criterion, epoch,
+        metrics = train_one_epoch(model, train_loader, optimizer, criterion, epoch+1,
                 n_steps_per_epoch, threshold)
 
         val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion,
@@ -142,9 +142,7 @@ def train_loop(model, train_dataset, val_dataset, args, output_dir, device):
                        "val/precision":precision,
                        "val/recall":recall}
 
-        epoch_loss = running_loss / len(train_dataset)
-
-        wandb.log({"train/epoch":epoch, "train/loss":epoch_loss, **val_metrics})
+        wandb.log({**metrics, **val_metrics})
 
         # run the callback to save the model
         save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
@@ -152,8 +150,8 @@ def train_loop(model, train_dataset, val_dataset, args, output_dir, device):
         max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
         max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
 
+        print(metrics)
         print(val_metrics)
-        print(f"Epoch loss: {epoch_loss}")
         print(f"Time taken to run single epoch: {epoch_time/60} mins")
         print(f"Maximum GPU memory usage: {max_memory} MB")
         print(f"Maximum GPU memory reserved: {max_memory_reserved}")
