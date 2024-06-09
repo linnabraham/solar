@@ -98,7 +98,7 @@ if __name__=="__main__":
     pos_comp_path = f"{args.pos_data}/*.fits"
     process_dir(pos_comp_path, 1)
 
-    pos_comp_path = f"{args.neg_data}/*.fits"
+    neg_comp_path = f"{args.neg_data}/*.fits"
     process_dir(neg_comp_path, 0)
 
     table = pd.DataFrame(rows)
