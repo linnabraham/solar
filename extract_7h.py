@@ -69,8 +69,8 @@ def resize_and_save_in_parallel(files_to_process, dest, targ_shape=(512,512)):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser() 
-    parser.add_argument("-pos-data", "--pos-data")
-    parser.add_argument("-neg-data", "--neg-data")
+    parser.add_argument("-pos-data", "--pos-data", help="Path of directory to extract positive samples")
+    parser.add_argument("-neg-data", "--neg-data", help="Path of directory to extract negative samples")
     args = parser.parse_args()
 
     selected_7h = "data/selected_7h.csv"
