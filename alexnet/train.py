@@ -97,15 +97,25 @@ def validate_model(model, val_dl, loss_func, threshold=0.5, num_samples=None):
 
     return val_loss/num_samples, correct/num_samples, np.mean(np.array(precision)), np.mean(np.array(recall))
 
-def train_loop(model, train_loader, val_loader, args, device):
+def train_loop(model, train_dataset, val_dataset, args, output_dir, device):
 
-    print("train loader size", len(train_loader.dataset))
-    print("validation loader size", len(val_loader.dataset))
+    if args.dummy_data == True:
+        print("Training on dummy data")
+        train_loader = dummy_data(train_dataset, num_samples=args.num_samples, 
+                batch_size=args.batch_size)
 
-    wandb_dir = wandb.run.name
-    output_dir = os.path.join("output", wandb_dir)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+        val_loader = dummy_data(validation_dataset, num_samples=args.num_samples, 
+                batch_size=args.batch_size)
+
+        n_steps_per_epoch = len(train_loader)
+
+    else:
+        train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
+        val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
+
+        n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
+
+    print(f"Steps per epoch:{n_steps_per_epoch}")
 
     criterion = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -115,8 +125,6 @@ def train_loop(model, train_loader, val_loader, args, device):
     
     threshold = 5000  # GPU memory threshold measured in megabytes
 
-    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
-    print(f"Steps per epoch:{n_steps_per_epoch}")
 
     for epoch in range(args.epochs):
         start_time = time.time()
@@ -157,6 +165,7 @@ def dummy_data(dataset, num_samples, batch_size):
     """
     sampler = RandomSampler(dataset, num_samples=num_samples)
     dl_loader  = DataLoader(dataset, batch_size=batch_size, sampler=sampler)
+    
     return dl_loader
 
 if __name__=="__main__":
@@ -165,6 +174,9 @@ if __name__=="__main__":
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
+    parser.add_argument("-dummy-data", "--dummy-data", type=bool, default=False, help="Boolean: whether to train first on a small dataset sampled from the original")
+    parser.add_argument("-num-samples", "--num-samples", default=150, help="""number of samples to take from original data;
+            only valid if --dummy-data set to True""")
     args = parser.parse_args()
 
     args_dict = vars(args)
@@ -197,22 +209,17 @@ if __name__=="__main__":
     print("train size", len(train_dataset))
     print("validation size", len(validation_dataset))
 
-    train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
-    val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
-
-    #num_samples = 150
-
-    #train_loader = dummy_data(train_dataset, num_samples=num_samples, 
-    #        batch_size=args.batch_size)
-
-    #val_loader = dummy_data(validation_dataset, num_samples=num_samples, 
-    #        batch_size=args.batch_size)
-
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
 
     torch.cuda.reset_peak_memory_stats()
 
     model.to(device)
-    train_loop(model, train_loader, val_loader, args, device=device)
+
+    wandb_dir = wandb.run.name
+    output_dir = os.path.join("output", wandb_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    train_loop(model, train_dataset, validation_dataset, args, output_dir, device=device)
 
