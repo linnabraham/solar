@@ -161,7 +161,7 @@ if __name__=="__main__":
         os.mkdir("outputs")
 
     # get directory to store individual run info
-    outdir = get_savepaths_wandb(output, create_dirs=True)
+    outdir = get_savepaths_wandb("outputs", create_dirs=True)
 
     model_path = os.path.join(outdir,"best_model.h5")
     history_path = os.path.join(outdir,'history.json')
