@@ -5,7 +5,7 @@ from tqdm import tqdm
 def global_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-input-shape', '--input-shape', nargs='+', type=int, default=(512,512))
-    parser.add_argument('-json-path', '--json-path', default="../solar_dataset.json")
+    #parser.add_argument('-json-path', '--json-path', default="../solar_dataset.json")
     return parser
 
 class SaveBestModel:
