@@ -1,161 +1,103 @@
 import sys
 sys.path.append("..")
+import os
 import argparse
 import torch
 import math
-from tqdm import tqdm
-import time
 from torch.utils.data import Dataset, DataLoader, RandomSampler
 from torchvision.transforms import v2
 import pickle
-from sklearn.metrics import precision_score, recall_score, confusion_matrix
 import numpy as np
-import os
 import wandb
-from utils.torch_utils import global_parser, SaveBestModel
+import time
+from tqdm import tqdm
+from utils.torch_utils import global_parser
 from aia_ds import aia_euv, CustomTransform
 from torch_alexnet import AlexNet
 
-def train_one_epoch(model, train_loader, optimizer, criterion, epoch, n_steps_per_epoch, threshold):
-    model.train()
+def train_one_epoch(model, train_loader, loss_fn, optimizer, epoch, n_steps_per_epoch):
+    running_loss = 0.
+    example_ct = 0
 
-    for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
+    for step, data_batch in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
 
-        current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
-        #print(f"Allocated GPU memory ({current_memory} MB)")
-
-        #memory_reserved = torch.cuda.memory_reserved() / (1024 ** 2)
-        #print(f"GPU memory reserved: {memory_reserved}")
-
-        if current_memory > threshold:
-            print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
-            sys.exit(0)
-
+        inputs, labels = data_batch
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(inputs).squeeze()
         labels = labels.float()
-        loss = criterion(outputs, labels)
+        loss = loss_fn(outputs, labels)
         loss.backward()
         optimizer.step()
+
+        running_loss += loss.item() * inputs.size(0)
+
+        example_ct += inputs.size(0)
+
         metrics = {"train/train_loss": loss.item(),
-                   "train/epoch": (epoch + (step + 1) / n_steps_per_epoch)
+                   "train/epoch": (epoch + (step + 1) / n_steps_per_epoch),
+                    "train/example_ct": example_ct
                    }
-        if step + 1 < n_steps_per_epoch:
-            # Log train metrics to wandb 
+
+        if step +1 < n_steps_per_epoch:
+            # Log train metrics to wandb
             wandb.log(metrics)
-    return metrics
+            #print(metrics)
+    return running_loss/example_ct
 
-def validate_model(model, val_dl, loss_func, threshold=0.5, num_samples=None):
-    """
-    Note that if a sampling loader is used to load a subset len(val_dl.dataset) gives the
-    wrong number of samples. In this case one needs to provide the actual number of samples
-    as the num_samples variable
-    """
-    model.eval()
-    val_loss = 0.
-    correct = 0
-    precision = []
-    recall = []
-    total_tn = 0
-    total_fp = 0
-    total_fn = 0
-    total_tp = 0
-
-    if num_samples is None:
-        num_samples = len(val_dl.dataset) 
-    else:
-        print(f"Randomly sampling {num_samples} items from validation dataset")
-
-    with torch.inference_mode():
-        for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
-            images, labels = images.to(device), labels.to(device)
-
-            # Forward pass ➡
-            outputs = model(images).squeeze()
-            labels = labels.float()
-            val_loss += loss_func(outputs, labels).item()*labels.size(0)
-            # Compute accuracy and accumulate
-            pred_scores = outputs.data
-            predicted = (pred_scores > threshold).int()
-            correct += (predicted == labels).sum().item()
-
-            #pred_scores, predicted = torch.max(outputs.data, 1)
-
-            precision.append(precision_score(labels.cpu(), predicted.cpu(), zero_division=0))
-            recall.append(recall_score(labels.cpu(), predicted.cpu(), zero_division=0))
-            tn, fp, fn, tp  = confusion_matrix(labels.cpu(), predicted.cpu(), labels=[0,1]).ravel()
-            total_tn += tn
-            total_fp += fp
-            total_fn += fn
-            total_tp += tp
-
-    print("Total TN:", total_tn)
-    print("Total FP:", total_fp)
-    print("Total FN:", total_fn)
-    print("Total TP:", total_tp)
-
-    return val_loss/num_samples, correct/num_samples, np.mean(np.array(precision)), np.mean(np.array(recall))
-
-def train_loop(model, train_dataset, val_dataset, args, output_dir, device):
-
-    if args.dummy_data == True:
-        print("Training on dummy data")
-        train_loader = dummy_data(train_dataset, num_samples=args.num_samples, 
-                batch_size=args.batch_size)
-
-        val_loader = dummy_data(validation_dataset, num_samples=args.num_samples, 
-                batch_size=args.batch_size)
-
-        n_steps_per_epoch = len(train_loader)
-
-    else:
-        train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle=True)
-        val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=False)
-
-        n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
-
-    print(f"Steps per epoch:{n_steps_per_epoch}")
-
-    criterion = torch.nn.BCELoss()
+def train_loop(model, train_loader, val_loader, n_steps_per_epoch, output_dir, args, device):
+    loss_fn = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-    # initialize the callback
-    save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
-    
-    threshold = 5000  # GPU memory threshold measured in megabytes
-
+    best_vloss = 1_000_000.
 
     for epoch in range(args.epochs):
-        start_time = time.time()
+        #print(f"Epoch:{epoch+1}")
 
-        print(f"Epoch:{epoch+1}")
+        model.train(True)
+        avg_train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer, epoch, n_steps_per_epoch)
 
-        metrics = train_one_epoch(model, train_loader, optimizer, criterion, epoch+1,
-                n_steps_per_epoch, threshold)
+        running_vloss = 0.0
+        model.eval()
+        with torch.no_grad():
+            for i, vdata in tqdm(enumerate(val_loader), total=len(val_loader), leave=False):
+                vinputs, vlabels = vdata
+                vinputs, vlabels = vinputs.to(device), vlabels.to(device)
+                voutputs = model(vinputs).squeeze()
+                vlabels = vlabels.float()
+                vloss = loss_fn(voutputs, vlabels)
+                running_vloss += vloss
 
-        val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion,
-                 num_samples=None)
+        avg_vloss = running_vloss/(i+1)
+        epoch_metrics = {"train/epoch":epoch+1,
+                         "train/avg_train_loss": avg_train_loss,
+                         "val/val_loss":avg_vloss.item()
+                         }
+        wandb.log({**epoch_metrics})
+        #print("Epoch metrics", epoch_metrics)
 
-        val_metrics = {"val/val_loss": val_loss, 
-                       "val/val_accuracy": accuracy,
-                       "val/precision":precision,
-                       "val/recall":recall}
+        if avg_vloss < best_vloss:
+            best_vloss = avg_vloss
+            model_path = os.path.join(output_dir,"trained_model.pth" )
+            torch.save(model.state_dict(), model_path)
 
-        wandb.log({**metrics, **val_metrics})
+def prepare_dataset(args):
+    with open('../vit/stats.pkl', 'rb') as f:
+        stats = pickle.load(f)
 
-        # run the callback to save the model
-        save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
-        epoch_time = time.time() - start_time
-        max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
-        max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
+    means = [stats['mean'][f'channel_{i}'] for i in [2,5,0,1,3,4,6]]
+    stds = [stats['std'][f'channel_{i}'] for i in [2,5,0,1,3,4,6]]
 
-        print(metrics)
-        print(val_metrics)
-        print(f"Time taken to run single epoch: {epoch_time/60} mins")
-        print(f"Maximum GPU memory usage: {max_memory} MB")
-        print(f"Maximum GPU memory reserved: {max_memory_reserved}")
+    train_dataset = aia_euv(args.json_path, subset='training', transform=v2.Compose([
+        CustomTransform(means, stds, zscore=True),
+        v2.RandomHorizontalFlip(p=0.5),
+        v2.RandomVerticalFlip(p=0.5)
+        ]))
 
+    validation_dataset = aia_euv(args.json_path, subset='validation', transform=v2.Compose([
+        CustomTransform(means, stds, zscore=True)
+        ]))
+
+    return train_dataset, validation_dataset
 
 def dummy_data(dataset, num_samples, batch_size):
     """
@@ -172,40 +114,24 @@ if __name__=="__main__":
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
-    parser.add_argument("-dummy-data", "--dummy-data", type=bool, default=False, help="Boolean: whether to train first on a small dataset sampled from the original")
+    parser.add_argument("-dummy-data", "--dummy-data",action='store_true', help="Train first on a small dataset sampled from the original")
     parser.add_argument("-num-samples", "--num-samples", default=150, help="""number of samples to take from original data;
             only valid if --dummy-data set to True""")
-    args = parser.parse_args()
 
+    args = parser.parse_args()
     args_dict = vars(args)
     print("Args dict:", args_dict)
-
-    model = AlexNet(num_classes=1)
-
-    project_name = "flare_torch"
-
     wandb.init(
-        project= project_name,
+        project= "flare_torch",
         config= args_dict
             )
 
-    with open('../vit/stats.pkl', 'rb') as f:
-        stats = pickle.load(f)
+    model = AlexNet(num_classes=1)
 
-    means = [stats['mean'][f'channel_{i}'] for i in range(7)]
-    stds = [stats['std'][f'channel_{i}'] for i in range(7)]
+    train_ds, val_ds = prepare_dataset(args)
 
-    train_dataset = aia_euv(args.json_path, subset='training', transform=v2.Compose([
-        CustomTransform(means, stds, zscore=True),
-        v2.RandomHorizontalFlip(p=0.5),
-        v2.RandomVerticalFlip(p=0.5)
-        ]))
-
-    validation_dataset = aia_euv(args.json_path, subset='validation', transform=v2.Compose([
-        CustomTransform(means, stds, zscore=True)]))
-
-    print("train size", len(train_dataset))
-    print("validation size", len(validation_dataset))
+    print("train size", len(train_ds))
+    print("validation size", len(val_ds))
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
@@ -214,10 +140,33 @@ if __name__=="__main__":
 
     model.to(device)
 
+    if args.dummy_data == True:
+        print("Training on dummy data")
+        train_loader = dummy_data(train_ds, num_samples=args.num_samples, 
+                batch_size=args.batch_size)
+
+        val_loader = dummy_data(val_ds, num_samples=args.num_samples, 
+                batch_size=args.batch_size)
+
+        n_steps_per_epoch = len(train_loader)
+
+    else:
+        train_loader = DataLoader(train_ds, batch_size = args.batch_size, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size = args.batch_size, shuffle=False)
+
+        n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
+
+    print(f"Steps per epoch:{n_steps_per_epoch}")
+
+    print(device)
+
     wandb_dir = wandb.run.name
     output_dir = os.path.join("output", wandb_dir)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    train_loop(model, train_dataset, validation_dataset, args, output_dir, device=device)
+    start_time = time.time()
+    train_loop(model, train_loader, val_loader, n_steps_per_epoch, output_dir, args, device=device)
 
+    epoch_time = time.time() - start_time
+    print(f"Time taken to run single epoch: {np.round(epoch_time,4)/60} mins")
