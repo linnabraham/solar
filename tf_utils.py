@@ -19,9 +19,11 @@ def get_trained_model(args):
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-input-shape', '--input-shape', nargs='+', type=int, default=(512,512))
+    parser.add_argument('-num-channels', '--num-channels', default=7)
     return parser
 
 def get_compiled_model(args):
+    height, width = args.input_shape
     classification_threshold = 0.5
 
     METRICS = [
