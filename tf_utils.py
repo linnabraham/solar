@@ -1,6 +1,5 @@
 import argparse
 import tensorflow as tf
-from tensorflow.keras import backend
 from helpers.alexnet import AlexNet
 
 def get_trained_model(args):
@@ -19,9 +18,6 @@ def get_parser():
     return parser
 
 def get_compiled_model(args):
-   # force channels-first ordering
-    backend.set_image_data_format('channels_first')
-
     classification_threshold = 0.5
 
     METRICS = [
