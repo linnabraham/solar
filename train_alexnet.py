@@ -12,6 +12,7 @@ from tensorflow.keras.layers import Normalization
 from tensorflow.keras import backend
 from wandb.keras import WandbCallback
 from helpers.alexnet import AlexNet
+from tf_utils import get_parser
 tf.get_logger().setLevel(logging.WARNING)
 
 class SaveHistoryCallback(Callback):
@@ -142,13 +143,13 @@ if __name__=="__main__":
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-input-shape', '--input-shape', nargs='+', type=int, default=(512,512))
+    parser = get_parser()
     parser.add_argument('-json-path', '--json-path', default="solar_dataset.json")
     parser.add_argument('-batch-size', '--batch-size', type=int, default=32)
     parser.add_argument('-epochs', '--epochs', type=int, default=150)
 
     args = parser.parse_args()
+    print(vars(args))
 
     json_path = args.json_path
     batch_size = args.batch_size
