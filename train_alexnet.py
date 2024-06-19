@@ -12,7 +12,7 @@ from tensorflow.keras.layers import Normalization
 from tensorflow.keras import backend
 from wandb.keras import WandbCallback
 from helpers.alexnet import AlexNet
-from tf_utils import get_parser
+from tf_utils import get_parser, read_stats
 tf.get_logger().setLevel(logging.WARNING)
 
 class SaveHistoryCallback(Callback):
@@ -104,6 +104,18 @@ def dataset_from_json(json_path, args):
 
     return train_ds, val_ds
 
+def add_normalization_layer(model, data_mean:list, data_std:list, args):
+    """
+    Add a normalization layer to standardize the data channel-wise
+    """
+    data_var = [np.square(item) for item in data_std]
+    norm_layer = tf.keras.layers.Normalization(axis=1, mean=data_mean, variance=data_var)
+    inputs = tf.keras.Input(shape=(args.num_channels,)+args.input_shape)
+    x = norm_layer(inputs)
+    outputs = model(x)
+    model = tf.keras.Model(inputs, outputs)
+    return model
+
 def get_compiled_model(args):
 
     height, width = args.input_shape
@@ -121,6 +133,8 @@ def get_compiled_model(args):
           tf.keras.metrics.AUC(num_thresholds=100, curve='PR', name='auc_pr'),
     ]
     model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
+    data_mean, data_std = read_stats(args.stats_file)
+    model = add_normalization_layer(model, data_mean = data_mean, data_std = data_std, args=args)
 
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
@@ -147,6 +161,7 @@ if __name__=="__main__":
     parser.add_argument('-json-path', '--json-path', default="solar_dataset.json")
     parser.add_argument('-batch-size', '--batch-size', type=int, default=32)
     parser.add_argument('-epochs', '--epochs', type=int, default=150)
+    parser.add_argument('--stats-file')
 
     args = parser.parse_args()
     print(vars(args))
