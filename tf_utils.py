@@ -4,6 +4,7 @@ import os
 import json
 import numpy as np
 from astropy.io import fits
+import pickle
 from helpers.alexnet import AlexNet
 
 def get_trained_model(args):
@@ -96,4 +97,12 @@ def dataset_from_json(args):
     val_ds = tf.data.Dataset.zip((images, labels))
 
     return train_ds, val_ds
+
+def read_stats(pickle_path):
+    with open(pickle_path, 'rb') as f:
+        stats = pickle.load(f)
+
+    means = [stats['mean'][f'channel_{i}'] for i in range(7)]
+    stds = [stats['std'][f'channel_{i}'] for i in range(7)]
+    return means, stds
 
