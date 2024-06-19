@@ -8,7 +8,10 @@ import logging
 import argparse
 import tensorflow as tf
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback
-
+from tensorflow.keras.layers import Normalization
+from tensorflow.keras import backend
+from wandb.keras import WandbCallback
+from helpers.alexnet import AlexNet
 tf.get_logger().setLevel(logging.WARNING)
 
 class SaveHistoryCallback(Callback):
@@ -101,8 +104,6 @@ def dataset_from_json(json_path, args):
     return train_ds, val_ds
 
 def get_compiled_model(args):
-    from tensorflow.keras import backend
-    from helpers.alexnet import AlexNet
 
     height, width = args.input_shape
 
@@ -138,7 +139,6 @@ def save_arguments(args, filename):
         json.dump(vars(args), f)
 
 if __name__=="__main__":
-    from wandb.keras import WandbCallback
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
 
