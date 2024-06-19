@@ -1,0 +1,10 @@
+md5: 6f1ff928a0e4de509499382a3bba8949
+frozen: true
+deps:
+- md5: 06bfca1d104d96af4ab66dd8a915192f
+  size: 500
+  hash: md5
+  path: /data/linn/stats.pkl
+outs:
+- hash: md5
+  path: stats.pkl
