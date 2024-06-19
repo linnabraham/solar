@@ -33,8 +33,7 @@ def read_fits(file_path):
     return hdul[0].data
 
 def _parse_images(imgs:list, args):
-    height = args.input_shape[0]
-    width  = args.input_shape[1]
+    height, width = args.input_shape
 
     images = np.zeros((len(imgs), height, width))
     for i, img in enumerate(imgs):
@@ -77,8 +76,7 @@ def parse_json(json_path):
     return x_train, y_train, x_val, y_val
 
 def dataset_from_json(json_path, args):
-    height = args.input_shape[0]
-    width  = args.input_shape[1]
+    height, width = args.input_shape
 
     x_train, y_train, x_val, y_val = parse_json(json_path)
 
@@ -106,8 +104,7 @@ def get_compiled_model(args):
     from tensorflow.keras import backend
     from helpers.alexnet import AlexNet
 
-    height = args.input_shape[0]
-    width = args.input_shape[1]
+    height, width = args.input_shape
 
     # force channels-first ordering
     backend.set_image_data_format('channels_first')
