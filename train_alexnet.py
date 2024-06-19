@@ -141,7 +141,6 @@ def save_arguments(args, filename):
         json.dump(vars(args), f)
 
 if __name__=="__main__":
-    import tensorflow_addons as tfa
     from wandb.keras import WandbCallback
 
     parser = argparse.ArgumentParser()
