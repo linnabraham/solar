@@ -62,6 +62,11 @@ def sqrt_transform(image, label):
     image = tf.math.sqrt(image)
     return image, label
 
+def log_transform(image, label):
+    image = tf.where(image < 0, tf.zeros_like(image), image) + 1
+    image = tf.math.log(image)
+    return image, label
+
 def parse_json(json_path):
     with open(json_path) as f:
         data = json.load(f)
@@ -197,8 +202,8 @@ if __name__=="__main__":
 
     #train_ds = train_ds.map(rescale).batch(batch_size)
     #val_ds = val_ds.map(rescale).batch(batch_size)
-    train_ds = train_ds.map(sqrt_transform).map(rescale).batch(batch_size)
-    val_ds = val_ds.map(sqrt_transform).map(rescale).batch(batch_size)
+    train_ds = train_ds.map(log_transform).batch(batch_size)
+    val_ds = val_ds.map(log_transform).batch(batch_size)
 
     history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
         WandbCallback(save_model=(False),save_graph=(False))])
