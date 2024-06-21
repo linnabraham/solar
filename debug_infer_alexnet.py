@@ -41,26 +41,7 @@ def evaluate_on_tf_datasets(args):
         prediction = model.predict(images_batch)
         print("Labels\n", label)
         print(prediction)
-
-if __name__=="__main__":
-    parser = get_parser()
-    parser.add_argument("--json-path")
-    parser.add_argument("--modelpath")
-    parser.add_argument("--batch-size", type=int, default=1)
-    args = parser.parse_args()
-
-    # force channels-first ordering
-    from tensorflow.keras import backend
-    backend.set_image_data_format('channels_first')
-    gpu = tf.config.experimental.list_physical_devices('GPU')[0]
-    tf.config.experimental.set_memory_growth(gpu, True)
-
-    model = get_trained_model(args)
-    x_train, y_train, x_test, y_test = parse_json(args.json_path)
-    x_train, y_train = shuffle(x_train, y_train, random_state=42)
-    x_test, y_test = shuffle(x_test, y_test, random_state=42)
-    print(len(x_train), len(x_test))
-
+def evaluate_model_metrics(x_train, y_train):
     count = 0
     pred_scores = []
     ground_truth = []
@@ -86,5 +67,26 @@ if __name__=="__main__":
     print(cm)
     print("Precision", precision)
     print("Recall", recall)
+
+if __name__=="__main__":
+    # force channels-first ordering
+    from tensorflow.keras import backend
+    backend.set_image_data_format('channels_first')
+    gpu = tf.config.experimental.list_physical_devices('GPU')[0]
+    tf.config.experimental.set_memory_growth(gpu, True)
+
+    parser = get_parser()
+    parser.add_argument("--json-path")
+    parser.add_argument("--modelpath")
+    parser.add_argument("--batch-size", type=int, default=1)
+    args = parser.parse_args()
+
+    model = get_trained_model(args)
+    x_train, y_train, x_test, y_test = parse_json(args.json_path)
+    x_train, y_train = shuffle(x_train, y_train, random_state=42)
+    x_test, y_test = shuffle(x_test, y_test, random_state=42)
+    print(len(x_train), len(x_test))
+
+    evaluate_model_metrics(x_train, y_train)
 
 
