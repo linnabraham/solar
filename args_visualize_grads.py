@@ -33,13 +33,23 @@ def rescale(image, label):
     image = tf.image.per_image_standardization(image)
     return image, label
 
-def get_trained_model(METRICS):
+def get_trained_model(modelpath):
     global height
     global width
+    classification_threshold = 0.5
+
+    METRICS = [
+          tf.keras.metrics.Precision(thresholds=classification_threshold,
+                                     name='precision'),
+          tf.keras.metrics.Recall(thresholds=classification_threshold,
+                                  name="recall"),
+          tf.keras.metrics.AUC(num_thresholds=100, curve='PR', name='auc_pr'),
+    ]
+
     model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
-    model.load_weights("outputs/best_model.h5")
+    model.load_weights(modelpath)
     return model
 
 def read_fits(file_path):
@@ -190,38 +200,29 @@ def plot_single_channel_attribution(attribution_mask, images_pre, channel=1):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
+    parser.add_argument('-input-shape', '--input-shape', nargs='+', type=int, default=(512,512))
+    parser.add_argument('-json-path', '--json-path')
+    parser.add_argument('-modelpath', '--modelpath')
     args = parser.parse_args()
 
-    height = args.input_shape[0]
-    width = args.input_shape[1]
+    height, width = args.input_shape
 
-    json_path = "solar_dataset.json"
-    with open(json_path) as f:
+    # force channels-first ordering
+    backend.set_image_data_format('channels_first')
+
+
+    with open(args.json_path) as f:
         data = json.load(f)
 
         x_test = [
-                [os.path.join(os.path.dirname(json_path), c[str(i)]) for i in range(7)]
+                [os.path.join(os.path.dirname(args.json_path), c[str(i)]) for i in range(7)]
                  for c in data.get('test')
                  ]
         y_test = [p['label'] for p in data.get('test')]
         aarpid_test = [p['aarp_id'] for p in data.get('test')]
         ts_test = [p['timestamp'] for p in data.get('test')]
 
-    # force channels-first ordering
-    backend.set_image_data_format('channels_first')
-
-    classification_threshold = 0.5
-
-    METRICS = [
-          tf.keras.metrics.Precision(thresholds=classification_threshold,
-                                     name='precision'),
-          tf.keras.metrics.Recall(thresholds=classification_threshold,
-                                  name="recall"),
-          tf.keras.metrics.AUC(num_thresholds=100, curve='PR', name='auc_pr'),
-    ]
-
-    model = get_trained_model(METRICS)
+    model = get_trained_model(args.modelpath)
 
     count = 0
 
