@@ -24,6 +24,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from astropy.io import fits
 #from functools import lru_cache
 import argparse
+import tempfile
+import random
 
 def cross_entropy(label, prediction):
     # compute the cross-entropy loss for the sample
@@ -256,18 +258,23 @@ if __name__=="__main__":
     # set the transparency value to be used for overlaying mask on actual image
     alpha = 0.6
 
+    temp_dir = tempfile.mkdtemp(dir='./')
+
     # iterate over each individual sample in the testing set
-    for row, label, aarpid, ts  in zip(x_test, y_test, aarpid_test, ts_test):
+    combined_list = list(zip(x_test, y_test, aarpid_test, ts_test))
+    random.shuffle(combined_list)
+    for row, label, aarpid, ts  in combined_list:
+        if count > 100:
+            break
 
         if label == 0:
-            base_path = "pdfgrad/non-flared"
+            base_path = os.path.join(temp_dir,"non_flared")
+            if not os.path.exists(base_path):
+                os.mkdir(base_path)
         else:
-            base_path = "pdfgrad/flared"
-
-        print("True label", label)
-        print("Saving to base path", base_path)
-        print("AARP ID", aarpid)
-        print("Timestamp", ts)
+            base_path = os.path.join(temp_dir,"flared")
+            if not os.path.exists(base_path):
+                os.mkdir(base_path)
 
         #images = tf.data.Dataset.from_generator(generator = lambda: img_generator(row),
         #        output_types = tf.float32,
