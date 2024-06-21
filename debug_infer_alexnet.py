@@ -116,10 +116,11 @@ if __name__=="__main__":
     model = build_model_withnorm(args)
     print_weights(model)
 
-    x_train, y_train, x_test, y_test = parse_json(args.json_path)
-    x_train, y_train = shuffle(x_train, y_train, random_state=42)
-    x_test, y_test = shuffle(x_test, y_test, random_state=42)
-    print(len(x_train), len(x_test))
+    if not args.json_path is None:
+        x_train, y_train, x_test, y_test = parse_json(args.json_path)
+        x_train, y_train = shuffle(x_train, y_train, random_state=42)
+        x_test, y_test = shuffle(x_test, y_test, random_state=42)
+        print(len(x_train), len(x_test))
 
-    evaluate_model_metrics(x_train, y_train)
+        evaluate_model_metrics(x_train, y_train)
 
