@@ -41,6 +41,7 @@ def evaluate_on_tf_datasets(args):
         prediction = model.predict(images_batch)
         print("Labels\n", label)
         print(prediction)
+
 def evaluate_model_metrics(x_train, y_train):
     count = 0
     pred_scores = []
@@ -68,6 +69,17 @@ def evaluate_model_metrics(x_train, y_train):
     print("Precision", precision)
     print("Recall", recall)
 
+def print_weights(model):
+    for item in model.trainable_variables:
+        print(item.shape)
+    first_layer_weights = model.trainable_variables[0]
+    sliced_weights = first_layer_weights[:,:,0,0]
+    print(sliced_weights)
+    second_last_layer_weights = model.trainable_variables[-2:-1]
+    last_layer_weights = model.trainable_variables[-1]
+    print(second_last_layer_weights)
+    print(last_layer_weights)
+
 if __name__=="__main__":
     # force channels-first ordering
     from tensorflow.keras import backend
@@ -82,11 +94,12 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     model = get_trained_model(args)
+    print_weights(model)
+
     x_train, y_train, x_test, y_test = parse_json(args.json_path)
     x_train, y_train = shuffle(x_train, y_train, random_state=42)
     x_test, y_test = shuffle(x_test, y_test, random_state=42)
     print(len(x_train), len(x_test))
 
     evaluate_model_metrics(x_train, y_train)
-
 
