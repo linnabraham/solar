@@ -25,9 +25,12 @@ from astropy.io import fits
 #from functools import lru_cache
 import argparse
 
-def cross_entropy(p, q):
-     eps = 1e-15
-     return -sum([p[i]*log(q[i]+eps) for i in range(len(p))])
+def cross_entropy(label, prediction):
+    # compute the cross-entropy loss for the sample
+    p = [ 1.0 - int(label), int(label)]
+    q = [ 1.0 - prediction, prediction]
+    eps = 1e-15
+    return -sum([p[i]*log(q[i]+eps) for i in range(len(p))])
 
 def rescale(image, label):
     image = tf.image.per_image_standardization(image)
@@ -276,11 +279,13 @@ if __name__=="__main__":
         images, images_pre = preprocess_data_E4(images)
         prediction = model.predict(images)
 
-        # compute the cross-entropy loss for the sample
-        expected = [ 1.0 - int(label), int(label)]
-        predicted = [ 1.0 - prediction, prediction]
-        ce = cross_entropy(expected, predicted)
-        ce = np.abs(ce)
+        ce = np.abs(cross_entropy(label, prediction))
+
+        print("True label", label)
+        print("Saving to base path", base_path)
+        print("AARP ID", aarpid)
+        print("Timestamp", ts)
+        print("Cross-entropy loss", ce)
 
         pdf_path = f"overlay_mask_{ce:.5f}_{count}_{aarpid}_{ts}_{alpha}_all.pdf"
 
