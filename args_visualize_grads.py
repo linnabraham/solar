@@ -198,6 +198,30 @@ def plot_single_channel_attribution(attribution_mask, images_pre, channel=1):
     fig.tight_layout()
     return fig
 
+def preprocess_data_E4(images):
+    # apply the sqrt transform that is done during training
+    images = np.where(images<0, np.zeros_like(images), images)
+    images = np.sqrt(images)
+
+    # create a copy of the images before standardizing for visual plotting
+    images_pre = images.copy()
+
+    images = tf.image.per_image_standardization(images)
+    images = np.expand_dims(images, axis=0)
+    return images, images_pre
+
+def preprocess_data(images):
+    # apply the sqrt transform that is done during training
+    images = np.where(images<0, np.zeros_like(images), images)+1
+    images = np.log(images)
+
+    # create a copy of the images before standardizing for visual plotting
+    images_pre = images.copy()
+
+    images = tf.image.per_image_standardization(images)
+    images = np.expand_dims(images, axis=0)
+    return images, images_pre
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-input-shape', '--input-shape', nargs='+', type=int, default=(512,512))
@@ -248,17 +272,8 @@ if __name__=="__main__":
 
         images = _parse_images(row)
 
-        # apply the sqrt transform that is done during training
-        images = np.where(images<0, np.zeros_like(images), images)
-        images = np.sqrt(images)
-
-        # create a copy of the images before standardizing for visual plotting
-        images_pre = images.copy()
-
-        images = tf.image.per_image_standardization(images)
         attribution_masks  = get_attributions_mask(images, model)
-
-        images = np.expand_dims(images, axis=0)
+        images, images_pre = preprocess_data_E4(images)
         prediction = model.predict(images)
 
         # compute the cross-entropy loss for the sample
