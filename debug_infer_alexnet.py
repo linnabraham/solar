@@ -3,7 +3,9 @@ import tensorflow as tf
 from sklearn.utils import shuffle
 from sklearn.metrics import confusion_matrix, precision_score, recall_score
 import numpy as np
-from tf_utils import get_trained_model, get_parser, dataset_from_json, parse_json, parse_images
+from tf_utils import get_trained_model, get_parser, dataset_from_json, parse_json, parse_images, read_stats
+from helpers.alexnet import AlexNet
+from train_alexnet import add_normalization_layer
 
 def preprocess_images_E2(images):
     images = np.where(images<0, np.zeros_like(images), images)
@@ -80,6 +82,23 @@ def print_weights(model):
     print(second_last_layer_weights)
     print(last_layer_weights)
 
+def build_model_withnorm(args):
+
+    height, width = args.input_shape
+    classification_threshold = 0.5
+    model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
+    data_mean, data_std = read_stats('/data/linn/stats.pkl')
+    model = add_normalization_layer(model, data_mean = data_mean, data_std = data_std, args=args)
+    #data_var = [np.square(item) for item in data_std]
+    ##norm_layer = tf.keras.layers.Normalization(axis=-1, mean=data_mean, variance=data_var)
+    #norm_layer = tf.keras.layers.Normalization(axis=1, mean=data_mean, variance=data_var)
+    #inputs = tf.keras.Input(shape=(args.num_channels,)+args.input_shape)
+    ##inputs = tf.keras.Input(shape=args.input_shape+(args.num_channels,))
+    #x = norm_layer(inputs)
+    #outputs = model(x)
+    #model = tf.keras.Model(inputs, outputs)
+    return model
+
 if __name__=="__main__":
     # force channels-first ordering
     from tensorflow.keras import backend
@@ -94,6 +113,7 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     model = get_trained_model(args)
+    model = build_model_withnorm(args)
     print_weights(model)
 
     x_train, y_train, x_test, y_test = parse_json(args.json_path)
