@@ -33,8 +33,9 @@ class SaveHistoryCallback(Callback):
             json.dump(self.history, f)
 
 def read_fits(file_path):
-    hdul = fits.open(file_path)
-    return hdul[0].data
+    with fits.open(file_path) as hdul:
+        data = hdul[0].data
+    return data
 
 def _parse_images(imgs:list, args):
     height, width = args.input_shape
