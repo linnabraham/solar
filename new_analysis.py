@@ -7,6 +7,7 @@ import pandas as pd
 import time
 import tensorflow as tf
 import sys
+from joblib import Parallel, delayed
 from active_region import active_region
 
 def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_frac=0.2, aarp_id=None):
@@ -62,13 +63,14 @@ def add_observations_for_aarp(active_regions_dict, data, aarp_id):
         active_regions_dict[aarp_id] = region
     else:
         region = active_regions_dict[aarp_id]
-    
-    # Add observations for each wavelength from the filtered entries
-    for entry in relevant_entries:
+    def process_entry(entry):
         timestamp = entry["timestamp"]
         for wavelength, fits_path in entry.items():
             if wavelength.isdigit():  # Check if the key is a digit (to exclude "label", "aarp_id", and "timestamp")
                 region.add_observation(wavelength, timestamp, fits_path)
+    # Add observations for each wavelength from the filtered entries
+    num_jobs = min(len(relevant_entries), 10)
+    Parallel(n_jobs=-1)(delayed(process_entry)(entry) for entry in relevant_entries)
 
 def single_attribution(model, images, label, args):
     from args_visualize_grads import cross_entropy, get_attributions_mask, plot_attributions_v2
