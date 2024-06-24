@@ -34,7 +34,8 @@ class SaveHistoryCallback(Callback):
 
 def read_fits(file_path):
     with fits.open(file_path) as hdul:
-        data = hdul[0].data
+        data = hdul[0].data.copy()
+    del hdul[0].data
     return data
 
 def _parse_images(imgs:list, args):
