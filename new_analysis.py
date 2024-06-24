@@ -7,7 +7,7 @@ import pandas as pd
 import time
 import tensorflow as tf
 import sys
-from joblib import Parallel, delayed
+from joblib import delayed
 from active_region import active_region
 
 def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_frac=0.2, aarp_id=None):
@@ -70,7 +70,7 @@ def add_observations_for_aarp(active_regions_dict, data, aarp_id):
                 region.add_observation(wavelength, timestamp, fits_path)
     # Add observations for each wavelength from the filtered entries
     num_jobs = min(len(relevant_entries), 10)
-    Parallel(n_jobs=-1)(delayed(process_entry)(entry) for entry in relevant_entries)
+    (delayed(process_entry)(entry) for entry in relevant_entries)
 
 def single_attribution(model, images, label, args):
     from args_visualize_grads import cross_entropy, get_attributions_mask, plot_attributions_v2
