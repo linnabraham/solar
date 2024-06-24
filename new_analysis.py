@@ -95,9 +95,9 @@ def single_attribution(model, images, label, args):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-json_path', default="solar_dataset.json")
-    parser.add_argument('-trained_model', default="outputs/best_model.h5")
-    parser.add_argument('-input_shape', nargs='+', type=int, default=(512,512))
+    parser.add_argument('--json-path', default="solar_dataset.json")
+    parser.add_argument('--trained-model')
+    parser.add_argument('--input-shape', nargs='+', type=int, default=(512,512))
     args = parser.parse_args()
 
     #x_test, y_test = parse_json(args.json_path)
