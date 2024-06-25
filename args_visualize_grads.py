@@ -306,6 +306,7 @@ if __name__=="__main__":
             for i in range(7):
                 attribution_mask = attribution_masks[:,:,i]
                 plot_single_channel_attribution(attribution_mask, images_pre, channel=i )
+                plot_single_channel_attribution(attribution_mask.numpy(), images_pre, channel=i )
                 pdf.savefig()
         #dataset = tf.data.Dataset.from_tensor_slices((images, label))
                 plt.close()
