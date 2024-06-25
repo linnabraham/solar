@@ -203,9 +203,6 @@ if __name__=="__main__":
     
     hc = SaveHistoryCallback(history_path)
 
-
-    #train_ds = train_ds.map(rescale).batch(batch_size)
-    #val_ds = val_ds.map(rescale).batch(batch_size)
     train_ds = train_ds.map(log_transform).batch(batch_size)
     val_ds = val_ds.map(log_transform).batch(batch_size)
 
