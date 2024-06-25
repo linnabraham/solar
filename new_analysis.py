@@ -1,18 +1,16 @@
 import argparse
 import os
 import json
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import time
 import tensorflow as tf
-import sys
-from joblib import delayed
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from active_region import active_region
 from train_alexnet import get_compiled_model
+from args_visualize_grads import preprocess_data, get_attributions_mask
 
 def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_frac=0.2, aarp_id=None):
-    from matplotlib.animation import FuncAnimation
     nframes = data.shape[0]
     single_channel_mask = data[:,:,:, channel]
     mask_max = np.max(single_channel_mask)
@@ -54,7 +52,6 @@ def add_observations_for_aarp(active_regions_dict, data, aarp_id):
         process_entry(entry)
 
 def single_attribution(model, images, label, args):
-    from args_visualize_grads import cross_entropy, get_attributions_mask, plot_attributions_v2
     images = np.where(images<0, np.zeros_like(images), images)
     # create a copy of the images before standardizing for visual plotting
     images_pre = images.copy()
@@ -63,17 +60,9 @@ def single_attribution(model, images, label, args):
     images = np.expand_dims(images, axis=0)
     prediction = model.predict(images)
 
-    # compute the cross-entropy loss for the sample
-    expected = [ 1.0 - int(label), int(label)]
-    predicted = [ 1.0 - prediction, prediction]
-    ce = cross_entropy(expected, predicted)
-    ce = np.abs(ce)
-
     return attribution_masks
 
 def single_channel_attribution(model, images):
-    # import function for preprocessing E6 data
-    from args_visualize_grads import preprocess_data, get_attributions_mask
     images, images_pre = preprocess_data(images)
     print("Shape of images in single_ch_attr function", images.shape)
     attribution_mask = get_attributions_mask(images, model, args)
@@ -91,7 +80,6 @@ if __name__=="__main__":
         data = json.load(json_file)
 
     ar_dict = {}
-    st = time.time()
 
     aarps_ids_labels = [ (p['aarp_id'], p['label']) for p in data.get('test')]
     aarp_ids = [aarp_id for aarp_id, label in aarps_ids_labels]
