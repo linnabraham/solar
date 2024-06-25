@@ -141,16 +141,16 @@ def integrated_gradients(model,
 
   return integrated_gradients
 
-def get_attributions_mask(images, model):
+def get_attributions_mask(images, model, args):
 
     #images_org = images.copy()
     #images = tf.image.per_image_standardization(images)
 
     m_steps=50
     alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps+1) # Generate m_steps intervals for integral_approximation() below.
-    global height
-    global width
-    baseline = tf.zeros(shape=(7, height, width))
+    height, width = args.input_shape
+    nchannels = args.num_channels
+    baseline = tf.zeros(shape=(nchannels, height, width))
     interpolated_images = interpolate_images(baseline, images, alphas=alphas)
 
     path_gradients = compute_gradients(
@@ -282,8 +282,8 @@ if __name__=="__main__":
 
         images = _parse_images(row)
 
-        attribution_masks  = get_attributions_mask(images, model)
         images, images_pre = preprocess_data_E4(images)
+        attribution_masks  = get_attributions_mask(images, model, args)
         prediction = model.predict(images)
 
         ce = np.abs(cross_entropy(label, prediction))
