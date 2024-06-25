@@ -203,9 +203,8 @@ if __name__=="__main__":
     
     hc = SaveHistoryCallback(history_path)
 
-    train_ds = train_ds.map(log_transform).batch(batch_size)
-    val_ds = val_ds.map(log_transform).batch(batch_size)
-
+    train_ds = train_ds.map(sqrt_transform).batch(batch_size)
+    val_ds = val_ds.map(sqrt_transform).batch(batch_size)
     history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
         WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
