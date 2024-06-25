@@ -26,6 +26,7 @@ from astropy.io import fits
 import argparse
 import tempfile
 import random
+from tf_utils import get_parser
 
 def cross_entropy(label, prediction):
     # compute the cross-entropy loss for the sample
@@ -228,8 +229,7 @@ def preprocess_data(images):
     return images, images_pre
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-input-shape', '--input-shape', nargs='+', type=int, default=(512,512))
+    parser = get_parser()
     parser.add_argument('-json-path', '--json-path')
     parser.add_argument('-modelpath', '--modelpath')
     args = parser.parse_args()
