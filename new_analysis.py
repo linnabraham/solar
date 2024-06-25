@@ -71,6 +71,13 @@ def single_attribution(model, images, label, args):
 
     return attribution_masks
 
+def single_channel_attribution(model, images):
+    # import function for preprocessing E6 data
+    from args_visualize_grads import preprocess_data, get_attributions_mask
+    images, images_pre = preprocess_data(images)
+    print("Shape of images in single_ch_attr function", images.shape)
+    attribution_mask = get_attributions_mask(images, model, args)
+    return attribution_mask
 
 if __name__=="__main__":
     from tf_utils import get_parser
@@ -89,8 +96,12 @@ if __name__=="__main__":
     aarps_ids_labels = [ (p['aarp_id'], p['label']) for p in data.get('test')]
     aarp_ids = [aarp_id for aarp_id, label in aarps_ids_labels]
     print("Unique AARP_Ids in test", set(aarp_ids))
+    add_observations_for_aarp(ar_dict, data, 7304 )
 
 
+    print(ar_dict.keys())
+    first_key, first_value = next(iter(ar_dict.items()))
+    print("First element:", first_key)
 
 
     ar_data_171, timestamps = first_value.get_observation(171)
@@ -116,7 +127,9 @@ if __name__=="__main__":
     attribution_ts = []
     for multiband_obs,_ in alltimes:
         images = np.array(multiband_obs)
-        attr = single_attribution(model, images, first_value.label, args)
+        #attr = single_attribution(model, images, first_value.label, args)
+        attr = single_channel_attribution(model, images)
+        print("Sum of intensities in attribution:", attr.numpy().sum())
         attribution_ts.append(attr)
 
     all_attribution_arr = np.array(attribution_ts)
