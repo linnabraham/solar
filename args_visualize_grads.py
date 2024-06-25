@@ -188,18 +188,24 @@ def plot_single_channel_attribution(attribution_mask, images_pre, channel=1):
 
     cmap = matplotlib.colormaps[aia_cmaps[channel]]
 
-    fig, axes = plt.subplots(1, 3, figsize=(30, 30))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 15))
 
     plt.subplot(1,  3, 1)
 
-    plt.imshow(attribution_mask, vmax = 0.2*mask_max, cmap=plt.cm.jet)
-    plt.imshow(images_pre[channel], vmax=1000, cmap=cmap, alpha=alpha)
+    plt.imshow(attribution_mask, origin='lower', vmax = 0.2*mask_max, cmap=plt.cm.jet)
+    plt.colorbar(shrink=0.5)
+    plt.imshow(images_pre[channel], origin='lower', vmax=1000, cmap=cmap, alpha=alpha)
+    plt.title("Overlayed")
 
     plt.subplot(1,  3, 2)
-    plt.imshow(attribution_mask, vmax = 0.2*mask_max, cmap=plt.cm.jet)
+    plt.imshow(attribution_mask, origin='lower', vmax = 0.2*mask_max, cmap=plt.cm.jet)
+    plt.colorbar(shrink=0.5)
+    plt.title("Attribution mask")
 
     plt.subplot(1,  3, 3)
-    plt.imshow(images_pre[channel], cmap=cmap)
+    plt.imshow(images_pre[channel], origin='lower', cmap=cmap)
+    plt.colorbar(shrink=0.5)
+    plt.title(f"Original: {aia_cmaps[channel]}")
     plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
     fig.tight_layout()
     return fig
