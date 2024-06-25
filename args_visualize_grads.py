@@ -230,7 +230,6 @@ def preprocess_data(images):
     # create a copy of the images before standardizing for visual plotting
     images_pre = images.copy()
 
-    images = tf.image.per_image_standardization(images)
     images = np.expand_dims(images, axis=0)
     return images, images_pre
 
@@ -257,7 +256,8 @@ if __name__=="__main__":
         aarpid_test = [p['aarp_id'] for p in data.get('test')]
         ts_test = [p['timestamp'] for p in data.get('test')]
 
-    model = get_trained_model(args.modelpath)
+    from debug_infer_alexnet import build_model_withnorm
+    model = build_model_withnorm(args)
 
     count = 0
 
@@ -288,8 +288,8 @@ if __name__=="__main__":
 
         images = _parse_images(row)
 
-        images, images_pre = preprocess_data_E4(images)
         attribution_masks  = get_attributions_mask(images, model, args)
+        images, images_pre = preprocess_data(images)
         prediction = model.predict(images)
 
         ce = np.abs(cross_entropy(label, prediction))
@@ -305,7 +305,6 @@ if __name__=="__main__":
         with PdfPages(os.path.join(base_path,pdf_path)) as pdf:
             for i in range(7):
                 attribution_mask = attribution_masks[:,:,i]
-                plot_single_channel_attribution(attribution_mask, images_pre, channel=i )
                 plot_single_channel_attribution(attribution_mask.numpy(), images_pre, channel=i )
                 pdf.savefig()
         #dataset = tf.data.Dataset.from_tensor_slices((images, label))
