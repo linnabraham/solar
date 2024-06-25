@@ -1,5 +1,6 @@
 import matplotlib
 import sunpy.visualization.colormaps as cm
+import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from typing import List, Optional, Generator
 import numpy as np
