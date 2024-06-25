@@ -36,25 +36,6 @@ def combine_data(goes_event_list, harps_with_noaa):
     goes_df['harpnum'] = goes_df['noaa_active_region'].apply(match_noaa_to_harpnum, args=(harps_with_noaa_df,))
     return goes_df
 
-#def parse_json(json_path):
-#    with open(json_path) as f:
-#        data = json.load(f)
-#
-#        x_test = [
-#                [
-#                [os.path.join(os.path.dirname(json_path), c[str(i)]) for i in range(7)]
-#                , c['label'], c['aarp_id'], c['timestamp']
-#                ]
-#                 for c in data.get('test')
-#                 ]
-#        y_test = [p['label'] for p in data.get('test')]
-#        #aarp_ids = [ p['aarp_id'] for p in data.get('test')]
-#        #ts = [ p['timestamp'] for p in data.get('test')]
-#
-#
-#        #return aarp_ids, ts
-#        return x_test, y_test
-
 def add_observations_for_aarp(active_regions_dict, data, aarp_id):
     relevant_entries = [entry for entry in data["test"] if entry["aarp_id"] == aarp_id]
 
