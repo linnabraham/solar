@@ -11,9 +11,13 @@ from tensorflow.keras.callbacks import ModelCheckpoint, Callback
 from tensorflow.keras.layers import Normalization
 from tensorflow.keras import backend
 from wandb.keras import WandbCallback
+import datetime
 from helpers.alexnet import AlexNet
 from tf_utils import get_parser, read_stats
 tf.get_logger().setLevel(logging.WARNING)
+
+def get_timestamp():
+    return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 class SaveHistoryCallback(Callback):
     def __init__(self, file_path):
@@ -195,10 +199,8 @@ if __name__=="__main__":
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     model = get_compiled_model(args)
 
-    print("Monitoring val_loss for saving best model")
-    mc = ModelCheckpoint(model_path, monitor='val_loss', \
-            mode='min', verbose=1, save_best_only=True)
-
+    mc =  ModelCheckpoint(filepath=os.path.join(outdir,"model_{epoch:02d}_{get_timestamp()}.h5"))
+    
     hc = SaveHistoryCallback(history_path)
 
 
