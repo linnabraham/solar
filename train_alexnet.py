@@ -158,6 +158,14 @@ def save_arguments(args, filename):
     with open(filename, 'w') as f:
         json.dump(vars(args), f)
 
+def flip_augment(images, labels, seed):
+    new_seed = tf.random.experimental.stateless_split((seed,seed), num=1)[0, :]
+
+    images = tf.image.stateless_random_flip_left_right(images, seed=new_seed)
+    images = tf.image.stateless_random_flip_up_down(images, seed=new_seed)
+
+    return (images, labels)
+
 if __name__=="__main__":
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
@@ -197,8 +205,16 @@ if __name__=="__main__":
 
     hc = SaveHistoryCallback(history_path)
 
-    train_ds = train_ds.map(sqrt_transform).batch(batch_size)
-    val_ds = val_ds.map(sqrt_transform).batch(batch_size)
+    AUTOTUNE = tf.data.AUTOTUNE
+
+    train_ds = (train_ds
+                .map(lambda x, y: flip_augment(x, y, seed=42), num_parallel_calls=AUTOTUNE)
+                .batch(batch_size)
+                .prefetch(buffer_size=AUTOTUNE)
+                )
+
+    val_ds = val_ds.batch(batch_size)
+
     history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
         WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
