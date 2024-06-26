@@ -193,8 +193,8 @@ if __name__=="__main__":
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     model = get_compiled_model(args)
 
-    mc =  ModelCheckpoint(filepath=os.path.join(outdir,"model_{epoch:02d}_{get_timestamp()}.h5"))
-    
+    mc =  ModelCheckpoint(filepath=os.path.join(outdir,"model_{epoch:02d}_{val_loss:.2f}.h5"))
+
     hc = SaveHistoryCallback(history_path)
 
     train_ds = train_ds.map(sqrt_transform).batch(batch_size)
