@@ -115,17 +115,25 @@ def dataset_from_json(json_path, args):
 
     return train_ds, val_ds
 
-def add_normalization_layer(model, data_mean:list, data_std:list, args):
+def add_custom_layers(model, data_mean:list, data_std:list, args):
     """
     Add a normalization layer to standardize the data channel-wise
     """
     data_var = [np.square(item) for item in data_std]
     norm_layer = tf.keras.layers.Normalization(axis=1, mean=data_mean, variance=data_var)
     inputs = tf.keras.Input(shape=(args.num_channels,)+args.input_shape)
-    x = norm_layer(inputs)
-    outputs = model(x)
+    normed = norm_layer(inputs)
+    log_transformed = LogTransformLayer()(normed)
+    outputs = model(log_transformed)
     model = tf.keras.Model(inputs, outputs)
     return model
+
+class LogTransformLayer(tf.keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(LogTransformLayer, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        return tf.math.sign(inputs) * tf.math.log(tf.math.abs(inputs) + 1)
 
 def get_compiled_model(args):
 
@@ -145,7 +153,7 @@ def get_compiled_model(args):
     ]
     model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
     data_mean, data_std = read_stats(args.stats_file)
-    model = add_normalization_layer(model, data_mean = data_mean, data_std = data_std, args=args)
+    model = add_custom_layers(model, data_mean = data_mean, data_std = data_std, args=args)
 
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
