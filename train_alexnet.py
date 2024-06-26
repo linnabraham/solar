@@ -59,20 +59,6 @@ def label_generator(collection):
     for element in collection:
         yield element
 
-def rescale(image, label):
-    image = tf.image.per_image_standardization(image)
-    return image, label
-
-def sqrt_transform(image, label):
-    image = tf.where(image < 0, tf.zeros_like(image), image)
-    image = tf.math.sqrt(image)
-    return image, label
-
-def log_transform(image, label):
-    image = tf.where(image < 0, tf.zeros_like(image), image) + 1
-    image = tf.math.log(image)
-    return image, label
-
 def parse_json(json_path):
     with open(json_path) as f:
         data = json.load(f)
