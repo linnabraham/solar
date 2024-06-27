@@ -185,9 +185,11 @@ if __name__=="__main__":
                 .batch(batch_size)
                 .prefetch(buffer_size=AUTOTUNE)
                 )
+    train_ds_one_batch = train_ds.take(1)
 
     val_ds = val_ds.batch(batch_size)
+    val_ds_one_batch = val_ds.take(1)
 
-    history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
+    history = model.fit(train_ds_one_batch, validation_data=val_ds_one_batch,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
         WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
