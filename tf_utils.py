@@ -5,6 +5,7 @@ import json
 import numpy as np
 from astropy.io import fits
 import pickle
+from tensorflow.keras.callbacks import Callback
 from helpers.alexnet import AlexNet
 
 def get_trained_model(args):
