@@ -11,13 +11,9 @@ from tensorflow.keras.callbacks import ModelCheckpoint, Callback
 from tensorflow.keras.layers import Normalization
 from tensorflow.keras import backend
 from wandb.keras import WandbCallback
-import datetime
 from helpers.alexnet import AlexNet
 from tf_utils import get_parser, read_stats
 tf.get_logger().setLevel(logging.WARNING)
-
-def get_timestamp():
-    return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 class SaveHistoryCallback(Callback):
     def __init__(self, file_path):
