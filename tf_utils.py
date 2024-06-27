@@ -40,12 +40,23 @@ def get_compiled_model(args):
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
     return model
 
+def read_fits(file_path):
+    """
+    Function to read FITS image containing single image from disk
+    Also implements fix for "Too many files open" error 
+    read more: https://docs.astropy.org/en/stable/io/fits/appendix/faq.html#id16
+    """
+    with fits.open(file_path) as hdul:
+        data = hdul[0].data.copy()
+    del hdul[0].data
+    return data
+
 def parse_images(imgs:list, args):
     height, width = args.input_shape
+
     images = np.zeros((len(imgs), height, width))
     for i, img in enumerate(imgs):
-        hdul = fits.open(img)
-        image = hdul[0].data
+        image = read_fits(file_path=img)
         images[i,:,:] = image
     return images
 
@@ -119,3 +130,24 @@ def sqrt_transform(image, label):
     image = tf.where(image < 0, tf.zeros_like(image), image)
     image = tf.math.sqrt(image)
     return image, label
+
+class SaveHistoryCallback(Callback):
+    def __init__(self, file_path):
+        super().__init__()
+        self.file_path = file_path
+        self.history = {'loss': [], 'val_loss': [], 'auc_pr':[], 'val_auc_pr':[], 'val_precision':[], 'val_recall':[]}
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.history['loss'].append(logs.get('loss'))
+        self.history['val_loss'].append(logs.get('val_loss'))
+        self.history['auc_pr'].append(logs.get('auc_pr'))
+        self.history['val_auc_pr'].append(logs.get('val_auc_pr'))
+        self.history['val_precision'].append(logs.get('val_precision'))
+        self.history['val_recall'].append(logs.get('val_recall'))
+
+        with open(self.file_path, 'w') as f:
+            json.dump(self.history, f)
+
+def preprocess_label_E2(label):
+    return int(label)
+

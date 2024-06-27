@@ -12,44 +12,12 @@ from tensorflow.keras.layers import Normalization
 from tensorflow.keras import backend
 from wandb.keras import WandbCallback
 from helpers.alexnet import AlexNet
-from tf_utils import get_parser, read_stats
+from tf_utils import get_parser, read_stats, parse_images, SaveHistoryCallback
 tf.get_logger().setLevel(logging.WARNING)
-
-class SaveHistoryCallback(Callback):
-    def __init__(self, file_path):
-        super().__init__()
-        self.file_path = file_path
-        self.history = {'loss': [], 'val_loss': [], 'auc_pr':[], 'val_auc_pr':[], 'val_precision':[], 'val_recall':[]}
-
-    def on_epoch_end(self, epoch, logs=None):
-        self.history['loss'].append(logs.get('loss'))
-        self.history['val_loss'].append(logs.get('val_loss'))
-        self.history['auc_pr'].append(logs.get('auc_pr'))
-        self.history['val_auc_pr'].append(logs.get('val_auc_pr'))
-        self.history['val_precision'].append(logs.get('val_precision'))
-        self.history['val_recall'].append(logs.get('val_recall'))
-
-        with open(self.file_path, 'w') as f:
-            json.dump(self.history, f)
-
-def read_fits(file_path):
-    with fits.open(file_path) as hdul:
-        data = hdul[0].data.copy()
-    del hdul[0].data
-    return data
-
-def _parse_images(imgs:list, args):
-    height, width = args.input_shape
-
-    images = np.zeros((len(imgs), height, width))
-    for i, img in enumerate(imgs):
-        image = read_fits(file_path=img)
-        images[i,:,:] = image
-    return images
 
 def img_generator(collection, args):
     for element in collection:
-        yield _parse_images(element, args)
+        yield parse_images(element, args)
 
 def label_generator(collection):
     for element in collection:
