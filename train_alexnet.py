@@ -130,6 +130,15 @@ def flip_augment(images, labels, seed):
 
     return (images, labels)
 
+def checkpoint_best_model(model_path):
+    print("Monitoring val_loss for saving best model")
+    mc = ModelCheckpoint(model_path, monitor='val_loss', \
+            mode='min', verbose=1, save_best_only=True)
+    return mc
+
+def checkpoint_each_epoch():
+    return ModelCheckpoint(filepath=os.path.join(outdir,"model_{epoch:02d}_{val_loss:.2f}.h5"))
+
 if __name__=="__main__":
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
@@ -165,7 +174,7 @@ if __name__=="__main__":
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     model = get_compiled_model(args)
 
-    mc =  ModelCheckpoint(filepath=os.path.join(outdir,"model_{epoch:02d}_{val_loss:.2f}.h5"))
+    mc = checkpoint_best_model(model_path=model_path)
 
     hc = SaveHistoryCallback(history_path)
 
