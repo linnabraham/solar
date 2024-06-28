@@ -11,6 +11,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, Callback
 from tensorflow.keras.layers import Normalization
 from tensorflow.keras import backend
 from wandb.keras import WandbCallback
+from sklearn.utils import shuffle
 from helpers.alexnet import AlexNet
 from tf_utils import get_parser, read_stats, parse_images, SaveHistoryCallback
 tf.get_logger().setLevel(logging.WARNING)
@@ -44,6 +45,10 @@ def dataset_from_json(json_path, args):
     height, width = args.input_shape
 
     x_train, y_train, x_val, y_val = parse_json(json_path)
+
+    x_train, y_train = shuffle(x_train, y_train, random_state=42)
+
+    x_val, y_val = shuffle(x_val, y_val, random_state=42)
 
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train, args),
                                             output_types=tf.float32,
