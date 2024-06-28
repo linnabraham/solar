@@ -171,6 +171,8 @@ if __name__=="__main__":
     parser.add_argument('-batch-size', '--batch-size', type=int, default=32)
     parser.add_argument('-epochs', '--epochs', type=int, default=150)
     parser.add_argument('--stats-file')
+    parser.add_argument('--modelpath')
+    parser.add_argument('--eval', action='store_true')
 
     args = parser.parse_args()
     print(vars(args))
@@ -218,6 +220,13 @@ if __name__=="__main__":
     val_ds = val_ds.batch(batch_size)
     val_ds_one_batch = val_ds.take(1)
 
-    history = model.fit(train_ds_one_batch, validation_data=val_ds_one_batch,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
-        WandbCallback(save_model=(False),save_graph=(False))])
+    if args.eval:
+        print("Evaluating pre-trained model")
+        model.load_weights(args.modelpath)
+        result = model.evaluate(val_ds_one_batch)
+        print(dict(zip(model.metrics_names, result)))
+
+    else:
+        history = model.fit(train_ds_one_batch, validation_data=val_ds_one_batch,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
+            WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
