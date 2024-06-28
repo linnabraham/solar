@@ -165,7 +165,7 @@ def downsample_negatives(json_path, train_ds, val_ds):
 if __name__=="__main__":
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
-
+    os.environ["WANDB_SILENT"] = "true"
     parser = get_parser()
     parser.add_argument('-json-path', '--json-path', default="solar_dataset.json")
     parser.add_argument('-batch-size', '--batch-size', type=int, default=32)
