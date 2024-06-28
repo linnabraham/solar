@@ -139,6 +139,29 @@ def checkpoint_best_model(model_path):
 def checkpoint_each_epoch():
     return ModelCheckpoint(filepath=os.path.join(outdir,"model_{epoch:02d}_{val_loss:.2f}.h5"))
 
+def filter_class(dataset, class_label):
+    return dataset.filter(lambda x, y: y == class_label)
+
+def downsample_negatives(json_path, train_ds, val_ds):
+    x_train, y_train, x_val, y_val = parse_json(json_path)
+
+    nneg_train = y_train.count(0)
+    npos_train = y_train.count(1)
+    nneg_val = y_val.count(0)
+    npos_val = y_val.count(1)
+
+    train_ds_pos = filter_class(train_ds,1)
+    train_ds_neg = filter_class(train_ds,0)
+    train_ds_neg = train_ds_neg.take(npos_train)
+    train_ds = train_ds_pos.concatenate(train_ds_neg)
+
+    val_ds_pos = filter_class(val_ds,1)
+    val_ds_neg = filter_class(val_ds, 0)
+    val_ds_neg = val_ds_neg.take(npos_val)
+    val_ds = val_ds_pos.concatenate(val_ds_neg)
+
+    return train_ds, val_ds
+
 if __name__=="__main__":
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
@@ -172,6 +195,11 @@ if __name__=="__main__":
     save_arguments(args, os.path.join(outdir,"cmdline_args.json"))
 
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
+    x_train, y_train, x_val, y_val = parse_json(args.json_path)
+    print(f"Length of train vs val:", len(x_train), len(x_val))
+    print(f"Class imbalance in original data(train):", y_train.count(0)/y_train.count(1))
+    train_ds, val_ds = downsample_negatives(args.json_path, train_ds, val_ds)
+
     model = get_compiled_model(args)
 
     mc = checkpoint_best_model(model_path=model_path)
