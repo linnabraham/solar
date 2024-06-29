@@ -203,9 +203,8 @@ if __name__=="__main__":
 
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     x_train, y_train, x_val, y_val = parse_json(args.json_path)
-    print(f"Length of train vs val:", len(x_train), len(x_val))
+    print(f"Length of train vs val in original data:", len(x_train), len(x_val))
     print(f"Class imbalance in original data(train):", y_train.count(0)/y_train.count(1))
-    train_ds, val_ds = downsample_negatives(args.json_path, train_ds, val_ds)
 
     model = get_compiled_model(args)
 
@@ -220,18 +219,16 @@ if __name__=="__main__":
                 .batch(batch_size)
                 .prefetch(buffer_size=AUTOTUNE)
                 )
-    train_ds_one_batch = train_ds.take(1)
 
     val_ds = val_ds.batch(batch_size)
-    val_ds_one_batch = val_ds.take(1)
 
     if args.eval:
         print("Evaluating pre-trained model")
         model.load_weights(args.modelpath)
-        result = model.evaluate(val_ds_one_batch)
+        result = model.evaluate(val_ds)
         print(dict(zip(model.metrics_names, result)))
 
     else:
-        history = model.fit(train_ds_one_batch, validation_data=val_ds_one_batch,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
+        history = model.fit(train_ds, validation_data=val_ds,  verbose=1, epochs=epochs, shuffle=True, callbacks=[mc,hc,
             WandbCallback(save_model=(False),save_graph=(False))])
     wandb.finish()
