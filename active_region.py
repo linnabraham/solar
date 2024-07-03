@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from typing import List, Optional, Generator
 import numpy as np
-from train_alexnet import read_fits#, get_compiled_model
+from tf_utils import read_fits
 
 class active_region:
     def __init__(self, aarp_id, label):

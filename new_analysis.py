@@ -4,6 +4,7 @@ import json
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras import backend
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from active_region import active_region
@@ -66,6 +67,7 @@ def single_channel_attribution(model, images):
     images, images_pre = preprocess_data(images)
     print("Shape of images in single_ch_attr function", images.shape)
     attribution_mask = get_attributions_mask(images, model, args)
+
     return attribution_mask
 
 if __name__=="__main__":
@@ -75,6 +77,9 @@ if __name__=="__main__":
     parser.add_argument('--trained-model')
     parser.add_argument('--stats-file')
     args = parser.parse_args()
+
+    # force channels-first ordering
+    backend.set_image_data_format('channels_first')
 
     with open(args.json_path) as json_file:
         data = json.load(json_file)
@@ -109,16 +114,16 @@ if __name__=="__main__":
 
     model = get_compiled_model(args)
     model.load_weights(args.trained_model)
-
     alltimes = list(first_value._get_observation_generator(all_wavelengths))
     timestamps = [ timestamp for _, timestamp in alltimes]
     attribution_ts = []
     for multiband_obs,_ in alltimes:
         images = np.array(multiband_obs)
         #attr = single_attribution(model, images, first_value.label, args)
-        attr = single_channel_attribution(model, images)
-        print("Sum of intensities in attribution:", attr.numpy().sum())
-        attribution_ts.append(attr)
+        #images, images_pre = preprocess_data(images)
+        attribution_mask = get_attributions_mask(images, model, args)
+        print("Sum of intensities in attribution:", attribution_mask.numpy().sum())
+        attribution_ts.append(attribution_mask)
 
     all_attribution_arr = np.array(attribution_ts)
     make_attribution_movie("cool_movie.mp4", all_attribution_arr, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
