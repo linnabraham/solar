@@ -27,6 +27,7 @@ import argparse
 import tempfile
 import random
 from tf_utils import get_parser
+from train_alexnet import get_compiled_model
 
 def cross_entropy(label, prediction):
     # compute the cross-entropy loss for the sample
@@ -143,34 +144,18 @@ def integrated_gradients(model,
 
 def get_attributions_mask(images, model, args):
 
-    #images_org = images.copy()
-    #images = tf.image.per_image_standardization(images)
-
     m_steps=50
     alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps+1) # Generate m_steps intervals for integral_approximation() below.
     height, width = args.input_shape
     nchannels = args.num_channels
     baseline = tf.zeros(shape=(nchannels, height, width))
-    interpolated_images = interpolate_images(baseline, images, alphas=alphas)
-
-    path_gradients = compute_gradients(
-        model = model,
-        images=interpolated_images,
-        target_class_idx=1)
-
-    pred = model(interpolated_images)
-
-    ig = integral_approximation(
-        gradients=path_gradients)
 
     ig_attributions = integrated_gradients(model=model,
                                            baseline=baseline,
                                            image=images,
                                            target_class_idx=1,
                                            m_steps=240)
-    #image_channel = images_org[channel]
     attributions = np.moveaxis(ig_attributions, 0, 2)
-    #attribution_mask = tf.reduce_sum(tf.math.abs(attributions), axis=-1)
     attribution_mask = tf.math.abs(attributions)
     return attribution_mask
 
@@ -229,7 +214,6 @@ def preprocess_data(images):
 
     # create a copy of the images before standardizing for visual plotting
     images_pre = images.copy()
-
     images = np.expand_dims(images, axis=0)
     return images, images_pre
 
@@ -237,6 +221,7 @@ if __name__=="__main__":
     parser = get_parser()
     parser.add_argument('-json-path', '--json-path')
     parser.add_argument('-modelpath', '--modelpath')
+    parser.add_argument('--stats-file')
     args = parser.parse_args()
 
     height, width = args.input_shape
@@ -256,8 +241,8 @@ if __name__=="__main__":
         aarpid_test = [p['aarp_id'] for p in data.get('test')]
         ts_test = [p['timestamp'] for p in data.get('test')]
 
-    from debug_infer_alexnet import build_model_withnorm
-    model = build_model_withnorm(args)
+    model = get_compiled_model(args)
+    model.load_weights(args.modelpath)
 
     count = 0
 
@@ -270,7 +255,7 @@ if __name__=="__main__":
     combined_list = list(zip(x_test, y_test, aarpid_test, ts_test))
     random.shuffle(combined_list)
     for row, label, aarpid, ts  in combined_list:
-        if count > 100:
+        if count > 30:
             break
 
         if label == 0:
@@ -305,6 +290,7 @@ if __name__=="__main__":
         with PdfPages(os.path.join(base_path,pdf_path)) as pdf:
             for i in range(7):
                 attribution_mask = attribution_masks[:,:,i]
+                print("Sum of attribution mask", attribution_mask.numpy().sum())
                 plot_single_channel_attribution(attribution_mask.numpy(), images_pre, channel=i )
                 pdf.savefig()
         #dataset = tf.data.Dataset.from_tensor_slices((images, label))
