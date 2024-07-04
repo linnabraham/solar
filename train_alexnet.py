@@ -212,6 +212,8 @@ if __name__=="__main__":
     print(f"Class imbalance in original data(train):", y_train.count(0)/y_train.count(1))
 
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
+    train_ds, val_ds = downsample_negatives(json_path, train_ds, val_ds)
+
     model = get_compiled_model(args)
 
     mc = checkpoint_best_model(model_path=model_path)
