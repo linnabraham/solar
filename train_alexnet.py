@@ -148,6 +148,12 @@ def filter_class(dataset, class_label):
     return dataset.filter(lambda x, y: y == class_label)
 
 def downsample_negatives(json_path, train_ds, val_ds):
+    """
+    Function that takes as input the json file with training metadata
+    along with train and val datasets,
+    dowsamples the negative samples from the train and val datasets
+    so that there is no class imbalance
+    """
     x_train, y_train, x_val, y_val = parse_json(json_path)
 
     nneg_train = y_train.count(0)
@@ -201,11 +207,11 @@ if __name__=="__main__":
     print("Saving the command line arguments to cmdline_args.json")
     save_arguments(args, os.path.join(outdir,"cmdline_args.json"))
 
-    train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     x_train, y_train, x_val, y_val = parse_json(args.json_path)
     print(f"Length of train vs val in original data:", len(x_train), len(x_val))
     print(f"Class imbalance in original data(train):", y_train.count(0)/y_train.count(1))
 
+    train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
     model = get_compiled_model(args)
 
     mc = checkpoint_best_model(model_path=model_path)
