@@ -47,8 +47,10 @@ def dataset_from_json(json_path, args):
     x_train, y_train, x_val, y_val = parse_json(json_path)
 
     x_train, y_train = shuffle(x_train, y_train, random_state=42)
-
     x_val, y_val = shuffle(x_val, y_val, random_state=42)
+
+    x_train, y_train = downsample_list(x_train, y_train)
+    x_val, y_val = downsample_list(x_val, y_val)
 
     images = tf.data.Dataset.from_generator(generator = lambda: img_generator(x_train, args),
                                             output_types=tf.float32,
@@ -173,6 +175,20 @@ def downsample_negatives(json_path, train_ds, val_ds):
 
     return train_ds, val_ds
 
+def downsample_list(x, y):
+    """
+    Downsample the majority class (negative) to be equal to
+    minority class (positive) using list instead of tf.data.Dataset
+    """
+    pos_len = y.count(1)
+    x = np.array(x)
+    y = np.array(y)
+    zero_indices = np.where(y == 0)[0]
+    zero_indices = zero_indices[:pos_len]
+    one_indices = np.where(y == 1)[0]
+    indices = np.concatenate((zero_indices, one_indices))
+    return (x[indices].tolist(), y[indices].tolist())
+
 if __name__=="__main__":
     gpu = tf.config.experimental.list_physical_devices('GPU')[0]
     tf.config.experimental.set_memory_growth(gpu, True)
@@ -212,7 +228,6 @@ if __name__=="__main__":
     print(f"Class imbalance in original data(train):", y_train.count(0)/y_train.count(1))
 
     train_ds, val_ds = dataset_from_json(json_path=json_path, args=args)
-    train_ds, val_ds = downsample_negatives(json_path, train_ds, val_ds)
 
     model = get_compiled_model(args)
 
