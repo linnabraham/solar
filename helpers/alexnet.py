@@ -29,7 +29,7 @@ class AlexNet:
         input_shape=inputShape, padding="same",
         kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization(axis=chanDim))
+        model.add(BatchNormalization(axis=chanDim))
         model.add(MaxPooling2D(pool_size=(3, 3), strides=(2, 2)))
         model.add(Dropout(0.25))
 
@@ -37,7 +37,7 @@ class AlexNet:
         model.add(Conv2D(256, (5, 5), padding="same",
         kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization(axis=chanDim))
+        model.add(BatchNormalization(axis=chanDim))
         model.add(MaxPooling2D(pool_size=(3, 3), strides=(2, 2)))
         model.add(Dropout(0.25))
 
@@ -45,15 +45,15 @@ class AlexNet:
         model.add(Conv2D(384, (3, 3), padding="same",
         kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization(axis=chanDim))
+        model.add(BatchNormalization(axis=chanDim))
         model.add(Conv2D(384, (3, 3), padding="same",
         kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization(axis=chanDim))
+        model.add(BatchNormalization(axis=chanDim))
         model.add(Conv2D(256, (3, 3), padding="same",
         kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization(axis=chanDim))
+        model.add(BatchNormalization(axis=chanDim))
         model.add(MaxPooling2D(pool_size=(3, 3), strides=(2, 2)))
         model.add(Dropout(0.25))
 
@@ -61,13 +61,13 @@ class AlexNet:
         model.add(Flatten())
         model.add(Dense(4096, kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization())
+        model.add(BatchNormalization())
         model.add(Dropout(0.5))
 
         # Block #5: second set of FC => RELU layers
         model.add(Dense(4096, kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
-        #model.add(BatchNormalization())
+        model.add(BatchNormalization())
         model.add(Dropout(0.5))
 
         # sigmoid classifier
