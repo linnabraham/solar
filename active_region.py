@@ -80,9 +80,8 @@ class active_region:
         def update(frame):
             im.set_array(np.sqrt(data[frame,:,:]))
             if timestamps:
-                #print("Found timestamps")
                 if aarp_id:
-                    if label:
+                    if label is not None:
                         ax.set_title(f'{timestamps[frame]}_AARP_Id:{aarp_id}_Filter:{wavelength}_label:{label}')
         ani = FuncAnimation(fig, update, frames = nframes, interval=50)
         ani.save(f'{filename}', writer='ffmpeg', fps=1)
