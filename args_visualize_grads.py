@@ -142,7 +142,7 @@ def integrated_gradients(model,
 
   return integrated_gradients
 
-def get_attributions_mask(images, model, args):
+def get_attributions_mask(images, model, target_class_idx, args):
 
     m_steps=50
     alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps+1) # Generate m_steps intervals for integral_approximation() below.
@@ -153,7 +153,7 @@ def get_attributions_mask(images, model, args):
     ig_attributions = integrated_gradients(model=model,
                                            baseline=baseline,
                                            image=images,
-                                           target_class_idx=1,
+                                           target_class_idx=target_class_idx,
                                            m_steps=240)
     attributions = np.moveaxis(ig_attributions, 0, 2)
     attribution_mask = tf.math.abs(attributions)

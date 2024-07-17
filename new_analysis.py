@@ -101,6 +101,7 @@ if __name__=="__main__":
     print("AARP Id", first_value.aarp_id)
     ar_data_171 = np.array(ar_data_171)
 
+    print("Label", first_value.label)
     active_region.make_aia_movie('crude_movie_171.mp4', ar_data_171, wavelength=171, timestamps = timestamps, aarp_id=first_value.aarp_id, label=first_value.label)
 
 
@@ -121,7 +122,7 @@ if __name__=="__main__":
         images = np.array(multiband_obs)
         #attr = single_attribution(model, images, first_value.label, args)
         #images, images_pre = preprocess_data(images)
-        attribution_mask = get_attributions_mask(images, model, args)
+        attribution_mask = get_attributions_mask(images, model, target_class_idx=0, args=args)
         print("Sum of intensities in attribution:", attribution_mask.numpy().sum())
         attribution_ts.append(attribution_mask)
 
