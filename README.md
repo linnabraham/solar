@@ -8,6 +8,7 @@
 * [Features Implemented](#Features-Implemented)
 * [Legacy Documentation](#Legacy-Documentation)
 * [Changelog](#Changelog)
+* [Flowchart](#flowchart)
 
 ## Data
 
@@ -152,4 +153,66 @@ It dumps these filenames as a list into the metadata file named `solar_dataset.j
 + The `train_alexnet.py` file does the actual training. The AlexNet model is implemented in the `helpers/alexnet.py` script.
 
 
+## Flowchart
 
+### Data pre-processing and training
+
+```mermaid
+flowchart TB
+    A1["AARPS HTTP server"]
+    A2["CSV file with URLs"]
+    A3["Table containing HARPNUM, WAVELENGTH, OBSTART"]
+    A4["Label AARPS in list of X class flare as pos and those without any flares as neg"]
+    A5["Two csv files for pos & neg"]
+    A6["Two directories containing 7h combined observation"]
+    A7["A Table containing metadata longitude, img shape, label etc."]
+    A8["Subset of the previous table"]
+    A9["Read each 7h FITS file and \n do parallel processing to \n Extract 77 images\n + \n Do custom padding to \n attain input size of  512 x 512"]
+    A10["Two directories with individual images as FITS files"]
+    A11["dataset.json file containing list of \n filenames to be used \n for train and test"]
+    
+
+    A1 --> |Web scrape all FITS URLs| A2
+    A2 --> | Regex macthing on URLs| A3
+    A3 --> |Using GOES event list|A4
+    A4 --> |Shuffle and select first 5000 from negative list|A5
+    A5 --> |Run wget separately on two csv files| A6
+    A6 --> |Script that reads FITS headers|A7
+    A7 --> |Apply our selection criteria|A8
+    A8 --> A9
+    A9 --> |Choose central timestamp in each hourly burst of 11 images|A10
+    A10 --> |dir2csv.py|A11
+
+
+
+    B1["Channel wise Z-score normalization \n using train split"]
+    B2["Log transform"]
+    B3["Random horizontal or vertical flip"]
+    B4["Train for 150 epochs with bce loss, \n Adam optimizer & lr=0.001"]
+    B5["Save best model based on bce loss"]
+    
+  
+    A11 --> B1
+    B1 --> B2
+    B2 --> B3
+    B3 --> B4
+    B4 --> B5
+```
+
+### Custom padding scheme
+
+```mermaid
+flowchart TD
+
+    C1["Compute aspect ratio"]
+    C2[Resize if == 1]
+    C3["Pad vertically if > 1; else horizontally"]
+    C4["Pad with values taken randomly from QS"]
+    C5["Scale values inversely with distance from edge"]
+
+    direction TB
+    C1 --> C2
+    C1 --> C3
+    C3 --> |Take Quiet Sun as bordering edge values two pixel wide |C4
+    C4 --> C5
+```
