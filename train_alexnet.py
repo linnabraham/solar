@@ -77,7 +77,9 @@ def add_custom_layers(model, data_mean:list, data_std:list, args):
     data_var = [np.square(item) for item in data_std]
     norm_layer = tf.keras.layers.Normalization(axis=1, mean=data_mean, variance=data_var)
     inputs = tf.keras.Input(shape=(args.num_channels,)+args.input_shape)
-    normed = norm_layer(inputs)
+    flip_augment_layer = FlipAugment()
+    flipped = flip_augment_layer(inputs, training=True)
+    normed = norm_layer(flipped)
     log_transformed = LogTransformLayer()(normed)
     outputs = model(log_transformed)
     model = tf.keras.Model(inputs, outputs)
@@ -134,6 +136,17 @@ def flip_augment(images, labels, seed):
     images = tf.image.stateless_random_flip_up_down(images, seed=new_seed)
 
     return (images, labels)
+
+class FlipAugment(tf.keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(FlipAugment, self).__init__(**kwargs)
+
+    def call(self, images, seed=42, training=True):
+        if training:
+            seed = tf.random.experimental.stateless_split((seed, seed), num=1)[0, :]
+            images = tf.image.stateless_random_flip_left_right(images, seed=seed)
+            images = tf.image.stateless_random_flip_up_down(images, seed=seed)
+        return images
 
 def checkpoint_best_model(model_path):
     print("Monitoring val_loss for saving best model")
@@ -215,7 +228,6 @@ if __name__=="__main__":
     AUTOTUNE = tf.data.AUTOTUNE
 
     train_ds = (train_ds
-                .map(lambda x, y: flip_augment(x, y, seed=42), num_parallel_calls=AUTOTUNE)
                 .batch(batch_size)
                 .prefetch(buffer_size=AUTOTUNE)
                 )
