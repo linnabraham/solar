@@ -7,11 +7,17 @@ import tensorflow as tf
 from tensorflow.keras import backend
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import tempfile
 from active_region import active_region
 from train_alexnet import get_compiled_model
 from args_visualize_grads import preprocess_data, get_attributions_mask
 
 def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_frac=0.2, aarp_id=None):
+    """
+    Receives as input attribution data corresponding to single channel,
+    associates timestamp values and aarp_id
+    Generates a movie and saves it using the filename provided
+    """
     nframes = data.shape[0]
     single_channel_mask = data[:,:,:, channel]
     mask_max = np.max(single_channel_mask)
@@ -37,6 +43,12 @@ def combine_data(goes_event_list, harps_with_noaa):
     return goes_df
 
 def add_observations_for_aarp(active_regions_dict, data, aarp_id):
+    """
+    Receives a dictionary of ARs, the training metadata file and an AARP ID
+    If the AR dict doesn't contain an entry with the given AARP id,
+    creates a new Active Region object and loads it with data from the metadata file
+    and adds it to the passed dictionary
+    """
     relevant_entries = [entry for entry in data["test"] if entry["aarp_id"] == aarp_id]
     if aarp_id not in active_regions_dict:
         region = active_region(aarp_id, relevant_entries[0]["label"])  # Assuming all entries have the same label
@@ -76,6 +88,7 @@ if __name__=="__main__":
     parser.add_argument('--json-path', default="solar_dataset.json")
     parser.add_argument('--trained-model')
     parser.add_argument('--stats-file')
+    parser.add_argument('--aarp-id', type=int, default=7304, help="AARP id for generating movie")
     args = parser.parse_args()
 
     # force channels-first ordering
@@ -83,27 +96,6 @@ if __name__=="__main__":
 
     with open(args.json_path) as json_file:
         data = json.load(json_file)
-
-    ar_dict = {}
-
-    aarps_ids_labels = [ (p['aarp_id'], p['label']) for p in data.get('test')]
-    aarp_ids = [aarp_id for aarp_id, label in aarps_ids_labels]
-    print("Unique AARP_Ids in test", set(aarp_ids))
-    add_observations_for_aarp(ar_dict, data, 7304 )
-
-
-    print(ar_dict.keys())
-    first_key, first_value = next(iter(ar_dict.items()))
-    print("First element:", first_key)
-
-
-    ar_data_171, timestamps = first_value.get_observation(171)
-    print("AARP Id", first_value.aarp_id)
-    ar_data_171 = np.array(ar_data_171)
-
-    print("Label", first_value.label)
-    active_region.make_aia_movie('crude_movie_171.mp4', ar_data_171, wavelength=171, timestamps = timestamps, aarp_id=first_value.aarp_id, label=first_value.label)
-
 
     all_wavelengths = [94,
         131,
@@ -113,8 +105,33 @@ if __name__=="__main__":
         304,
         335]
 
+    ar_dict = {}
+
+    aarps_ids_labels = [ (p['aarp_id'], p['label']) for p in data.get('test')]
+    aarp_ids = [aarp_id for aarp_id, label in aarps_ids_labels]
+    flared_aarp_ids = [ aarp_id for aarp_id, label in aarps_ids_labels if label == 1]
+    print("Unique AARP_Ids in test", set(aarp_ids))
+    print("Unique Flared AARP ids", set(flared_aarp_ids))
+    add_observations_for_aarp(ar_dict, data, args.aarp_id )
+
+    print(ar_dict.keys())
+    first_key, first_value = next(iter(ar_dict.items()))
+    print("First element:", first_key)
+
+    # pick a particular channel
+    ar_data_171, timestamps = first_value.get_observation(171)
+    print("AARP Id", first_value.aarp_id)
+    ar_data_171 = np.array(ar_data_171)
+
+    print("Label", first_value.label)
+    # make movie from actual observations
+    tempfile_name = next(tempfile._get_candidate_names())
+    active_region.make_aia_movie(f'tmp{tempfile_name}_raw_movie_{args.aarp_id}_171.mp4', ar_data_171, 
+                                 wavelength=171, timestamps = timestamps, aarp_id=first_value.aarp_id, label=first_value.label)
+
     model = get_compiled_model(args)
     model.load_weights(args.trained_model)
+
     alltimes = list(first_value._get_observation_generator(all_wavelengths))
     timestamps = [ timestamp for _, timestamp in alltimes]
     attribution_ts = []
@@ -127,4 +144,4 @@ if __name__=="__main__":
         attribution_ts.append(attribution_mask)
 
     all_attribution_arr = np.array(attribution_ts)
-    make_attribution_movie("cool_movie.mp4", all_attribution_arr, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
+    make_attribution_movie(f"tmp{tempfile_name}_attrb_movie_{args.aarp_id}.mp4", all_attribution_arr, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
