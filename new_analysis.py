@@ -8,9 +8,44 @@ from tensorflow.keras import backend
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import tempfile
+import matplotlib
 from active_region import active_region
 from train_alexnet import get_compiled_model
 from args_visualize_grads import preprocess_data, get_attributions_mask
+
+def attribution_contour(filename, raw:np.ndarray, attribs:np.ndarray, wavelength, 
+                        channel, timestamps, vmax_frac=0.2, aarp_id=None):
+    """
+    raw: Time sequence of raw AARP observations
+    attribs: Time sequence of IG attributions made using raw AARP observations
+    wavelength: AIA passband for display
+    channel: The channel index corresponding to the passband
+    timestamps: List containing timestamps
+    """
+    nframes = raw.shape[0]
+    cmap_key = 'sdoaia'+str(wavelength)
+    sdoaia_cmap = matplotlib.colormaps[cmap_key]
+
+    single_channel_mask = attribs[:,:,:, channel]
+    mask_max = np.max(single_channel_mask)
+    fig, ax = plt.subplots()
+    data = np.where(raw < 0, np.zeros_like(raw), raw)
+    im = ax.imshow(np.sqrt(data[0,:,:]), cmap=sdoaia_cmap, origin='lower')
+    contour = None
+
+    def update(frame):
+        nonlocal contour
+        im.set_array(np.sqrt(data[frame,:,:]))
+        if contour is not None:
+            for c in contour.collections:
+                c.remove()
+        contour = ax.contour(single_channel_mask[frame, :, :], vmax= vmax_frac * mask_max, levels=15, origin='lower', alpha=0.7)
+
+        if timestamps:
+            if aarp_id:
+                ax.set_title(f'{timestamps[frame]}_AARP_Id:{aarp_id}_channel_{channel}')
+    ani = FuncAnimation(fig, update, frames = nframes, interval=50)
+    ani.save(f'{filename}', writer='ffmpeg', fps=1)
 
 def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_frac=0.2, aarp_id=None):
     """
@@ -145,3 +180,5 @@ if __name__=="__main__":
 
     all_attribution_arr = np.array(attribution_ts)
     make_attribution_movie(f"tmp{tempfile_name}_attrb_movie_{args.aarp_id}.mp4", all_attribution_arr, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
+
+    attribution_contour(f'tmp{tempfile_name}_raw_movie_{args.aarp_id}_171.mp4', ar_data_171, all_attribution_arr, wavelength=171, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
