@@ -124,6 +124,7 @@ if __name__=="__main__":
     parser.add_argument('--trained-model')
     parser.add_argument('--stats-file')
     parser.add_argument('--aarp-id', type=int, default=7304, help="AARP id for generating movie")
+    parser.add_argument('--wavelength', type=int, help="Wavelength to use for generating animations")
     args = parser.parse_args()
 
     # force channels-first ordering
@@ -132,6 +133,8 @@ if __name__=="__main__":
     with open(args.json_path) as json_file:
         data = json.load(json_file)
 
+    channel_idx = next(int(k) for k,v in data['channels'].items() if v == args.wavelength)
+    print("Channel index for given passband is", channel_idx)
     all_wavelengths = [94,
         131,
         171,
@@ -154,15 +157,15 @@ if __name__=="__main__":
     print("First element:", first_key)
 
     # pick a particular channel
-    ar_data_171, timestamps = first_value.get_observation(171)
+    ar_data_passband, timestamps = first_value.get_observation(args.wavelength)
     print("AARP Id", first_value.aarp_id)
-    ar_data_171 = np.array(ar_data_171)
+    ar_data_passband = np.array(ar_data_passband)
 
     print("Label", first_value.label)
     # make movie from actual observations
     tempfile_name = next(tempfile._get_candidate_names())
-    active_region.make_aia_movie(f'tmp{tempfile_name}_raw_movie_{args.aarp_id}_171.mp4', ar_data_171, 
-                                 wavelength=171, timestamps = timestamps, aarp_id=first_value.aarp_id, label=first_value.label)
+    active_region.make_aia_movie(f'tmp{tempfile_name}_raw_movie_{args.aarp_id}_{args.wavelength}.mp4', ar_data_passband,
+                                 wavelength=args.wavelength, timestamps = timestamps, aarp_id=first_value.aarp_id, label=first_value.label)
 
     model = get_compiled_model(args)
     model.load_weights(args.trained_model)
@@ -180,5 +183,4 @@ if __name__=="__main__":
 
     all_attribution_arr = np.array(attribution_ts)
     make_attribution_movie(f"tmp{tempfile_name}_attrb_movie_{args.aarp_id}.mp4", all_attribution_arr, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
-
-    attribution_contour(f'tmp{tempfile_name}_raw_movie_{args.aarp_id}_171.mp4', ar_data_171, all_attribution_arr, wavelength=171, channel=1, timestamps = timestamps, aarp_id=first_value.aarp_id)
+    attribution_contour(f'tmp{tempfile_name}_raw_movie_{args.aarp_id}_{args.wavelength}.mp4', ar_data_passband, all_attribution_arr, wavelength=args.wavelength, channel=channel_idx, timestamps = timestamps, aarp_id=first_value.aarp_id)
