@@ -33,15 +33,17 @@ def attribution_contour(filename, raw:np.ndarray, attribs:np.ndarray, wavelength
     im = ax.imshow(np.sqrt(data[0,:,:]), cmap=sdoaia_cmap, origin='lower')
     cbar = fig.colorbar(im, ax=ax)
     contour = None
+    threshold = np.percentile(attribution_mask[:,:,channel], 10)
 
     def update(frame):
         nonlocal contour
+        im_masked = np.ma.masked_where(single_channel_mask[frame,:,:] < threshold, single_channel_mask[frame,:,:])
         im.set_array(np.sqrt(data[frame,:,:]))
         cbar.update_normal(im)
         if contour is not None:
             for c in contour.collections:
                 c.remove()
-        contour = ax.contour(single_channel_mask[frame, :, :], vmax= vmax_frac * mask_max, levels=15, origin='lower', alpha=0.7)
+        contour = ax.contour(im_masked, cmap='jet', origin='lower')
 
         if timestamps:
             if aarp_id:
