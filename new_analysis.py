@@ -31,11 +31,13 @@ def attribution_contour(filename, raw:np.ndarray, attribs:np.ndarray, wavelength
     fig, ax = plt.subplots()
     data = np.where(raw < 0, np.zeros_like(raw), raw)
     im = ax.imshow(np.sqrt(data[0,:,:]), cmap=sdoaia_cmap, origin='lower')
+    cbar = fig.colorbar(im, ax=ax)
     contour = None
 
     def update(frame):
         nonlocal contour
         im.set_array(np.sqrt(data[frame,:,:]))
+        cbar.update_normal(im)
         if contour is not None:
             for c in contour.collections:
                 c.remove()
@@ -43,9 +45,9 @@ def attribution_contour(filename, raw:np.ndarray, attribs:np.ndarray, wavelength
 
         if timestamps:
             if aarp_id:
-                ax.set_title(f'{timestamps[frame]}_AARP_Id:{aarp_id}_channel_{channel}')
+                ax.set_title(f'{timestamps[frame]}_AARP_Id:{aarp_id}_passband_{wavelength}')
     ani = FuncAnimation(fig, update, frames = nframes, interval=50)
-    ani.save(f'{filename}', writer='ffmpeg', fps=1)
+    ani.save(f'{filename}', writer='ffmpeg', fps=5)
 
 def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_frac=0.2, aarp_id=None):
     """
@@ -58,9 +60,12 @@ def make_attribution_movie(filename, data:np.ndarray, channel, timestamps, vmax_
     mask_max = np.max(single_channel_mask)
     fig, ax = plt.subplots()
     im = ax.imshow(single_channel_mask[0,:,:], vmax = vmax_frac * mask_max, cmap=plt.cm.jet, origin='lower')
-
+    cbar = fig.colorbar(im, ax=ax)
     def update(frame):
+        low_val = np.percentile(single_channel_mask[frame,:,:],99)
         im.set_array(single_channel_mask[frame,:,:])
+        im.set_clim(vmin=low_val)
+        cbar.update_normal(im)
         if timestamps:
             if aarp_id:
                 ax.set_title(f'{timestamps[frame]}_AARP_Id:{aarp_id}_channel_{channel}')
