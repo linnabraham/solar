@@ -1,4 +1,9 @@
 #!/bin/env python
+import os
+import sys
+cwd = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(cwd, ".."))
+sys.path.append(parent_dir)
 import argparse
 import torch
 from torch.utils.data import Dataset, DataLoader, RandomSampler
@@ -9,15 +14,59 @@ import matplotlib
 import sunpy.visualization.colormaps as cm
 import random
 import uuid
-import os
 from vit_pytorch import ViT
 from torch_train import aia_euv, DeepFlare_ViT, CustomTransform
 import pickle
 from torchvision.transforms import v2
 import json
+import tempfile
+from matplotlib.animation import FuncAnimation
+import time
+from active_region import add_observations_for_aarp
+from utils.aia_metadata import all_wavelengths
 
+def single_attribution(image, label, channel):
+    """
+    Generate attribution for single image and for single channel
+    """
+    #image_arr = image.squeeze().cpu().detach().numpy()
+    #image_channel = image_arr[channel]
+    image = image.clone().to(device)
+    label = label.clone().to(device)
+    baseline_zero = torch.zeros_like(image)
+    ig = IntegratedGradients(model)
+    ig_b0, _ = ig.attribute(image, baseline_zero, target=label, n_steps=100,
+                                        internal_batch_size=7, return_convergence_delta=True)
+    ig_b0 = ig_b0.squeeze().detach().cpu().numpy()
 
-def generate_plots(images, labels):
+    ig_b0 = ig_b0[channel,:,:]
+    return ig_b0
+
+# TODO: this function is copied from the tensorflow version and modified keeping mind ordering of channels
+def make_attribution_movie(filename, attributions:np.ndarray, obs_data:np.ndarray, timestamps, vmax_frac=0.2, aarp_id=None):
+    nframes = attributions.shape[0]
+    mask_max = np.max(attributions)
+    fig, ax = plt.subplots()
+
+    cmap_key = 'sdoaia'+str(args.wavelength)
+    sdoaia_cmap = matplotlib.colormaps[cmap_key]
+    im1 = ax.imshow(obs_data[0,:,:], cmap=sdoaia_cmap, origin='lower')
+    im2 = ax.imshow(attributions[0,:,:], cmap=plt.cm.jet, origin='lower', alpha=0.4)
+    cbar = fig.colorbar(im2, ax=ax)
+    threshold = np.percentile(attributions, 90)
+    print("90 percentile value of attribution is ", threshold)
+    def update(frame):
+        im1.set_array(obs_data[frame,:,:])
+        im_masked = np.ma.masked_where(attributions[frame,:,:] < threshold, attributions[frame,:,:]) 
+        im2.set_array(attributions[frame,:,:])
+        cbar.update_normal(im2)
+        if timestamps:
+            if aarp_id:
+                ax.set_title(f'{timestamps[frame]}_AARP_Id:{aarp_id}_passband_{args.wavelength}')
+    ani = FuncAnimation(fig, update, frames = nframes, interval=50)
+    ani.save(f'{filename}', writer='ffmpeg', fps=5)
+
+def generate_plots(images, labels, channel):
     """
     Generate plots using IG attributions
     Input: image and label batch of size 1
@@ -67,6 +116,30 @@ def generate_plots(images, labels):
     plt.colorbar()
 
 def plot_random(val_loader, args):
+def plot_single_aarp(active_region, channel):
+    """
+    Generate movie combining all attributions from a single aarp id ordered in time for a single channel
+    """
+    obs_alltimes = list(active_region._get_observation_generator(all_wavelengths))
+    timestamps = [timestamp for _, timestamp in obs_alltimes]
+    attribution_masks = []
+    start = time.time()
+    for single_obs, _ in obs_alltimes:
+        image = torch.tensor(np.array(single_obs),  dtype=torch.float32)
+        image = image.unsqueeze(0)
+        label = torch.tensor(active_region.label)
+        label = label.unsqueeze(0)
+        single_channel_attrib = single_attribution(image, label, channel)
+        attribution_masks.append(single_channel_attrib)
+    end = time.time()
+    print("Number of frames", len(attribution_masks), "time taken:", np.round(end-start,4))
+    attribution_masks_arr = np.array(attribution_masks)
+    tempfile_name = next(tempfile._get_candidate_names())
+    obs_data_list = [ single_obs for single_obs, _ in obs_alltimes ]
+    obs_data = np.array(obs_data_list)[:,channel,:,:]
+    make_attribution_movie(f"tmp{tempfile_name}_attrb_movie_{args.aarp_id}.mp4", attribution_masks_arr, obs_data,
+                           timestamps = timestamps, aarp_id=active_region.aarp_id)
+
     count = 0
     for images, labels in val_loader:
         assert args.batch_size == 1
@@ -95,6 +168,7 @@ if __name__=="__main__":
     parser.add_argument('-batch-size', '--batch-size', type=int, default=1)
     parser.add_argument('-saved-model', '--saved-model')
     parser.add_argument('--wavelength', type=int, help="Wavelength to use for generating animations")
+    parser.add_argument('--aarp-id', type=int)
     args = parser.parse_args()
 
     torch.manual_seed(42)
@@ -132,4 +206,11 @@ if __name__=="__main__":
     os.makedirs(tmp_output)
     print(f"Creating directory {tmp_output} for outputs")
     plot_random(sampled_validation_loader, args)
+    with open(args.json_path) as json_file:
+        data = json.load(json_file)
+    channel = next(int(k) for k,v in data['channels'].items() if v == args.wavelength)
 
+    ar_dict = {}
+    add_observations_for_aarp(ar_dict, data, args.aarp_id)
+    first_key, first_value = next(iter(ar_dict.items()))
+    plot_single_aarp(first_value, channel)
