@@ -14,6 +14,7 @@ from vit_pytorch import ViT
 from torch_train import aia_euv, DeepFlare_ViT, CustomTransform
 import pickle
 from torchvision.transforms import v2
+import json
 
 
 def generate_plots(images, labels):
@@ -30,11 +31,14 @@ def generate_plots(images, labels):
                     5:'sdoaia304',
                     6:'sdoaia335'}
 
-    channel=0
+    with open(args.json_path) as json_file:
+        data = json.load(json_file)
+    channel = next(int(k) for k,v in data['channels'].items() if v == args.wavelength)
+
     cmap = matplotlib.colormaps[aia_cmaps[channel]]
 
     images_arr = images.squeeze().cpu().detach().numpy()
-    image = images_arr[0]
+    image = images_arr[channel]
 
     plt.imshow(np.sqrt(np.where(image<0, 0, image)), cmap=cmap, origin='lower')
 
@@ -51,7 +55,7 @@ def generate_plots(images, labels):
                                         internal_batch_size=1, return_convergence_delta=True)
     ig_b0 = ig_b0.squeeze().detach().cpu().numpy()
 
-    ig_b0 = ig_b0[0,:,:]
+    ig_b0 = ig_b0[channel,:,:]
 
     #vmin= np.percentile(ig_b0,98)
     #vmax = np.percentile(ig_b0, 99)
@@ -62,6 +66,27 @@ def generate_plots(images, labels):
     plt.imshow(ig_b0, alpha=alpha, cmap=plt.cm.jet, origin='lower')
     plt.colorbar()
 
+def plot_random(val_loader, args):
+    count = 0
+    for images, labels in val_loader:
+        assert args.batch_size == 1
+        images_arr = images.cpu().detach().numpy()
+        labels_arr = labels.cpu().detach().numpy()
+        label = int(labels_arr[0])
+
+        image_max = np.max(images_arr)
+        image_min = np.min(images_arr)
+
+        if label == 1:
+            generate_plots(images, labels)
+            plt.savefig(os.path.join(tmp_output,f"ig_b0_v3_{count}.png"))
+            plt.close()
+        else:
+            # skip non-flared ARs for now
+            continue
+        #plt.savefig(f"ig_b0_v3_{label}_{count}.png")
+        #plt.close()
+        count += 1
 
 if __name__=="__main__":
 
@@ -69,6 +94,7 @@ if __name__=="__main__":
     parser.add_argument('-json-path', '--json-path')
     parser.add_argument('-batch-size', '--batch-size', type=int, default=1)
     parser.add_argument('-saved-model', '--saved-model')
+    parser.add_argument('--wavelength', type=int, help="Wavelength to use for generating animations")
     args = parser.parse_args()
 
     torch.manual_seed(42)
@@ -101,28 +127,9 @@ if __name__=="__main__":
     model.to(device)
     model.eval()
 
-    count = 0
 
     tmp_output = str(uuid.uuid4())[:8]
     os.makedirs(tmp_output)
     print(f"Creating directory {tmp_output} for outputs")
+    plot_random(sampled_validation_loader, args)
 
-    for images, labels in sampled_validation_loader:
-        assert args.batch_size == 1
-        images_arr = images.cpu().detach().numpy()
-        labels_arr = labels.cpu().detach().numpy()
-        label = int(labels_arr[0])
-
-        image_max = np.max(images_arr)
-        image_min = np.min(images_arr)
-
-        if label == 1:
-            generate_plots(images, labels)
-            plt.savefig(os.path.join(tmp_output,f"ig_b0_v3_{count}.png"))
-            plt.close()
-        else:
-            # skip non-flared ARs for now
-            continue
-        #plt.savefig(f"ig_b0_v3_{label}_{count}.png")
-        #plt.close()
-        count += 1
