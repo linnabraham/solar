@@ -100,7 +100,18 @@ def train_loop():
 
     save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
 
-    for epoch in range(args.epochs):
+    start_epoch = 0
+
+    if args.resume:
+        if args.modelpath:
+            print(f"Loding saved model from f{args.modelpath}")
+            checkpoint = torch.load(args.modelpath)
+            model.load_state_dict(checkpoint)
+        else:
+            print("Path of saved model required")
+            sys.exit(1)
+
+    for epoch in range(start_epoch, args.epochs):
         model.train()
         running_loss = 0.0
 
@@ -111,10 +122,6 @@ def train_loop():
         for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
 
             current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
-            #print(f"Allocated GPU memory ({current_memory} MB)")
-
-            #memory_reserved = torch.cuda.memory_reserved() / (1024 ** 2)
-            #print(f"GPU memory reserved: {memory_reserved}")
 
             if current_memory > threshold:
                 print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
@@ -281,6 +288,9 @@ if __name__== "__main__":
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
+    parser.add_argument('-resume', '--resume', action="store_true", help="Flag to resume training from a previous epoch")
+    parser.add_argument('-modelpath', '--modelpath', help="location of saved model")
+
     args = parser.parse_args()
 
     args_dict = vars(args)
