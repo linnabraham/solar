@@ -7,6 +7,7 @@ from skimage import measure
 import argparse
 from glob import glob
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 def investigate_contours(attributions):
     channel = 2
@@ -68,7 +69,21 @@ if __name__=="__main__":
         attributions = np.load(args.file_path)
         make_distplots(attributions, aarp_id, channel=2)
 
+    def load_and_process(file_path):
+        attrib_data = np.load(file_path)
+        return attrib_data.flatten()
+
     npyfiles_1 = glob(f"{args.dir_path}/1/*")
+
+    # Parallel file loading
+    with ThreadPoolExecutor() as executor:
+            results = list(executor.map(load_and_process, npyfiles_1))
+
+            values = np.concatenate(results)
+
+    print(values.shape)
+
+
     aarp_attribs_1 = []
     for file_path in npyfiles_1:
         p1 = file_path.split('aarp_')[1]
@@ -77,15 +92,23 @@ if __name__=="__main__":
         attrib_data = np.load(file_path)
         aarp_attribs_1.extend(attrib_data.flatten())
     print(len(aarp_attribs_1))
-    
+
     values = np.array(aarp_attribs_1)
     values = values[values > 0]
     values = np.log(values)
-    plt.hist(values)
-    plt.savefig(f"dist_aarp_1.png")
+    plt.hist(values, bins=20)
+    #plt.savefig(f"dist_aarp_1.png")
 
     npyfiles_0 = glob(f"{args.dir_path}/0/*")
-    aarp_attribs_0 = []
+
+    # Parallel file loading
+    with ThreadPoolExecutor() as executor:
+            results = list(executor.map(load_and_process, npyfiles_0))
+
+            # Concatenate all arrays together once loaded
+            values_0 = np.concatenate(results)
+
+    print(values_0.shape)
     for file_path in npyfiles_0:
         p1 = file_path.split('aarp_')[1]
         aarp_id = int(p1.split('.npy')[0])
@@ -94,8 +117,7 @@ if __name__=="__main__":
         aarp_attribs_0.extend(attrib_data.flatten())
     print(len(aarp_attribs_0))
 
-    values_0 = np.array(aarp_attribs_0)
     values_0 = values_0[values_0 > 0]
     values_0 = np.log(values_0)
-    plt.hist(values_0)
-    plt.savefig(f"dist_aarp_0.png")
+    plt.hist(values_0, bins=20, histtype='step')
+    plt.savefig(f"dist_aarp_combined.png")
