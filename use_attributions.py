@@ -39,6 +39,7 @@ def investigate_contours(attributions):
             plt.savefig(f"attribution_contour_y_{ncontour}.png")
             ncontour += 1
         break
+
 def make_distplots(attributions, channel, aarp_id):
     channel_attribution = attributions[:,:,:,channel]
     frame = channel_attribution[0,:,:]
@@ -56,18 +57,45 @@ def make_distplots(attributions, channel, aarp_id):
     #plt.hist(values, bins=20, range=(np.percentile(values,90),np.percentile(values,100)))
     plt.title("Distribution of attribution(log transformed) for single AARP and passband")
     plt.savefig(f"frame_dist_aarp_{aarp_id}.png")
-    
-if __name__=="__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--file-path', help="Path to file containing attribution for a single AARP")
-    parser.add_argument('--dir-path', help="Path to directory containing attributions for all AARPs")
-    args = parser.parse_args()
 
-    if args.file_path is not None:
-        p1 = args.file_path.split('aarp_')[1]
-        aarp_id = int(p1.split('.npy')[0])
-        attributions = np.load(args.file_path)
-        make_distplots(attributions, aarp_id, channel=2)
+def plot_intensity_dist():
+    def load_and_process(file_path):
+        intensities = np.load(file_path)
+        return intensities.flatten()
+
+    npyfiles_1 = glob(f"{args.dir_path}/1/*")
+
+    # Parallel file loading
+    with ThreadPoolExecutor() as executor:
+            results = list(executor.map(load_and_process, npyfiles_1))
+
+            values = np.concatenate(results)
+
+    print(values.shape)
+
+    values = values[values > 0]
+    values = np.log(values)
+    plt.hist(values, bins=20, label='flaring', density=True, histtype='stepfilled')
+
+    npyfiles_0 = glob(f"{args.dir_path}/0/*")
+
+    # Parallel file loading
+    with ThreadPoolExecutor() as executor:
+            results = list(executor.map(load_and_process, npyfiles_0))
+
+            # Concatenate all arrays together once loaded
+            values_0 = np.concatenate(results)
+
+    print(values_0.shape)
+
+    values_0 = values_0[values_0 > 0]
+    values_0 = np.log(values_0)
+    plt.hist(values_0, bins=20, alpha=0.6, histtype='stepfilled', density=True, label='non-flaring')
+    plt.legend()
+    plt.title("Distribution of AIA intensities of AARPS")
+    plt.savefig(f"dist_aarp_intensities_combined.png")
+
+def plot_attribution_dist():
 
     def load_and_process(file_path):
         attrib_data = np.load(file_path)
@@ -83,21 +111,11 @@ if __name__=="__main__":
 
     print(values.shape)
 
-
-    aarp_attribs_1 = []
-    for file_path in npyfiles_1:
-        p1 = file_path.split('aarp_')[1]
-        aarp_id = int(p1.split('.npy')[0])
-        print(aarp_id)
-        attrib_data = np.load(file_path)
-        aarp_attribs_1.extend(attrib_data.flatten())
-    print(len(aarp_attribs_1))
-
-    values = np.array(aarp_attribs_1)
     values = values[values > 0]
     values = np.log(values)
-    plt.hist(values, bins=20)
-    #plt.savefig(f"dist_aarp_1.png")
+    threshold = np.percentile(values, 20)
+    values = values[values>threshold]
+    plt.hist(values, bins=20, histtype='stepfilled', density=True, label='flaring')
 
     npyfiles_0 = glob(f"{args.dir_path}/0/*")
 
@@ -109,15 +127,27 @@ if __name__=="__main__":
             values_0 = np.concatenate(results)
 
     print(values_0.shape)
-    for file_path in npyfiles_0:
-        p1 = file_path.split('aarp_')[1]
-        aarp_id = int(p1.split('.npy')[0])
-        print(aarp_id)
-        attrib_data = np.load(file_path)
-        aarp_attribs_0.extend(attrib_data.flatten())
-    print(len(aarp_attribs_0))
 
     values_0 = values_0[values_0 > 0]
     values_0 = np.log(values_0)
-    plt.hist(values_0, bins=20, histtype='step')
+    threshold = np.percentile(values, 20)
+    values = values[values>threshold]
+    plt.hist(values_0, bins=20, histtype='stepfilled', density=True, alpha=0.6, label='non-flaring')
+    plt.title("Distribution of ML attributions")
+    plt.legend()
     plt.savefig(f"dist_aarp_combined.png")
+
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file-path', help="Path to file containing attribution for a single AARP")
+    parser.add_argument('--dir-path', help="Path to directory containing attributions for all AARPs")
+    args = parser.parse_args()
+
+    if args.file_path is not None:
+        p1 = args.file_path.split('aarp_')[1]
+        aarp_id = int(p1.split('.npy')[0])
+        attributions = np.load(args.file_path)
+        make_distplots(attributions, aarp_id, channel=2)
+    # plot_intensity_dist()
+    plot_attribution_dist()
