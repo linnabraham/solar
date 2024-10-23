@@ -95,6 +95,58 @@ def plot_intensity_dist():
     plt.title("Distribution of AIA intensities of AARPS")
     plt.savefig(f"dist_aarp_intensities_combined.png")
 
+def plot_intensity_with_attribution(percentile_level):
+
+    def load_and_process(file_path):
+        data = np.load(file_path)
+        return data
+
+    def process_label(label):
+
+        att = glob(f"{args.att_dir_path}/{label}/*")
+        with ThreadPoolExecutor() as executor:
+                results = list(executor.map(load_and_process, att))
+                att_values = np.concatenate(results)
+
+        intensities = glob(f"{args.int_dir_path}/{label}/*")
+        with ThreadPoolExecutor() as executor:
+                results = list(executor.map(load_and_process, intensities))
+                int_values = np.concatenate(results)
+
+        att_values_ch_2 = att_values[:,:,:,2]
+        int_values_ch_2 = int_values[:,2, :,:]
+
+        # import pdb; pdb.set_trace()
+        # do log transform
+        # Set a constant smaller than the smallest positive value
+        min_pos_value = np.min(att_values_ch_2[att_values_ch_2 > 0])
+        epsilon = min_pos_value * 1e-5
+        safe_attributions = np.where(att_values_ch_2 > 0, att_values_ch_2, epsilon)
+        log_attributions = np.log(safe_attributions)
+
+        threshold = np.percentile(log_attributions, percentile_level)
+        print(threshold)
+
+        # return intensities values corresponding to those pixels in attribution map 
+        # greater than the threshold and 0 elsewhere
+        int_selected = np.where(log_attributions > threshold, int_values_ch_2, 0)
+
+        min_pos_value = np.min(int_selected[int_selected > 0])
+        epsilon = min_pos_value * 1e-5
+        safe_images = np.where(int_selected > 0, int_selected, epsilon)
+        log_intensities = np.log(safe_images)
+
+        print("Sum of log intensities", log_intensities.sum())
+        return log_intensities.flatten()
+
+    values = process_label(label=1)
+    plt.hist(values, bins=20, histtype='stepfilled', density=True, label='flaring')
+    values_0 = process_label(label=0)
+    plt.hist(values_0, bins=20, histtype='stepfilled', density=True, alpha=0.6, label='non-flaring')
+    plt.title(f"Distribution of intensities corresponding to attribution at {percentile_level}_percentile")
+    plt.legend()
+    plt.savefig("dist_int_with_att.png")
+
 def plot_attribution_dist():
 
     def load_and_process(file_path):
@@ -141,7 +193,8 @@ def plot_attribution_dist():
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--file-path', help="Path to file containing attribution for a single AARP")
-    parser.add_argument('--dir-path', help="Path to directory containing attributions for all AARPs")
+    parser.add_argument('--att-dir-path', help="Path to directory containing attributions for all AARPs")
+    parser.add_argument('--int-dir-path', help="Path to directory containing intensities for all AARPs")
     args = parser.parse_args()
 
     if args.file_path is not None:
@@ -151,3 +204,6 @@ if __name__=="__main__":
         make_distplots(attributions, aarp_id, channel=2)
     # plot_intensity_dist()
     plot_attribution_dist()
+    # percentile_level = 90
+    # print("Using percentile level", percentile_level)
+    # plot_intensity_with_attribution(percentile_level)
