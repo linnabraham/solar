@@ -10,9 +10,18 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.offsetbox import AnchoredText
+import seaborn as sns
+sns.set_theme()
 
 def read_numpy(file_path):
     return np.load(file_path, mmap_mode='r')
+
+def ks_test(data_0, data_1):
+    sample_size =5000000
+    data_0 = np.random.choice(data_0, size=sample_size)
+    data_1 = np.random.choice(data_1, size=sample_size)
+    ks_statistic, p_value = stats.ks_2samp(data_0, data_1)
+    return ks_statistic, p_value
 
 def make_dist_plots():
     # Plot and save the histogram
@@ -37,19 +46,12 @@ def make_dist_plots():
     # plt.legend()
     # plt.savefig("intensity_histogram_bothclass.png", dpi=300)
 
-def find_percentiles(dir_path):
-    file_names = glob.glob(dir_path+"*.npy")
-    dask_arrs = [ da.from_array(read_numpy(file_), chunks='auto') for file_ in file_names ]
-    concatenated_arr = da.concatenate(dask_arrs, axis=0)
-    concatenated_arr = concatenated_arr[:,2,:,:]
-    concatenated_arr = concatenated_arr[concatenated_arr > 0]
-
+def find_percentiles(concatenated_arr):
     data_99p = da.percentile(concatenated_arr.flatten(), 99).compute()
+    data_90p = da.percentile(concatenated_arr.flatten(), 90).compute()
     data_80p = da.percentile(concatenated_arr.flatten(), 80).compute()
     data_60p = da.percentile(concatenated_arr.flatten(), 60).compute()
-    data_40p = da.percentile(concatenated_arr.flatten(), 40).compute()
-    data_20p = da.percentile(concatenated_arr.flatten(), 20).compute()
-    return (data_20p, data_40p, data_60p, data_80p, data_99p)
+    return (data_60p, data_80p, data_90p, data_99p)
 
 def concat_data(dir_path, channel=None):
 
@@ -85,15 +87,12 @@ def find_int_log(int_path, att_path, percentile_level, channel=None):
     masked_hist, masked_bins = da.histogram(masked_int, bins=20, range=(
        masked_int.min().compute(), masked_int.max().compute()), density=True)
     histogram = masked_hist.compute()
-    return att_threshold.compute(), masked_bins, histogram
+    return masked_int, att_threshold.compute(), masked_bins, histogram
 
 def find_int(int_path, att_path, percentile_level, channel=None):
-    # percentiles_1 = find_percentiles(att_path)
-    # p99_1 = percentiles_1[0]
     concatenated_att = concat_att(att_path, channel)
     concatenated_int = concat_data(int_path, channel)
     att_threshold = da.percentile(concatenated_att.flatten(), percentile_level)
-    # print("99 percentile value", p99_1)
     masked_int = concatenated_int[concatenated_att > att_threshold]
     masked_hist, masked_bins = da.histogram(masked_int, bins=20, range=(
        masked_int.min().compute(), masked_int.max().compute()), density=True)
@@ -101,6 +100,7 @@ def find_int(int_path, att_path, percentile_level, channel=None):
     return att_threshold.compute(), masked_bins, histogram
 
 def intensity_with_attribution():
+    # import pdb; pdb.set_trace()
     from utils.aia_metadata import all_wavelengths
     npy_att_dir_path_1 = "/data/linn/tmp_op_v9_5c_allattribs/1/"
     npy_int_dir_path_1 = "/data/linn/tmp_1arbdfj4_allintensities/1/"
@@ -110,34 +110,39 @@ def intensity_with_attribution():
     npy_int_dir_path_0 = "/data/linn/tmp_1arbdfj4_allintensities/0/"
     # neglect 0 and negative values when taking the percentiles
     # since we neglect those when taking the log for plotting distribution?
-    percentile_level = 60
-    channel = 2
-    # att_threshold_1, masked_bins_1, histogram_1 = find_int(npy_int_dir_path_1, npy_att_dir_path_1, percentile_level, channel)
-    # att_threshold_0, masked_bins_0, histogram_0 = find_int(npy_int_dir_path_0, npy_att_dir_path_0, percentile_level, channel)
+    for percentile_level in (60, 80, 90, 99):
 
-    att_threshold_1, masked_bins_1, histogram_1 = find_int_log(npy_int_dir_path_1, npy_att_dir_path_1, percentile_level, channel)
-    att_threshold_0, masked_bins_0, histogram_0 = find_int_log(npy_int_dir_path_0, npy_att_dir_path_0, percentile_level, channel)
-    # masked_int = da.where(concatenated_att > p99_1, concatenated_int, np.nan)
-    # concatenated_arr = da.log(concatenated_arr)
-    #masked_int = np.random.choice(masked_int.flatten(), size=50000000)
+        # percentile_level = 60
+        channel = 2
+        # att_threshold_1, masked_bins_1, histogram_1 = find_int(npy_int_dir_path_1, npy_att_dir_path_1, percentile_level, channel)
+        # att_threshold_0, masked_bins_0, histogram_0 = find_int(npy_int_dir_path_0, npy_att_dir_path_0, percentile_level, channel)
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(masked_bins_1[:-1], histogram_1, width=np.diff(masked_bins_1), edgecolor='black', label='flared')
-    plt.bar(masked_bins_0[:-1], histogram_0, width=np.diff(masked_bins_0), edgecolor='black', label='non-flared', alpha=0.6)
-    text = f"""percentile values for \n
-    flared:{att_threshold_1[0]:.4e}, \n
-    non-flared:{att_threshold_0[0]:.4e} \n
-    Passband:{all_wavelengths[channel]}"""
+        masked_int_1, att_threshold_1, masked_bins_1, histogram_1 = find_int_log(npy_int_dir_path_1, npy_att_dir_path_1, percentile_level, channel)
+        masked_int_0, att_threshold_0, masked_bins_0, histogram_0 = find_int_log(npy_int_dir_path_0, npy_att_dir_path_0, percentile_level, channel)
+        ks_stat, p_val = ks_test(masked_int_0, masked_int_1)
+        print("KS values", ks_stat, p_val)
+        # masked_int = da.where(concatenated_att > p99_1, concatenated_int, np.nan)
+        # concatenated_arr = da.log(concatenated_arr)
+        #masked_int = np.random.choice(masked_int.flatten(), size=50000000)
 
-    anchored_text = AnchoredText(text, loc="upper left")
-    plt.gca().add_artist(anchored_text)
-    plt.legend()
-    # plt.xscale('log')
-    plt.title(f'Distribution of intensities for pixel attributions greater than {percentile_level} percentile')
-    plt.xlabel('Intensity')
-    plt.ylabel('Normalized count')
-    plt.grid(True)
-    plt.savefig(f"intensity_histogram_with_attributions_{percentile_level}p_channel_{channel}.png", dpi=300)
+        plt.figure(figsize=(10, 6))
+        plt.bar(masked_bins_1[:-1], histogram_1, width=np.diff(masked_bins_1), edgecolor='black', label='flared')
+        plt.bar(masked_bins_0[:-1], histogram_0, width=np.diff(masked_bins_0), edgecolor='black', label='non-flared', alpha=0.6)
+        text = f"""percentile values for \n
+        flared:{att_threshold_1[0]:.4e} \n
+        non-flared:{att_threshold_0[0]:.4e} \n
+        ks-statistic:{ks_stat:.4e}, p-value:{p_val} \n
+        Passband:{all_wavelengths[channel]}"""
+
+        anchored_text = AnchoredText(text, loc="upper left")
+        plt.gca().add_artist(anchored_text)
+        plt.legend()
+        plt.title(f'Distribution of intensities for pixel attributions greater than {percentile_level} percentile')
+        plt.xlabel('Intensity')
+        plt.ylabel('Normalized count')
+        plt.grid(True)
+        plt.savefig(f"intensity_histogram_with_attributions_{percentile_level}p_channel_{channel}.png", dpi=300)
+        plt.close()
 
 def process_class_npy(dir_path):
     file_names = glob.glob(dir_path+"*.npy")
