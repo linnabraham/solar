@@ -37,6 +37,19 @@ def compute_histogram_intensities(concatenated_arr, log=True, clip_level_low:int
     histogram = intensity_hist.compute()
     return intensity_bins, histogram
 
+def make_thresholded_dist_plots():
+    npy_int_dir_path_1 = "/data/linn/tmp_1arbdfj4_allintensities/1/"
+    npy_int_dir_path_0 = "/data/linn/tmp_1arbdfj4_allintensities/0/"
+    concatenated_int_1 = concat_data(npy_int_dir_path_1)
+    concatenated_int_0 = concat_data(npy_int_dir_path_0)
+    plt.figure(figsize=(10, 6))
+    print("Computing log transformed intensities for flared class")
+
+def log_transform_int(concatenated_arr):
+    concatenated_arr = concatenated_arr[ concatenated_arr > 0]
+    concatenated_arr = da.log(concatenated_arr)
+    return concatenated_arr
+
 def make_dist_plots():
 
     npy_int_dir_path_1 = "/data/linn/tmp_1arbdfj4_allintensities/1/"
@@ -44,21 +57,51 @@ def make_dist_plots():
     # concatenated_att = concat_att(att_path, channel)
     concatenated_int_1 = concat_data(npy_int_dir_path_1)
     concatenated_int_0 = concat_data(npy_int_dir_path_0)
-    clip_levels_low = (0, 60, 80, 90, 99, 100)
-    clip_levels_high = (0, 60, 80, 90, 99, 100)
+    # clip_levels_low = (0, 60, 80, 90, 99, 100)
+    # clip_levels_high = (0, 60, 80, 90, 99, 100)
     # clip_level_high = 99
     # clip_level_low = 1
-    clip_level_high = 100
-    clip_level_low = 0
-    # Plot and save the histogram
-    plt.figure(figsize=(10, 6))
+    # clip_level_high = 100
+    # clip_level_low = 0
+
     print("Computing log transformed intensities for flared class")
-    intensity_bins, histogram = compute_histogram_intensities(concatenated_int_1, log=True, clip_level_high=clip_level_high, clip_level_low=clip_level_low)
+    percentile_values = [ 40, 60, 80, 90, 99 ]
+
+    for percentile_value in percentile_values:
+        concatenated_int_1 = log_transform_int(concatenated_int_1)
+        threshold_1 = da.percentile(concatenated_int_1, percentile_value)
+        concatenated_int_1  = concatenated_int_1[concatenated_int_1 > threshold_1]
+        data_min = concatenated_int_1.min().compute()
+        data_max = concatenated_int_1.max().compute()
+        intensity_hist, intensity_bins = da.histogram(concatenated_int_1, bins=50, range=(data_min, data_max), density=True)
+        histogram = intensity_hist.compute()
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', label="Flared")
+
+        concatenated_int_0 = log_transform_int(concatenated_int_0)
+        threshold_0 = da.percentile(concatenated_int_0, percentile_value)
+        concatenated_int_0  = concatenated_int_0[concatenated_int_0 > threshold_0]
+        data_min = concatenated_int_0.min().compute()
+        data_max = concatenated_int_0.max().compute()
+        intensity_hist, intensity_bins = da.histogram(concatenated_int_0, bins=50, range=(data_min, data_max), density=True)
+        histogram = intensity_hist.compute()
+        plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', alpha=0.6, label="Not flared")
+
+        plt.title(f'Distribution of intensities greater than {percentile_value} percentile')
+        plt.xlabel('Log(intensities)')
+        plt.ylabel('Normalized counts')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(f"intensity_histogram_{percentile_value}_p.png", dpi=300)
+        plt.close()
+
+    # intensity_bins, histogram = compute_histogram_intensities(concatenated_int_1, log=True, clip_level_high=clip_level_high, clip_level_low=clip_level_low)
     # concatenated_arr_1, intensity_bins, histogram = process_class_npy(npy_dir_path_1)
-    plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', label="Flared")
-    intensity_bins, histogram = compute_histogram_intensities(concatenated_int_0, log=True, clip_level_high=clip_level_high, clip_level_low=clip_level_low)
+    # plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', label="Flared")
+    # intensity_bins, histogram = compute_histogram_intensities(concatenated_int_0, log=True, clip_level_high=clip_level_high, clip_level_low=clip_level_low)
     # concatenated_arr_0, intensity_bins, histogram = process_class_npy(npy_dir_path_0)
-    plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', alpha=0.6, label="Not flared")
+    # plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', alpha=0.6, label="Not flared")
 
     #ks_statistic, p_value = stats.ks_2samp(concatenated_arr_1, concatenated_arr_0)
     # data_1 = concatenated_arr_1.compute()
@@ -68,12 +111,6 @@ def make_dist_plots():
     # data_0 = np.random.choice(data_0, size=sample_size)
     # ks_statistic, p_value = stats.ks_2samp(data_1, data_0)
     # print("KS test", ks_statistic, p_value)
-    plt.title(f'Distribution of intensities range limited b/w {clip_level_low} and {clip_level_high} percentiles')
-    plt.xlabel('Log(intensities)')
-    plt.ylabel('Normalized counts')
-    plt.grid(True)
-    plt.legend()
-    plt.savefig("intensity_histogram_bothclass.png", dpi=300)
 
 def find_percentiles(concatenated_arr):
     data_99p = da.percentile(concatenated_arr.flatten(), 99).compute()
