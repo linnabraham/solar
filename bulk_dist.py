@@ -119,6 +119,8 @@ def intensity_with_attribution():
 
         masked_int_1, att_threshold_1, masked_bins_1, histogram_1 = find_int_log(npy_int_dir_path_1, npy_att_dir_path_1, percentile_level, channel)
         masked_int_0, att_threshold_0, masked_bins_0, histogram_0 = find_int_log(npy_int_dir_path_0, npy_att_dir_path_0, percentile_level, channel)
+        median_1 = np.median(masked_int_1.compute())
+        median_0 = np.median(masked_int_0.compute())
         ks_stat, p_val = ks_test(masked_int_0, masked_int_1)
         print("KS values", ks_stat, p_val)
         # masked_int = da.where(concatenated_att > p99_1, concatenated_int, np.nan)
@@ -128,16 +130,17 @@ def intensity_with_attribution():
         plt.figure(figsize=(10, 6))
         plt.bar(masked_bins_1[:-1], histogram_1, width=np.diff(masked_bins_1), edgecolor='black', label='flared')
         plt.bar(masked_bins_0[:-1], histogram_0, width=np.diff(masked_bins_0), edgecolor='black', label='non-flared', alpha=0.6)
-        text = f"""percentile values for \n
-        flared:{att_threshold_1[0]:.4e} \n
-        non-flared:{att_threshold_0[0]:.4e} \n
+        text = f"""percentile (flared):{att_threshold_1[0]:.4e} \n
+        percentile (non-flared):{att_threshold_0[0]:.4e} \n
         ks-statistic:{ks_stat:.4e}, p-value:{p_val} \n
-        Passband:{all_wavelengths[channel]}"""
+        median (flared):{median_1:.4f}, (non-flared):{median_0:.4f}"""
 
-        anchored_text = AnchoredText(text, loc="upper left")
+        anchored_text = AnchoredText(text, loc="upper left", prop=dict(size=8))
+        anchored_text.patch.set_alpha(0.5)
         plt.gca().add_artist(anchored_text)
         plt.legend()
-        plt.title(f'Distribution of intensities for pixel attributions greater than {percentile_level} percentile')
+        plt.title(f"""Distribution of intensities for pixel attributions greater than {percentile_level} percentile for 
+                  Passband:{all_wavelengths[channel]}""")
         plt.xlabel('Intensity')
         plt.ylabel('Normalized count')
         plt.grid(True)
