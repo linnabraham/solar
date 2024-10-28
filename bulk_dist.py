@@ -26,12 +26,14 @@ def ks_test(data_0, data_1):
 def compute_histogram_intensities(concatenated_arr, log=True, clip_level_low:int=1, clip_level_high:int=100):
     # import pdb; pdb.set_trace()
     if log:
+        print("Transforming with log")
         concatenated_arr = concatenated_arr[concatenated_arr > 0]
         concatenated_arr = da.log(concatenated_arr)
     # data_min = concatenated_arr.min().compute()
-    data_min = da.percentile(concatenated_arr, clip_level_low).compute()[0]
+    # data_min = da.percentile(concatenated_arr, clip_level_low).compute()[0]
+    data_min = 0
     data_max = da.percentile(concatenated_arr, clip_level_high).compute()[0]
-    print(f"Data min after clipping at {clip_level_low} intensities", data_min)
+    # print(f"Data min after clipping at {clip_level_low} intensities", data_min)
     print(f"Data max after clipping at {clip_level_high} intensities", data_max)
     intensity_hist, intensity_bins = da.histogram(concatenated_arr, bins=50, range=(data_min, data_max), density=True)
     histogram = intensity_hist.compute()
@@ -49,6 +51,29 @@ def log_transform_int(concatenated_arr):
     concatenated_arr = concatenated_arr[ concatenated_arr > 0]
     concatenated_arr = da.log(concatenated_arr)
     return concatenated_arr
+
+def make_dist_plots_passband():
+    npy_int_dir_path_1 = "/data/linn/tmp_1arbdfj4_allintensities/1/"
+    npy_int_dir_path_0 = "/data/linn/tmp_1arbdfj4_allintensities/0/"
+    from utils.aia_metadata import all_wavelengths
+    for channel,passband in enumerate(all_wavelengths):
+        concatenated_int_1 = concat_data(npy_int_dir_path_1, channel)
+        concatenated_int_0 = concat_data(npy_int_dir_path_0, channel)
+        concatenated_int_1 = log_transform_int(concatenated_int_1)
+        concatenated_int_0 = log_transform_int(concatenated_int_0)
+        clip_level_high = 99
+        plt.figure(figsize=(10, 6))
+        intensity_bins, histogram = compute_histogram_intensities(concatenated_int_1, log=False, clip_level_high=clip_level_high, clip_level_low=clip_level_low)
+        plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', label="Flared")
+        intensity_bins, histogram = compute_histogram_intensities(concatenated_int_0, log=False, clip_level_high=clip_level_high, clip_level_low=clip_level_low)
+        plt.bar(intensity_bins[:-1], histogram, width=np.diff(intensity_bins), edgecolor='black', alpha=0.6, label="Not flared")
+        plt.title(f'Distribution of intensities for {passband} passband limited b/w 0 and the {clip_level_high} percentile value')
+        plt.xlabel('Log(intensities)')
+        plt.ylabel('Normalized counts')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(f"intensity_histogram_{passband}_passband.png", dpi=300)
+        plt.close()
 
 def make_dist_plots():
 
@@ -287,7 +312,8 @@ if __name__=="__main__":
     npy_dir_path_1 = "/data/linn/tmp_1arbdfj4_allintensities/1/"
     npy_dir_path_0 = "/data/linn/tmp_1arbdfj4_allintensities/0/"
     # process_class_npy(npy_dir_path_1)
-    make_dist_plots()
+    # make_dist_plots()
+    make_dist_plots_passband()
     # intensity_with_attribution()
     current, peak = tracemalloc.get_traced_memory()
     print(f"Peak: {peak/ 10**6}MB")
