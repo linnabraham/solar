@@ -12,6 +12,7 @@ import matplotlib.dates as mdates
 import pandas as pd
 import seaborn as sns
 sns.set_theme()
+from scipy import stats
 from aia_utils import read_fits, plot_aia_image, make_aia_movie
 
 def print_image_stats(data, percentile_level=99):
@@ -34,6 +35,14 @@ def log_transform_flatten(data, method='naive'):
         raise NotImplementedError
     else:
         return np.log(data[data>0])
+
+def ks_test(data_0, data_1, sample_size=None):
+    if sample_size:
+    #sample_size =5000000
+        data_0 = np.random.choice(data_0, size=sample_size)
+        data_1 = np.random.choice(data_1, size=sample_size)
+    ks_statistic, p_value = stats.ks_2samp(data_0, data_1)
+    return ks_statistic, p_value
 
 def plot_intensity_distribution(data, ax=None, xlabel=None, **kwargs):
     if ax is None:
@@ -291,14 +300,7 @@ class aarp_dataset:
             for subset in ['training', 'validation', 'test']:
                 print(f"{subset} samples:", len(self.json_data.get(subset)))
 
-if __name__=="__main__":
-    import sys
-    from solar_library import fetch_goes_data
-    import pickle
-    dataset = aarp_dataset("/home/linn/july/solar/solar_dataset.json")
-    # train_ds = dataset.get_subset(subset_name='training')
-    # train_ds.subset_info()
-    # aarp_seq = train_ds.create_aarp_sequence(aarp_id=1321)
+def create_and_pickle_aarp_sequences(dataset):
     test_ds = dataset.get_subset(subset_name='test')
     print(test_ds.unique_aarp_ids)
     for aarp_id in test_ds.unique_aarp_ids:
@@ -307,8 +309,16 @@ if __name__=="__main__":
         print("Pickling output to disk...")
         with open(f'aarp_seq_{aarp_id}.pkl', 'wb') as file:
             pickle.dump(aarp_seq, file)
-    sys.exit(0)
-    aarp_seq = test_ds.create_aarp_sequence(aarp_id=3291)
+
+if __name__=="__main__":
+    import sys
+    from solar_library import fetch_goes_data
+    import pickle
+    dataset = aarp_dataset("/home/linn/july/solar/solar_dataset.json")
+    # create_and_pickle_aarp_sequences()
+    train_ds = dataset.get_subset(subset_name='training')
+    # train_ds.subset_info()
+    aarp_seq = train_ds.create_aarp_sequence(aarp_id=1321)
     aarp_seq_171 = aarp_seq.get_images(passband=171)
     print(aarp_seq_171.shape)
     aarp_seq.create_aarp_movie("first_aarp_movie.mp4", passband=171)
