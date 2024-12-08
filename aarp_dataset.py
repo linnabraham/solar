@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from dateutil.parser import isoparse
 import matplotlib.dates as mdates
 import pandas as pd
-import seaborn as sns
-sns.set_theme()
 from scipy import stats
 from aia_utils import read_fits, plot_aia_image, make_aia_movie
 
@@ -45,6 +43,8 @@ def ks_test(data_0, data_1, sample_size=None):
     return ks_statistic, p_value
 
 def plot_intensity_distribution(data, ax=None, xlabel=None, **kwargs):
+    import seaborn as sns
+    sns.set_theme()
     if ax is None:
         ax = plt.gca()
 
