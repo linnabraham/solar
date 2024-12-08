@@ -322,6 +322,8 @@ if __name__=="__main__":
     aarp_seq_171 = aarp_seq.get_images(passband=171)
     print(aarp_seq_171.shape)
     aarp_seq.create_aarp_movie("first_aarp_movie.mp4", passband=171)
+    sys.exit(0)
+    aarp_seq = test_ds.create_aarp_sequence(aarp_id=3291)
     print(aarp_seq.images.shape)
     print(len(aarp_seq.timestamps))
     dt = aarp_seq.timestamps[0]

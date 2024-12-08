@@ -1,4 +1,5 @@
 from aarp_dataset import aarp_dataset, aarp_sequence
+from aarp_dataset import log_transform_flatten, plot_intensity_distribution
 # from train_alexnet import get_compiled_model
 from integrated_grads import get_attributions_mask
 import tensorflow as tf
@@ -161,6 +162,14 @@ class aarp_ig:
             attribution_seq.data = attribution_data
         return attribution_seq
 
+def plot_attribution_based_intensity_distribution(aarp_intensities_with_attribution, passband=None):
+    intensity_seq  = aarp_intensities_with_attribution.aarp_sequence
+    attribution_seq = aarp_intensities_with_attribution.attribution_sequence
+
+    if passband:
+        intensity_data = intensity_seq.get_images(passband=passband,
+                                                  non_negative=True)
+        attribution_data = attribution_seq.get_images(passband=passband)
     else:
         intensity_data = intensity_seq.get_images(non_negative=True)
         attribution_data = attribution_seq.images
