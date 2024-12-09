@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 class attribution_sequence():
     def __init__(self, aarp_sequence):
@@ -34,3 +36,22 @@ class attribution_sequence():
             images_ts.append(images)
 
         return np.array(images_ts)
+
+    @property
+    def timestamps(self):
+        return [ ts for ts, image_dict in self.data ]
+
+    def make_attribution_movie(self, passband=None, filename=None):
+        assert filename is not None
+        assert passband is not None
+        data = self.get_images(passband=passband)
+        nframes = data.shape[0]
+        fig, ax = plt.subplots()
+        assert self.label is not None
+        frame_0 = data[0,:,:]
+        im = ax.imshow(frame_0, origin='lower')
+        def update(frame):
+            im.set_array(data[frame,:,:])
+            ax.set_title(f'{self.timestamps[frame]}_AARP_Id:{self.aarp_id}_Filter:{passband}_label:{self.label}')
+        ani = FuncAnimation(fig, update, frames = nframes, interval=50)
+        ani.save(f'{filename}', writer='ffmpeg', fps=5)
