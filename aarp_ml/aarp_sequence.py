@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
 from dateutil.parser import isoparse
+import os
 
 class aarp_sequence:
     def __init__(self, aarp_id=None, label=None, all_wavelengths=None):
@@ -79,20 +80,30 @@ class aarp_sequence:
         self.data.append((timestamp, image))
         self.data.sort(key=lambda x:x[0])
 
-    def create_aarp_movie(self, filename, passband, sqrt=True):
+    def create_aarp_movie(self, passband, sqrt=False):
         aia_cmap = matplotlib.colormaps[f'sdoaia{passband}']
         data = self.images[:,self.all_wavelengths.index(passband),:,:]
         nframes = data.shape[0]
         fig, ax = plt.subplots()
         assert self.label is not None
+        suffix = ""
         if sqrt:
             data_nn = np.where(data<0, np.zeros_like(data), data)
             frame_0 = np.sqrt(data_nn[0,:,:])
+            suffix+= "_sqrt"
         else:
             frame_0 = data[0,:,:]
+
+        file_path = f"aarp_{self.aarp_id}_movie_passband_{passband}{suffix}.mp4"
+        if os.path.exists(file_path):
+            raise ValueError(f"{file_path} already exists")
+
         im = ax.imshow(frame_0, cmap = aia_cmap, origin='lower')
         def update(frame):
-            im.set_array(np.sqrt(data[frame,:,:]))
-            ax.set_title(f'{self.timestamps[frame]}_AARP_Id:{self.aarp_id}_Filter:{passband}_label:{self.label}')
+            if sqrt:
+                im.set_array(np.sqrt(data[frame,:,:]))
+            else:
+                im.set_array(data[frame,:,:])
+            ax.set_title(f'{self.timestamps[frame]}_AARP_Id:{self.aarp_id}_Filter:{passband}_label:{self.label}{suffix}')
         ani = FuncAnimation(fig, update, frames = nframes, interval=50)
-        ani.save(f'{filename}', writer='ffmpeg', fps=5)
+        ani.save(f'{file_path}', writer='ffmpeg', fps=5)
