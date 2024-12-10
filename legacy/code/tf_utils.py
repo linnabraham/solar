@@ -3,7 +3,6 @@ import tensorflow as tf
 import os
 import json
 import numpy as np
-from astropy.io import fits
 import pickle
 from tensorflow.keras.callbacks import Callback
 from helpers.alexnet import AlexNet
@@ -40,17 +39,6 @@ def get_compiled_model(args):
     print("[INFO] compiling model...")
     model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
     return model
-
-def read_fits(file_path):
-    """
-    Function to read FITS image containing single image from disk
-    Also implements fix for "Too many files open" error 
-    read more: https://docs.astropy.org/en/stable/io/fits/appendix/faq.html#id16
-    """
-    with fits.open(file_path) as hdul:
-        data = hdul[0].data.copy()
-    del hdul[0].data
-    return data
 
 def parse_images(imgs:list, args):
     height, width = args.input_shape
@@ -151,4 +139,5 @@ class SaveHistoryCallback(Callback):
 
 def preprocess_label_E2(label):
     return int(label)
+
 
