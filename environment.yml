@@ -9,3 +9,6 @@ dependencies:
   - aiapy
   - nc-time-axis
   - beautifulsoup4
+  - pip
+  - pip:
+    - git+https://github.com/linnabraham/astro-utils.git
