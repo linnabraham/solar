@@ -12,3 +12,4 @@ dependencies:
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
+    - git+https://github.com/linnabraham/ml-scripts.git

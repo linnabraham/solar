@@ -4,9 +4,8 @@ import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
 from .aarp_sequence import aarp_sequence
-import sys, os
-sys.path.append(os.path.expanduser("~/2024/nov/flares"))
-from aia_utils import read_fits, plot_aia_image
+from astro_utils.aia import plot_aia_image
+from astro_utils.general import read_fits_single
 
 def print_image_stats(data, percentile_level=99):
     print("Image shape:", data.shape)
@@ -82,7 +81,7 @@ class data_subset:
         #TODO: Add validation to make sure subset is already set?
         channel_idx = np.random.choice(list(self.json_data['channels'].keys()))
         file_path = np.random.choice([item[channel_idx] for item in self.file_paths])
-        data = read_fits(file_path)
+        data = read_fits_single(file_path)
         self.sample_image = {"path": file_path, "data": data}
 
     def subset_info(self):
@@ -121,7 +120,7 @@ class data_subset:
             # Add observations for each wavelength from the filtered entries
             for idx, fits_path in entry.items():
                 if idx.isdigit():  # Check if the key is a digit (to exclude "label", "aarp_id", and "timestamp")
-                    im = read_fits(fits_path)
+                    im = read_fits_single(fits_path)
                     image_multiband[self.all_wavelengths[int(idx)]] = im
             aarp_seq.add_image(timestamp, image_multiband)
         return aarp_seq
@@ -130,7 +129,7 @@ class data_subset:
         if isinstance(data_or_file_path, str):
             file_path = data_or_file_path
             try:
-                data = read_fits(file_path)
+                data = read_fits_single(file_path)
             except Exception as e:
                 print(e)
         # TODO:validate that data is a numpy array?
@@ -158,7 +157,7 @@ class data_subset:
                 passband = 171
             channel_idx = str(self.all_wavelengths.index(passband))
             file_path = np.random.choice([item[channel_idx] for item in self.file_paths])
-            data = read_fits(file_path)
+            data = read_fits_single(file_path)
             plot_aia_image(data, passband, **kwargs)
             self.sample_image = {'path':file_path, 'data':data}
         return file_path, data
