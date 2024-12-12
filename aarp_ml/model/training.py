@@ -8,6 +8,7 @@ import wandb
 from wandb.keras import WandbCallback
 import json
 import pickle
+from tensorflow.keras.models import load_model
 from .alexnet import AlexNet
 
 def parse_images(img_paths:list):
@@ -25,23 +26,9 @@ def label_generator(collection):
     for element in collection:
         yield element
 
-def get_tfds(aarp_dataset, subset_name):
-    subset = aarp_dataset.get_subset(subset_name)
-    file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
-                         for file_path in subset.file_paths]
-    labels_list = subset.labels
-    subset._generate_sample_image()
-    image_sample = subset.sample_image.get('data')
-    height, width = image_sample.shape
-    nchannels = len(subset.all_wavelengths)
-    images = tf.data.Dataset.from_generator(generator = lambda: img_generator(file_path_list),
-                                            output_types=tf.float32,
-                                            output_shapes=[nchannels, height, width])
-    labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(labels_list),
-                                            output_types = tf.int32,
-                                            output_shapes = ())
-    tfds = tf.data.Dataset.zip((images, labels))
-    return tfds
+def rescale(image, label):
+    image = tf.image.per_image_standardization(image)
+    return image, label
 
 def compute_mean_and_std(dataset):
     # Initialize variables to accumulate the sum and sum of squares
@@ -81,6 +68,31 @@ def read_stats(pickle_path):
     return means, stds
 
 
+def add_custom_layers(model, data_mean:list, data_std:list, input_shape, num_channels):
+    """
+    Add a normalization layer to standardize the data channel-wise
+    """
+    data_var = [np.square(item) for item in data_std]
+    norm_layer = tf.keras.layers.Normalization(axis=1, mean=data_mean, variance=data_var)
+    inputs = tf.keras.Input(shape=(num_channels,)+input_shape)
+    flip_augment_layer = FlipAugment()
+    flipped = flip_augment_layer(inputs, training=True)
+    normed = norm_layer(flipped)
+    log_transformed = LogTransformLayer()(normed)
+    outputs = model(log_transformed)
+    model = tf.keras.Model(inputs, outputs)
+    return model
+
+def save_arguments(args, filename):
+    with open(filename, 'w') as f:
+        json.dump(vars(args), f)
+
+def get_true_labels(tfds):
+    labels = tfds.map(lambda x,y: y)
+    labels = np.array(list(labels.as_numpy_iterator()))
+    labels = labels.reshape(-1, 1)
+    return labels
+
 def flip_augment(images, labels, seed):
     new_seed = tf.random.experimental.stateless_split((seed,seed), num=1)[0, :]
 
@@ -99,22 +111,6 @@ class FlipAugment(tf.keras.layers.Layer):
             images = tf.image.stateless_random_flip_left_right(images, seed=seed)
             images = tf.image.stateless_random_flip_up_down(images, seed=seed)
         return images
-
-
-def add_custom_layers(model, data_mean:list, data_std:list, input_shape, num_channels):
-    """
-    Add a normalization layer to standardize the data channel-wise
-    """
-    data_var = [np.square(item) for item in data_std]
-    norm_layer = tf.keras.layers.Normalization(axis=1, mean=data_mean, variance=data_var)
-    inputs = tf.keras.Input(shape=(num_channels,)+input_shape)
-    flip_augment_layer = FlipAugment()
-    flipped = flip_augment_layer(inputs, training=True)
-    normed = norm_layer(flipped)
-    log_transformed = LogTransformLayer()(normed)
-    outputs = model(log_transformed)
-    model = tf.keras.Model(inputs, outputs)
-    return model
 
 class LogTransformLayer(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
@@ -140,16 +136,69 @@ class SaveHistoryCallback(Callback):
         with open(self.file_path, 'w') as f:
             json.dump(self.history, f)
 
-def save_arguments(args, filename):
-    with open(filename, 'w') as f:
-        json.dump(vars(args), f)
+class ml_dataset:
+    def __init__(self, aarp_dataset):
+        self.aarp_dataset = aarp_dataset
+
+    def get_tfds(self, subset_name):
+        subset = self.aarp_dataset.get_subset(subset_name)
+        file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
+                             for file_path in subset.file_paths]
+        labels_list = subset.labels
+        subset._generate_sample_image()
+        image_sample = subset.sample_image.get('data')
+        height, width = image_sample.shape
+        nchannels = len(subset.all_wavelengths)
+        images = tf.data.Dataset.from_generator(generator = lambda: img_generator(file_path_list),
+                                                output_types=tf.float32,
+                                                output_shapes=[nchannels, height, width])
+        labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(labels_list),
+                                                output_types = tf.int32,
+                                                output_shapes = ())
+        tfds = tf.data.Dataset.zip((images, labels))
+        return tfds
+
+class trained_model:
+    def __init__(self, trained_model_path=None):
+        self.trained_model_path = trained_model_path
+        if self.trained_model_path is not None:
+            if not os.path.exists(self.trained_model_path):
+                raise ValueError("Trained model path doesn't exist")
+        self.model_ = None
+
+    @property
+    def model(self):
+        if self._model is None:
+            self._model = load_model(self.trained_model_path)
+        return self._model
+
+    @model.setter
+    def model(self, model_with_weights):
+        self._model = model_with_weights
+
+    @property
+    def image_size(self):
+        # Return pretty much every information about your model
+        config = self.model.get_config()
+
+        # Return a tuple of width, height and channels as the expected input shape
+        batch_input_shape = config["layers"][0]["config"]["batch_input_shape"]
+        return batch_input_shape[1:-1]
+
+    def predict_single(self):
+        raise NotImplementedError
+
+    def predict_on_test(self, test_ds, batch_size=32, threshold=0.5):
+        true_labels = get_true_labels(test_ds)
+        predictions = self.model.predict(test_ds.batch(batch_size))
+        predicted_labels = np.array([ 1 if prediction > threshold else 0 for prediction in predictions ])
+        return (predicted_labels, predictions)
 
 class training:
-    def __init__(self, aarp_dataset, stats_file, trained_model_path, input_shape, num_channels):
+    def __init__(self, aarp_dataset, stats_file, input_shape, num_channels):
         self.input_shape = input_shape
         self.num_channels = num_channels
         self.stats_file = stats_file
-        self.trained_model_path = trained_model_path
         self.aarp_dataset = aarp_dataset
 
     def get_compiled_model(self):
@@ -216,18 +265,9 @@ class training:
 
         wandb.finish()
 
-    def evaluate(self, batch_size):
-        gpu = tf.config.experimental.list_physical_devices('GPU')[0]
-        tf.config.experimental.set_memory_growth(gpu, True)
-
+    def get_trained_model(self, trained_model_path):
         model = self.get_compiled_model()
-
-        if not self.trained_model_path is None:
-            model.load_weights(self.trained_model_path)
-        else:
-            raise ValueError("trained_model_path is not defined")
-
-        val_ds = get_tfds(self.aarp_dataset, subset_name="validation")
-        val_ds = val_ds.batch(batch_size)
-
-        result = model.evaluate(val_ds)
+        model.load_weights(trained_model_path)
+        tm = trained_model()
+        tm.model = model
+        return tm
