@@ -44,6 +44,13 @@ class data_subset:
 
         return [{k: v for k, v in subset_dict.items() if k.isdigit()} for subset_dict in self.subset]
 
+    def get_file_paths(self, passband=None):
+        if passband is None:
+            return self.file_paths
+        else:
+            channel_idx = str(self.all_wavelengths.index(passband))
+            return [subset_dict[channel_idx] for subset_dict in self.subset]
+
     @property
     def timestamps(self):
         if self.subset_name is None:
