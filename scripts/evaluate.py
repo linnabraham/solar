@@ -54,9 +54,6 @@ if __name__ == "__main__":
     train_sess = training(aarp_ds, stats_file=args.stats_file, input_shape=(512, 512), num_channels=7)
     tm = train_sess.get_trained_model(args.trained_model_path)
 
-    # test_ds = test_ds.take(64)
-    # val_ds = val_ds.take(64)
-
     print("Evaluating on test data")
     evaluate_on_tfds(tm, test_ds.batch(args.batch_size))
 
@@ -70,5 +67,5 @@ if __name__ == "__main__":
     print("Analyzing on test data")
     analyze_on_test(tm, test_ds)
 
-    # print("Writing results of analyzis with filenames etc. to file")
-    # analyze_results_to_file(aarp_ds, tm, 'test')
+    print("Writing results of analyzis with filenames etc. to file")
+    analyze_results_to_file(aarp_ds, tm, 'test')
