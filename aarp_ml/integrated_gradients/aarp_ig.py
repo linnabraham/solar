@@ -60,6 +60,29 @@ class aarp_intensities_with_attribution:
         ani.save(file_path, writer='ffmpeg', fps=5)
         return c_intensities
 
+def get_attribution_sequence(aarp_sequence, model):
+    from aarp_ml.model_params import INPUT_SHAPE, NUM_CHANNELS
+    attribution_seq = attribution_sequence(aarp_sequence)
+    attribution_data = []
+    for timestamp, image_dict in aarp_sequence.data:
+        image = np.stack(list(image_dict.values()), axis=0)
+        # image = np.stack(list(image_dict.values()), axis=-1)
+
+        attribution_mask = get_attributions_mask(image,
+                                                model,
+                                                aarp_sequence.label,
+                                                INPUT_SHAPE,
+                                                NUM_CHANNELS)
+        attribution_mask_arr = attribution_mask.numpy()
+        attribution_mask_dict = {}
+        for idx in range(attribution_mask_arr.shape[-1]):
+
+            attribution_mask_dict[aarp_sequence.all_wavelengths[idx]] = \
+                    attribution_mask_arr[:,:,idx]
+        attribution_data.append((timestamp, attribution_mask_dict))
+        attribution_seq.data = attribution_data
+    return attribution_seq
+
 class aarp_ig:
     def __init__(self, input_shape, num_channels, model=None):
         self.model = model
