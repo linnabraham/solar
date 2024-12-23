@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
+from astro_utils.flare import fetch_goes_data
+import datetime
 
 def make_log_safe(data):
     min_pos_value = np.min(data[data > 0])
@@ -46,3 +48,28 @@ def plot_intensity_distribution(data, ax=None, xlabel=None, **kwargs):
     ax.grid(True)
     ax.legend()
     return ax
+
+def run_fetch_goes(start, end):
+    if not isinstance(start, datetime.datetime):
+        raise ValueError("Start and End should be of type datetime.datetime")
+    try:
+        goes_data_ts  = fetch_goes_data(start, end)
+    except:
+        start_with_z = start.isoformat().replace("+00:00", "Z")
+        end_with_z = end.isoformat().replace("+00:00", "Z")
+        goes_data_ts  = fetch_goes_data(start_with_z, end_with_z)
+    return goes_data_ts
+
+def plot_goes_with_aarp_sampling(timestamps, goes_ts_data):
+    """
+    timestamps: AARP timestamps
+    """
+    fig, ax = plt.subplots(figsize=(15,10))
+    ax.set_xlim(timestamps.min(), timestamps.max())
+    for ts in timestamps:
+        ax.axvline(ts, color='grey', linestyle='--')
+    goes_ts_data.plot(columns=['xrsb'])
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+    plt.title("GOES Timeseries with AARPS sampling")
