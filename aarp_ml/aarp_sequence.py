@@ -6,6 +6,7 @@ from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
 from dateutil.parser import isoparse
 import os
+from aarp_ml.utils import run_fetch_goes, plot_goes_with_aarp_sampling
 
 class aarp_sequence:
     def __init__(self, aarp_id=None, label=None, all_wavelengths=None):
@@ -47,23 +48,13 @@ class aarp_sequence:
     def timestamps(self):
         return [ ts for ts, image_dict in self.data ]
 
-    def plot_goes_with_aarp_sampling(self, goes_ts_data):
+    def plot_time_sampling(self):
         timestamps = pd.to_datetime(self.timestamps, utc=True)
         ts_min = timestamps.min()
         ts_max = timestamps.max()
         assert isinstance(ts_min, pd._libs.tslibs.timestamps.Timestamp)
-
-        fig, ax = plt.subplots(figsize=(15,10))
-        ax.set_xlim(ts_min, ts_max)
-
-        for ts in timestamps:
-            ax.axvline(ts, color='grey', linestyle='--')
-        goes_ts_data.plot(columns=['xrsb'])
-        plt.xticks(rotation=45)
-        plt.legend()
-        plt.tight_layout()
-        plt.title("GOES Timeseries with AARPS sampling")
-        plt.show()
+        goes_ts_data = run_fetch_goes(ts_min, ts_max)
+        plot_goes_with_aarp_sampling(timestamps, goes_ts_data)
 
     @property
     def patch_size(self):
