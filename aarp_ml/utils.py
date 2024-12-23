@@ -44,7 +44,7 @@ def plot_intensity_distribution(data, ax=None, xlabel=None, **kwargs):
     ax.set_title(title)
     ax.set_ylabel('Normalized counts')
     if xlabel:
-        plt.xlabel(xlabel)
+        ax.set_xlabel(xlabel)
     ax.grid(True)
     ax.legend()
     return ax
