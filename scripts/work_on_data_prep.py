@@ -8,21 +8,33 @@ A sample script which shows how the data processing functions can can be used
 """
 
 if __name__ == "__main__":
-    dp = data_prep("./data/GOES_event_list.csv", "./data/all_harps_with_noaa_ars.txt",
-                   "./data/aarps_full_urlist.txt")
+    goes_event_list = "./data/GOES_event_list.csv"
+    harp_to_noaa = "./data/all_harps_with_noaa_ars.txt"
+    aarp_full_urls = "./data/aarps_full_urlist.txt"
 
-    # pos_list, neg_list = dp.get_selected_url_df()
-    # print(pos_list)
+    dp = data_prep(goes_event_list, harp_to_noaa, aarp_full_urls)
 
-    # table = gen_table_7h()
-    table_path = "data/table_data_shapes.csv"
+    goes_df = dp.goes_df
+    aarps_full_df = dp.aarps_full_df
+    harps_with_noaa_df = dp.harps_with_noaa_df
+
+    aarps_clean_df = dp.clean_url_df(aarps_full_df)
+    goes_clean_df = dp.get_clean_goes_df(goes_df,  harps_with_noaa_df, flare_class="X")
+    url_df = dp.get_selected_url_df(aarps_clean_df,  goes_clean_df)
+
+    pos_dir_7h = "/data/linn/newpipe_compressed/pos"
+    neg_dir_7h = "/data/linn/newpipe_compressed/neg"
+    table = gen_table_7h(pos_dir_7h, neg_dir_7h)
+    # table_path = "data/table_data_shapes.csv"
     table = pd.read_csv(table_path, index_col=0)
+    selected_df = select_7h(table)
+    # selected_7h = "data/selected_7h.csv"
 
-    # df = select_7h(table)
-    selected_7h = "data/selected_7h.csv"
-    extracted_dest_pos = "/data/linn/test_extracted_pos"
-    extracted_dest_neg = "/data/linn/test_extracted_neg"
-    # extract_7h(selected_7h, extracted_dest_pos, extracted_dest_neg)
-    extracted_dest_pos = "/data/linn/E6_extracted_pos"
-    extracted_dest_neg = "/data/linn/E6_extracted_neg"
-    dir_to_json(extracted_dest_pos, extracted_dest_neg)
+    pos_dir_single = "/data/linn/E6_extracted_pos"
+    neg_dir_single = "/data/linn/E6_extracted_neg"
+
+    # writes files to disk
+    extract_7h(selected_df, pos_dir_single, neg_dir_single)
+
+    # saves to solar_dataset_xx.json
+    dir_to_json(pos_dir_single, neg_dir_single)
