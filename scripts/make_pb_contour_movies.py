@@ -46,7 +46,7 @@ def update(frame_idx):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--passband", type=int, required=True)
+    parser.add_argument("--passband", type=int)
     parser.add_argument("--aarp-id", type=int, required=True)
     parser.add_argument("--trained-model", required=True)
     parser.add_argument("--vmax-percentile", type=float, default=99.5)
@@ -59,21 +59,23 @@ if __name__ == "__main__":
     subset = ds.get_subset(args.subset)
     print(f"Using {stats_file} and {json_file}")
     print(f"Using {args.vmax_percentile} as vmax percentile value")
-    fig, ax = plt.subplots()
-    fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
+
     model_id = args.trained_model.split("/")[-2]
-    movie_save_path = f"contour_animation_{args.aarp_id}_{args.passband}_{model_id}.mp4"
-    print(f"Creating movie and saving to {movie_save_path}")
     passbands = subset.all_wavelengths
-    passband = args.passband
-    channel = passbands.index(args.passband)
 
-    aarp_seq = subset.create_aarp_sequence(args.aarp_id)
+    for passband in passbands:
+        fig, ax = plt.subplots()
+        fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
+        channel = passbands.index(passband)
 
-    model = training(ds, stats_file).get_trained_model(args.trained_model).model
-    att_seq = get_attribution_sequence(aarp_seq, model)
-    attbn_pb = att_seq.images[:,channel,:,:]
-    seq_pb = aarp_seq.images[:,channel,:,:]
+        aarp_seq = subset.create_aarp_sequence(args.aarp_id)
 
-    ani = FuncAnimation(fig, update, frames=len(seq_pb),blit=False)
-    ani.save(movie_save_path, fps=10, writer='ffmpeg')
+        model = training(ds, stats_file).get_trained_model(args.trained_model).model
+        att_seq = get_attribution_sequence(aarp_seq, model)
+        attbn_pb = att_seq.images[:,channel,:,:]
+        seq_pb = aarp_seq.images[:,channel,:,:]
+
+        ani = FuncAnimation(fig, update, frames=len(seq_pb),blit=False)
+        movie_save_path = f"contour_animation_{args.aarp_id}_{passband}_{model_id}.mp4"
+        print(f"Creating movie and saving to {movie_save_path}")
+        ani.save(movie_save_path, fps=10, writer='ffmpeg')
