@@ -26,7 +26,6 @@ if __name__ == "__main__":
     neg_dir_7h = "/data/linn/newpipe_compressed/neg"
     table = gen_table_7h(pos_dir_7h, neg_dir_7h)
     # table_path = "data/table_data_shapes.csv"
-    table = pd.read_csv(table_path, index_col=0)
     selected_df = select_7h(table)
     # selected_7h = "data/selected_7h.csv"
 
