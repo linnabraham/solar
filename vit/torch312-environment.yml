@@ -1,0 +1,21 @@
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.4
+  - pandas
+  - wandb
+  - lightning
+  - scikit-learn
+  - vit-pytorch
+  - captum
+  - sunpy
+  - pip
+  - pip:
+    - git+https://github.com/linnabraham/astro-utils.git
+    - git+https://github.com/linnabraham/ml-scripts.git
