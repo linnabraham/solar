@@ -16,10 +16,15 @@ if __name__ == "__main__":
     parser.add_argument('-batch-size', '--batch-size', type=int, default=32)
     parser.add_argument('-epochs', '--epochs', type=int, default=150)
     parser.add_argument('--stats-file')
-
+    parser.add_argument('--trained-model')
+    parser.add_argument('--retrain', action="store_true")
     args = parser.parse_args()
     print(vars(args))
 
     ds  = aarp_dataset(json_path=args.json_path)
-    train_sess = training(ds, stats_file=args.stats_file, input_shape=(512, 512), num_channels=7)
-    train_sess.train(epochs=args.epochs, batch_size=args.batch_size, output_prefix="new-outputs")
+    if not args.retrain == True:
+        train_sess = training(ds, stats_file=args.stats_file, input_shape=(512, 512), num_channels=7)
+    else:
+        train_sess = training(ds, stats_file=args.stats_file, input_shape=(512, 512), num_channels=7,
+                              trained_model_path=args.trained_model)
+    train_sess.train(epochs=args.epochs, batch_size=args.batch_size, output_prefix="outputs")
