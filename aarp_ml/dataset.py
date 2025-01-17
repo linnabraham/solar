@@ -35,6 +35,7 @@ class data_subset:
         self.subset = self.json_data[self.subset_name]
         self.channels = self.json_data.get('channels')
         self.all_wavelengths = [ passband for idx, passband in self.channels.items()]
+        self.flared_ids = self.get_flared_ids()
 
     @property
     def file_paths(self):
@@ -84,6 +85,11 @@ class data_subset:
         data = read_fits_single(file_path)
         self.sample_image = {"path": file_path, "data": data}
 
+    def get_flared_ids(self):
+        aarp_ids_labels = [ (p['aarp_id'], p['label']) for p in self.json_data[self.subset_name]]
+        flared_aarp_ids = [ aarp_id for aarp_id, label in aarp_ids_labels if label == 1]
+        return set(flared_aarp_ids)
+
     def subset_info(self):
         if self.subset_name is None:
             raise ValueError("Subset is not set")
@@ -97,9 +103,6 @@ class data_subset:
         flared_num = sum(self.labels)
         print(f"Flared samples:{flared_num}, Non-Flared samples:{total - flared_num} (Imbalance: {(total - flared_num)/flared_num})")
 
-        aarps_ids_labels = [ (p['aarp_id'], p['label']) for p in self.json_data[self.subset_name]]
-        aarp_ids = [aarp_id for aarp_id, label in aarps_ids_labels]
-        flared_aarp_ids = [ aarp_id for aarp_id, label in aarps_ids_labels if label == 1]
         print(f"Flared AARPs:{set(flared_aarp_ids)}")
 
         print(f"Sample Image Path:", self.sample_image.get('path') if self.sample_image else None)
