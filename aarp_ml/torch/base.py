@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 import sys 
 
 from torch.optim.lr_scheduler import CosineAnnealingLR,ReduceLROnPlateau,CosineAnnealingWarmRestarts, LambdaLR
-from t_utils import Losses
+from .t_utils import Losses
 
 class BaseModel(pl.LightningModule):
     """
