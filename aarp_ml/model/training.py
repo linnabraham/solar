@@ -197,11 +197,12 @@ class trained_model:
         return (predicted_labels, predictions)
 
 class training:
-    def __init__(self, aarp_dataset, stats_file, input_shape, num_channels):
+    def __init__(self, aarp_dataset, stats_file, input_shape=INPUT_SHAPE, num_channels=NUM_CHANNELS, trained_model_path=None):
         self.input_shape = input_shape
         self.num_channels = num_channels
         self.stats_file = stats_file
         self.aarp_dataset = aarp_dataset
+        self.trained_model_path = trained_model_path
 
     def get_compiled_model(self):
         assert self.stats_file is not None
@@ -234,9 +235,13 @@ class training:
         os.environ["WANDB_SILENT"] = "true"
 
         model = self.get_compiled_model()
+        if self.trained_model_path is not None:
+            if os.path.exists(self.trained_model_path):
+                print("Loading weights from model file", self.trained_model_path)
+                model.load_weights(self.trained_model_path)
 
         if not os.path.exists(output_prefix):
-            raise FileNotFoundError
+            raise FileNotFoundError("Output_prefix directory should already exist")
 
         wandb.init(project="AARP_Train")
         outdir = os.path.join(output_prefix, wandb.run.name)
