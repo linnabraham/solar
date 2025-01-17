@@ -225,8 +225,13 @@ class training:
 
         data_mean, data_std = read_stats(self.stats_file)
         model = add_custom_layers(model, data_mean = data_mean, data_std = data_std, input_shape=self.input_shape, num_channels=self.num_channels)
+        cosine_annealing_lr = tf.keras.optimizers.schedules.CosineDecay(
+            initial_learning_rate=1e-3,  # Start with a high LR
+            decay_steps=10000,           # Total steps for one cycle
+            alpha=0.0                    # Minimum learning rate as a fraction of initial LR (0.0 = 0)
+        )
         print("[INFO] compiling model...")
-        model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
+        model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=cosine_annealing_lr), metrics=METRICS)
         return model
 
     def train(self, epochs, batch_size, output_prefix):
