@@ -1,6 +1,5 @@
 import os
-import numpy as np
-import tensorflow as tf
+from ..config import np, tf
 from tensorflow.keras import backend
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback
 from astro_utils.general import read_fits_single
@@ -10,6 +9,9 @@ import json
 import pickle
 from tensorflow.keras.models import load_model
 from .alexnet import AlexNet
+
+INPUT_SHAPE = (512,512)
+NUM_CHANNELS = 7
 
 def parse_images(img_paths:list):
     images_list = []
@@ -250,8 +252,8 @@ class training:
         hc = SaveHistoryCallback(history_path)
 
         AUTOTUNE = tf.data.AUTOTUNE
-        train_ds = get_tfds(self.aarp_dataset, subset_name="training")
-        val_ds = get_tfds(self.aarp_dataset, subset_name="validation")
+        train_ds = ml_dataset(self.aarp_dataset).get_tfds(subset_name="training")
+        val_ds = ml_dataset(self.aarp_dataset).get_tfds(subset_name="validation")
 
         train_ds = (train_ds
                     .batch(batch_size)
