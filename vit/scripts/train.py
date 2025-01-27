@@ -77,11 +77,18 @@ def train_loop(train_dataset, train_loader, val_loader, model, device):
     if args.resume:
         if args.modelpath:
             print(f"Loding saved model from f{args.modelpath}")
-            checkpoint = torch.load(args.modelpath)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            start_epoch = checkpoint['epoch'] + 1
-            #loss = checkpoint['loss']
+            checkpoint = torch.load(args.modelpath, map_location=device)
+            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['model_state_dict'])
+            else:
+                model.load_state_dict(checkpoint)
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            if 'epoch' in checkpoint:
+                start_epoch = checkpoint['epoch'] + 1
+            else:
+                start_epoch = 0  # Default start epoch
+
         else:
             raise FileNotFoundError(f"Checkpoint file not found at {args.modelpath}")
 
