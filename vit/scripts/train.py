@@ -128,7 +128,7 @@ def train_loop(train_dataset, train_loader, val_loader, model, device):
         epoch_loss = running_loss / len(train_dataset)
         print(f"Epoch loss: {epoch_loss}")
 
-        val_ds = aia_euv('../solar_dataset.json', subset='validation')
+        val_ds = aia_euv(args.json_path, subset='validation')
 
         ig_val_loader = DataLoader(val_ds, batch_size = 64, shuffle=True)
         #log_ig_attributes(model, ig_val_loader, batch_idx=0, channel=0)
@@ -153,8 +153,8 @@ def train(args):
     vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
     model = vit_model.model
 
-    json_path = "../solar_dataset.json"
-    stats_file = "stats.pkl"
+    json_path = args.json_path
+    stats_file = args.stats_file
 
     with open(stats_file, 'rb') as f:
         stats = pickle.load(f)
@@ -195,6 +195,8 @@ def train(args):
 if __name__== "__main__":
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("-json-path", "--json-path")
+    parser.add_argument("-stats-file", "--stats-file")
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
