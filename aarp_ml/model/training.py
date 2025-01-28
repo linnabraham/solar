@@ -69,7 +69,6 @@ def read_stats(pickle_path):
     stds = [stats['std'][f'channel_{i}'] for i in range(7)]
     return means, stds
 
-
 def add_custom_layers(model, data_mean:list, data_std:list, input_shape, num_channels):
     """
     Add a normalization layer to standardize the data channel-wise
@@ -190,9 +189,9 @@ class trained_model:
     def predict_single(self):
         raise NotImplementedError
 
-    def predict_on_test(self, test_ds, batch_size=32, threshold=0.5):
+    def predict_on_test(self, test_ds, threshold=0.5):
         true_labels = get_true_labels(test_ds)
-        predictions = self.model.predict(test_ds.batch(batch_size))
+        predictions = self.model.predict(test_ds)
         predicted_labels = np.array([ 1 if prediction > threshold else 0 for prediction in predictions ])
         return (predicted_labels, predictions)
 

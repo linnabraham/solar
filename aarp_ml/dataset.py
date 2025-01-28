@@ -103,7 +103,7 @@ class data_subset:
         flared_num = sum(self.labels)
         print(f"Flared samples:{flared_num}, Non-Flared samples:{total - flared_num} (Imbalance: {(total - flared_num)/flared_num})")
 
-        print(f"Flared AARPs:{set(flared_aarp_ids)}")
+        print(f"Flared AARPs:{self.flared_ids}")
 
         print(f"Sample Image Path:", self.sample_image.get('path') if self.sample_image else None)
         if self.sample_image:
