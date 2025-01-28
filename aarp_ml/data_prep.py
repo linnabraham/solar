@@ -1,15 +1,38 @@
-import pandas as pd
-from tqdm import tqdm
 from datetime import datetime, timedelta
+import pandas as pd
+import numpy as np
 from glob import glob
 from astropy.io import fits
-import numpy as np
-import concurrent.futures
-import os
+from tqdm import tqdm
 from PIL import Image
+import os
+import concurrent.futures
+import json
 import re
 from sklearn.model_selection import train_test_split
-import json
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.neighbors import KernelDensity
+from aarp_ml.data_prep import pad_along_height, pad_along_width
+np.random.seed(42)
+
+"""
+Scripts used for data download and processing
+without using any class functions
+"""
+
+def select_urls(urldf, goes_df):
+    urldf_copy = urldf.copy()
+    urldf_copy['goes_matched_start'] = None
+    for index, row in tqdm(urldf.iterrows(), total=len(urldf)):
+        aarp_id = row['AARP']
+        obs_start = datetime.strptime(row['Datetime'], "%Y.%m.%d_%H:%M:%S")
+        matching_rows = goes_df[ (goes_df['harpnum'] == aarp_id) & (obs_start + timedelta(hours=6) > goes_df['start_time'][goes_df['harpnum'] == aarp_id])]
+        if any(matching_rows):
+            if not matching_rows.empty:
+                matched_start_time = matching_rows['start_time'].values[0]
+                urldf_copy.at[index, 'goes_matched_start'] = matched_start_time
+    return urldf_copy
 
 def split_onmult(df):
     """
@@ -31,6 +54,17 @@ def match_noaa_to_harpnum(x, harps_with_noaa_df):
     else:
         return match[0]
 
+def label_urls(urldf, goes_df):
+        urldf['label'] = -99
+        flared_aarp_ids = set(goes_df.harpnum)
+        for index, row in tqdm(urldf.iterrows(), total=len(urldf)):
+            aarp_id = row['AARP']
+            if not any(goes_df['harpnum'] == aarp_id):
+                urldf.at[index, 'label'] = 0
+            elif any(goes_df['harpnum'] == aarp_id):
+                urldf.at[index, 'label'] = 1
+        return urldf
+
 def split_urllist(df, name):
     """
     Using regex matching convert the url paths into seperate columns
@@ -43,8 +77,127 @@ def split_urllist(df, name):
 
     return urldf
 
+def select_neg_urls(urldf, num_aarps):
+    urldf = urldf.sample(frac=1).reset_index(drop=True)
+    neg_aarp_ids = urldf.AARP.unique()[:num_aarps]
+    urldf = urldf[urldf.AARP.isin(neg_aarp_ids)]
+
+    group_keys = list(urldf.groupby(["Datetime", "AARP"]).groups.keys())
+    np.random.shuffle(group_keys)
+    collected_groups = []
+
+    for key in group_keys:
+        df = urldf.groupby(["Datetime", "AARP"]).get_group(key)
+        collected_groups.append(df)
+
+    urldf = pd.concat(collected_groups, ignore_index=True)
+    return urldf
+
+def get_download_list(goes_event_list, aarp_full_urls, harp_to_noaa):
+    """
+    Create list of files to download after applying certain
+    selections
+    """
+    goes_df = pd.read_csv(goes_event_list, parse_dates=["event_date", "start_time", "peak_time", "end_time"])
+
+    aarps_full_df = pd.read_csv(aarp_full_urls, header=None, names=['urls'])
+    aarps_clean_df = split_urllist(aarps_full_df, "urls")
+    aarps_clean_df = aarps_clean_df[aarps_clean_df["Wavelength"] != 1600]
+
+    harp_to_noaa_df =pd.read_csv(harp_to_noaa, delim_whitespace=True)
+    harp_to_noaa_df = split_onmult(harp_to_noaa_df)
+
+    goes_df['harpnum'] = goes_df.noaa_active_region.apply(match_noaa_to_harpnum, args=(harp_to_noaa_df,))
+    goes_df = goes_df[goes_df.harpnum != -1]
+
+    urldf = label_urls(aarps_clean_df, goes_df)
+    pos_urls = urldf[urldf.label==1]
+
+    selected_urls = select_urls(pos_urls, goes_df)
+
+    matched_urls = selected_urls[selected_urls.goes_matched_start.notna()]
+    print(f"URLs with matches:", len(matched_urls))
+
+    pos_urls = selected_urls[~selected_urls.goes_matched_start.notna()]
+    print(f"URLs in positive class:", len(pos_urls))
+
+    neg_urls = urldf[urldf.label==0]
+    num_aarps = pos_urls.AARP.nunique()*4
+    neg_urls = select_neg_urls(neg_urls, num_aarps)
+    print(f"URLs in negative class:", len(matched_urls))
+    return pos_urls, neg_urls
+
+def pad_to_size(image, target_height, target_width):
+    current_height, current_width = image.shape[:2]
+    pad_height = target_height - current_height
+    pad_width = target_width - current_width
+
+    # Calculate padding for each side
+    top = pad_height // 2
+    bottom = pad_height - top
+    left = pad_width // 2
+    right = pad_width - left
+
+    # Determine the number of channels (grayscale or color)
+    if len(image.shape) == 2:  # Grayscale image
+        return np.pad(image, ((top, bottom), (left, right)), mode='constant', constant_values=0)
+    elif len(image.shape) == 3:  # Color image
+        return np.pad(image, ((top, bottom), (left, right), (0, 0)), mode='constant', constant_values=0)
+    else:
+        raise ValueError("Unsupported image shape: {}".format(image.shape))
+
+def pad_and_resize(image, biggest_shape, final_shape):
+    target_height, target_width = biggest_shape
+    final_height, final_width = final_shape
+    image = pad_to_size(image, target_height, target_width)
+    resized = np.array(Image.fromarray(image).resize((final_width, final_height)))
+    return resized
+
+def resize_and_save_in_parallel(files_to_process, dest, biggest_shape, targ_shape):
+
+    # Number of parallel threads/workers
+    num_threads = 15  # You can adjust this based on your system capabilities
+
+    for file_path in tqdm(files_to_process):
+
+        harpnum, wavelength, obs_start, timestamps, images = unpack_7h_fits(file_path)
+
+        # Using ThreadPoolExecutor for parallel processing
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+
+            # Map the resize_and_save function to each array in parallel
+            try:
+                pad_and_resized = list(executor.map(pad_and_resize, images, [biggest_shape]*77, [targ_shape]*77))
+            except:
+                print(f"Resize failed for {file_path}")
+                continue
+
+            executor.map(save_to_fits, pad_and_resized, [harpnum]*77, [wavelength]*77, [obs_start]*77, timestamps, [dest]*77)
+
+def extract_7h(df, pos_data, neg_data, biggest_shape, target_shape):
+    # df = pd.read_csv(selected_7h)
+    # targ_shape = (512, 512)
+    # make sure we are not extracting same file again
+    assert len(pd.unique(df.fits_fullpath)) == len(df.fits_fullpath)
+
+    print("Extracting 7h FITS observation into individual images")
+    for dest, label in zip((pos_data, neg_data), (1,0)):
+
+        files = df.fits_fullpath[df.label==label]
+        print(f"Working on samples with label:{label} first")
+        print("Files to extract", len(files))
+        if not os.path.exists(dest):
+            os.mkdir(dest)
+        print("Saving to ", dest)
+        # resize_and_save_in_parallel(files, dest=dest, biggest_shape=biggest_shape, targ_shape=target_shape)
+        pad_and_resize_in_parallel(files, dest=dest, biggest_shape=biggest_shape, targ_shape=target_shape)
+
 def read_7h_fits(fits_path):
-    hdul = fits.open(fits_path)
+    try:
+        hdul = fits.open(fits_path)
+    except Exception as e:
+        print(f"Error reading FITS file: {e}")
+
     main_header = hdul[0].header
 
     harpnum = main_header['HARPNUM']
@@ -61,7 +214,6 @@ def read_7h_fits(fits_path):
         header = hdul[hour_num].header
 
         if data is None:
-            #print("Empty data encountered in hour number", hour_num, fits_path)
             return None
 
         else:
@@ -89,56 +241,45 @@ def read_7h_fits(fits_path):
     row = summarize(shapes_7h, lons_7h, exp_7h, timestamps)
     row['harpnum'] = harpnum
     row['wavelength'] = wavelength
+    hdul.close()
     return row
+
+def process_class(fits_dir, label):
+    files = glob(f"{fits_dir}/*.fits")
+    rows = []
+    for file in tqdm(files):
+        try:
+            row = read_7h_fits(file)
+        except Exception as e:
+            print(f"Could not read FITS file:{e}")
+        else:
+            if not row is None:
+                row["fits_fullpath"] = file
+                row["label"] = label
+                rows.append(row)
+    return rows
+
+def gen_table_7h(pos_dir, neg_dir):
+    rows = []
+    for data_path, label in zip((pos_dir, neg_dir), (1,0)):
+        rows_ = process_class(data_path, label)
+        rows.extend(rows_)
+    table = pd.DataFrame(rows)
+    return table
 
 def summarize(shapes_7h:list, lons_7h:list, exp_7h:list, timestamps:list):
     stats = {}
     lons_7h_min = np.min(lons_7h)
     lons_7h_max = np.max(lons_7h)
-    #assert any(np.isnan(x).any() for x in shapes_7h), "At least one value in one of the tuples in the list is np.nan"
-    # Find the shape that maximizes the area of the patch
     shape_7h_max = shapes_7h[np.argmax(np.prod(shapes_7h, axis=1))]
-    # Assume that timestamps are returned in the proper chronological order
     timestamp = timestamps[0]
 
     stats["min_lon"] = lons_7h_min
     stats["max_lon"] = lons_7h_max
     stats["max_height"] = shape_7h_max[0]
     stats["max_width"] = shape_7h_max[1]
-    stats["start_time"] = timestamp
 
     return stats
-
-def process_dir(dirpath, label):
-    files = glob(dirpath)
-    for file in tqdm(files):
-        ret_val = read_7h_fits(file)
-        if ret_val is not None:
-            row = read_7h_fits(file)
-            row["fits_fullpath"] = file
-            row["label"] = label
-            rows.append(row)
-
-def gen_table_7h():
-    pos_data = "/data/linn/newpipe_compressed/pos"
-    neg_data = "/data/linn/newpipe_compressed/neg"
-
-    rows = []
-    for data_path, label in zip((pos_data, neg_data), (1,0)):
-        pattern = f"{data_path}/*.fits"
-        process_dir(pattern, label)
-
-    table = pd.DataFrame(rows)
-    return table
-
-def select_7h(df):
-    df.min_lon = df.min_lon.replace(-999999, np.nan)
-    df.max_lon = df.max_lon.replace(-999999, np.nan)
-    df = df[~df.min_lon.isna()]
-    #print(df.max_lon.isna().sum())
-    df = df[df.wavelength != 1600]
-    df = df[(np.abs(df.min_lon) < 60) & (np.abs(df.max_lon) < 60)]
-    return df
 
 def unpack_7h_fits(fits_path):
     hdul = fits.open(fits_path)
@@ -153,7 +294,6 @@ def unpack_7h_fits(fits_path):
         if data is None:
             print("Empty data encountered in hour number",hour_num, fits_path)
             continue
-            #return None
         header = hdul[hour_num].header
         extname = f"T_IMG{hour_num:0>2d}"
         nimgs = data.shape[0]
@@ -164,7 +304,6 @@ def unpack_7h_fits(fits_path):
             timestamp = header[obstime_key]
             if timestamp == 'NaN':
                 print("timstamp missing in header", obstime_key, fits_path)
-                #return None
                 continue
             images.append(img)
             timestamps.append(timestamp)
@@ -176,147 +315,45 @@ def save_to_fits(image, harpnum, wavelength, obs_start, timestamp, dest):
     fits_filename = f'{harpnum}_{wavelength}_{obs_start}_{timestamp}.fits'
     new_hdul.writeto(os.path.join(dest,fits_filename))
 
-def resize_and_save_in_parallel(files_to_process, dest, targ_shape=(512,512)):
+def remove_offlimb(df, lon_threshold=60):
+    print(f"length of df {len(df)}")
+    grouped = df.groupby(["Datetime","harpnum"])
+    print(f"Found {grouped.ngroups} groups")
+    concat_list = []
+    for group_key, group_df in tqdm(grouped):
+            if not len(group_df) == 7:
+                print(f"Found group with length not equal to 7 for haprnum: {group_key[1]}")
+            group_df["max_abs_lon"]  = group_df[["min_lon", "max_lon"]].abs().max(axis=1)
+            if len(group_df[group_df.max_abs_lon > lon_threshold]) > 0:
+                continue
+            else:
+                concat_list.append(group_df)
+    return pd.concat(concat_list)
 
-    # Number of parallel threads/workers
-    num_threads = 15  # You can adjust this based on your system capabilities
+def get_table_clean(pos_dir_7h, neg_dir_7h):
+    table_7h = gen_table_7h(pos_dir_7h, neg_dir_7h)
+    table_7h[["Datetime", "AARP", "Wavelength"]] = split_urllist(table_7h, "fits_fullpath")[["Datetime", "AARP", "Wavelength"]]
+    table_7h.min_lon = table_7h.min_lon.replace(-999999, np.nan)
+    table_7h.max_lon = table_7h.max_lon.replace(-999999, np.nan)
+    table_7h_clean = table_7h[(table_7h.min_lon.notna() |  table_7h.max_lon.notna()) ]
+    table_7h_clean = remove_offlimb(table_7h_clean)
+    return table_7h_clean
 
-    for file_path in tqdm(files_to_process):
+def get_biggest_shape(table_7h_clean):
+    biggest_height = table_7h_clean.max_height.max()
+    biggest_width = table_7h_clean.max_width.max()
+    biggest_shape = (biggest_height, biggest_width)
+    return biggest_shape
 
-        harpnum, wavelength, obs_start, timestamps, images = unpack_7h_fits(file_path)
-
-        # Using ThreadPoolExecutor for parallel processing
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-
-            # Map the resize_and_save function to each array in parallel
-            pad_and_scaled = list(executor.map(downscale_and_pad, images, [targ_shape]*77))
-
-            executor.map(save_to_fits, pad_and_scaled, [harpnum]*77, [wavelength]*77, [obs_start]*77, timestamps, [dest]*77)
-
-def extract_7h(selected_7h, pos_data, neg_data):
-    df = pd.read_csv(selected_7h)
-    targ_shape = (512, 512)
-
-    # make sure we are not extracting same file again
-    assert len(pd.unique(df.fits_fullpath)) == len(df.fits_fullpath)
-
-    print("Extracting 7h FITS observation into individual images")
-    for dest, label in zip((pos_data, neg_data), (1,0)):
-
-        files = df.fits_fullpath[df.label==label]
-        print(f"Working on samples with label:{label} first")
-        print("Files to extract", len(files))
-        if not os.path.exists(dest):
-            os.mkdir(dest)
-        print("Saving to ", dest)
-        resize_and_save_in_parallel(files, dest=dest)
-
-def pad_along_height(image, target_shape=(512,512)):
-    qs_pixels = list(image[:2, :].flatten()) + list(image[-2:,:].flatten())+ \
-        list(image[:,:2].flatten()) + list(image[:,-2:].flatten())
-    aspect_ratio = image.shape[1]/image.shape[0]
-    target_height, target_width = target_shape
-    height_before_pad = int(target_width/aspect_ratio)
-    #print("Height before pad", height_before_pad)
-    height_diff = target_height - height_before_pad
-    half_diff = height_diff // 2
-    #print("Half diff", half_diff)
-    black = np.zeros(target_shape)
-    target_width = target_shape[1]
-    resized_image = np.array(Image.fromarray(image).resize((target_width,
-                                                            height_before_pad)))
-    #print("shape of resized image", resized_image.shape)
-    if height_diff % 2 == 0:
-        black[half_diff:-half_diff,:] = resized_image
-    else:
-        black[half_diff:-(half_diff+1),:] = resized_image
-        black[-half_diff-1,:] = resized_image [-1,:]
-
-
-    black_top = black[:half_diff,:]
-    top_qs = np.random.choice(qs_pixels, size=(black_top.shape))
-    for row in np.arange(top_qs.shape[0]):
-        row_from_bottom = top_qs.shape[0]-row
-        top_qs_height = top_qs.shape[0]
-        x = row_from_bottom/top_qs_height
-        black_top[row_from_bottom-1, :] = top_qs[row_from_bottom-1,:] * (1-x) + \
-                resized_image[0,:] * x
-
-    black_bottom = black[-half_diff:,:] 
-    bottom_qs = np.random.choice(qs_pixels, size=(black_bottom.shape))
-    for row in np.arange(bottom_qs.shape[0]):
-        row_from_bottom = bottom_qs.shape[0]-row
-        bottom_qs_height = bottom_qs.shape[0]
-        x = row_from_bottom/bottom_qs_height
-        #black_bottom[-(row_from_bottom-1), :] = bottom_qs[-(row_from_bottom-1),:] * (1-x) + resized_image[-1:,:] * x
-        black_bottom[-(row_from_bottom), :] = bottom_qs[-(row_from_bottom),:] * (1-x) + resized_image[-1:,:] * x
-
-    return black
-
-def pad_along_width(image, target_shape=(512,512)):
-    qs_pixels = list(image[:2, :].flatten()) + list(image[-2:,:].flatten())+ \
-        list(image[:,:2].flatten()) + list(image[:,-2:].flatten())
-    aspect_ratio = image.shape[1]/image.shape[0]
-    target_height, target_width = target_shape
-    width_before_pad = int(target_height * aspect_ratio)
-    #print("Width before pad", width_before_pad)
-    width_diff = target_width - width_before_pad
-    half_diff = width_diff // 2
-    #print("Half diff", half_diff)
-    black = np.zeros(target_shape)
-    target_width = target_shape[1]
-    resized_image = np.array(Image.fromarray(image).resize((width_before_pad,
-                                                            target_height)))
-    #print("shape of resized image", resized_image.shape)
-    if width_diff % 2 == 0:
-        black[:,half_diff:-half_diff] = resized_image
-    else:
-        black[:,half_diff:-(half_diff+1)] = resized_image
-        black[:,-half_diff-1] = resized_image [:,-1]
-
-
-    black_left = black[:,:half_diff]
-    left_qs = np.random.choice(qs_pixels, size=(black_left.shape))
-    for col in np.arange(left_qs.shape[1]):
-        col_from_right = left_qs.shape[1]-col
-        left_qs_width = left_qs.shape[1]
-        x = col_from_right/left_qs_width
-        black_left[:,col_from_right-1] = left_qs[:,col_from_right-1] * (1-x) + \
-                resized_image[:,0] * x
-
-    black_right = black[:,-half_diff:]
-    right_qs = np.random.choice(qs_pixels, size=(black_right.shape))
-    for col in np.arange(right_qs.shape[1]):
-        col_from_right = right_qs.shape[1]-col
-        right_qs_width = right_qs.shape[1]
-        x = col_from_right/right_qs_width
-        black_right[:,-col_from_right] = right_qs[:,-col_from_right] * (1-x) + \
-                resized_image[:,-3] * x
-
-    return black
-
-def downscale_and_pad(image, target_shape=(512,512)):
+def extract_from_dir(pos_dir_7h,
+                     neg_dir_7h, pos_dir_single, neg_dir_single, target_shape=(512,512)):
     """
-    Function to downsize image to specified size
-    Resizing is attempted in an aspect ratio aware way
-    The aspect ratio is computed and used to fix either the width or height.
-    The difference in the other dimension is calculated and this dimension is filled using 
-    the quiet sun background by sampling from all the edges of the image 2 pixels wide.
-    If the difference is odd, one of the edges is retained as black.
-
+    Extract files as individual images with padding applied
     """
-    target_height, target_width = target_shape
-    aspect_ratio = image.shape[1]/image.shape[0]
-    #assert aspect_ratio != 1.
-    if aspect_ratio > 1:
-        return pad_along_height(image, target_shape=target_shape)
-
-    elif aspect_ratio < 1:
-        return pad_along_width(image, target_shape=target_shape)
-
-    else:
-        resized = np.array(Image.fromarray(image).resize((target_width, target_height)))
-        return resized
+    table_7h_clean = get_table_clean(pos_dir_7h, neg_dir_7h)
+    resampled_7h_df = resample_on_shapes(table_7h_clean)
+    biggest_shape = get_biggest_shape(resampled_7h_df)
+    extract_7h(resampled_7h_df, pos_dir_single, neg_dir_single, biggest_shape, target_shape=target_shape)
 
 def split_data(harpnums: pd.Series):
     """
@@ -338,66 +375,31 @@ def simultaneous_multiband(df):
     fixed_bands = [94, 131, 171, 193, 211, 304, 335]
     grouped = df.groupby(['harpnum','timestamp'])
     for group_key, group_df in grouped:
-        #assert len(group_df) ==7
         if len(group_df) == 7:
             assert set([int(item) for item in group_df['wavelength'].values]) == set(fixed_bands)
             group_harpnum = int(group_key[0])
             group_timestamp = group_key[1]
             yield (group_harpnum, group_timestamp, group_df)
 
-def filter_central_ts(df):
-    concat_list = []
-    grouped = df.groupby(['obs_start','wavelength'])
-    for group_key, group_df in grouped:
-        central_ts = group_df.iloc[0::11]
-        #print(len(central_ts))
-        #assert len(central_ts) == 77
-        if central_ts is not None:
-            concat_list.append(central_ts)
-        else:
-            print(f"Got none for {group_key}")
-    concat_df = pd.concat(concat_list)
-    return concat_df
-
-def split_filepath(file_path):
-    """
-    Function that reads the name of individual file as a string and extracts AARP id, wavelength, observation
-    start time and the timestamp encoded in the string.
-    """
-    #assert '/' not in file_path
-    # 3364_171_2013.11.12_15:48:00_TAI_2013-11-12T21:53:49Z.fits
-    pattern = r'(\d+)_(\d+)_(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_TAI_(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
-    match = re.search(pattern, file_path)
-    if match:
-        result = match.groups()
-        return(result)
-    else:
-        print("No match found.")
-        return None
-
 def dir_to_dataset(dir_path, label):
     """
     Accepts the directory corresponding to positive or negative class and does the processing
     required to generate the json file
     """
-    # import pdb; pdb.set_trace()
     fits_full_paths = glob(f"{dir_path}/*.fits")
     df = pd.DataFrame(fits_full_paths, columns=['fits_full_path'])
 
-    df = pd.DataFrame(fits_full_paths, columns=['fits_full_path'])
     df['fits_path'] = df['fits_full_path'].apply(lambda x: os.path.basename(x))
 
     df[['harpnum','wavelength', 'obs_start', 'timestamp']] = df['fits_path'].apply(split_filepath).apply(pd.Series)
     df['harpnum'] = df['harpnum'].astype(int)
     df['wavelength'] = df['wavelength'].astype(int)
 
-    central_ts = filter_central_ts(df)
-
     training = []
     validation = []
     test = []
 
-    aarps_for_train, aarps_for_val, aarps_for_test = split_data(central_ts['harpnum'])
+    aarps_for_train, aarps_for_val, aarps_for_test = split_data(df['harpnum'])
     print(len(aarps_for_train), len(aarps_for_val), len(aarps_for_test))
 
     fixed_bands = [94, 131, 171, 193, 211, 304, 335]
@@ -431,7 +433,10 @@ def dir_to_dataset(dir_path, label):
     return training, validation, test
 
 
-def dir_to_json(extracted_dest_pos, extracted_dest_neg):
+def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
+    """
+    Create a training metadata file as json
+    """
     training_full = []
     validation_full = []
     test_full = []
@@ -461,67 +466,271 @@ def dir_to_json(extracted_dest_pos, extracted_dest_neg):
             }
     pretty = json.dumps(metadata, indent=4)
 
-    filename = "solar_dataset_xx.json"
     with open(filename, "w") as write_file:
         json.dump(metadata, write_file, indent=4)
 
-class data_prep:
-    def __init__(self, goes_event_list, harp_to_noaa_map, aarps_full_urlist):
-        self.goes_event_list = goes_event_list
-        self.harp_to_noaa_map = harp_to_noaa_map
-        self.aarps_full_urlist = aarps_full_urlist
+def split_filepath(file_path):
+    """
+    Function that reads the name of individual file as a string and extracts AARP id, wavelength, observation
+    start time and the timestamp encoded in the string.
+    """
+    pattern = r'(\d+)_(\d+)_(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_TAI_(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
+    match = re.search(pattern, file_path)
+    if match:
+        result = match.groups()
+        return(result)
+    else:
+        print("No match found.")
+        return None
 
-    @property
-    def goes_df(self):
-        goes_df = pd.read_csv(self.goes_event_list, parse_dates=["event_date", "start_time", "peak_time", "end_time"])
-        return goes_df
+def summarize_shapes(table_7h_clean):
+    data = {}
+    for label in (0,1):
+        max_height = table_7h_clean[table_7h_clean.label==label].max_height.max()
+        max_width = table_7h_clean[table_7h_clean.label==label].max_width.max()
+        min_height = table_7h_clean[table_7h_clean.label==label].max_height.min()
+        min_width = table_7h_clean[table_7h_clean.label==label].max_width.min()
+        mean_width = table_7h_clean[table_7h_clean.label==label].max_width.mean()
+        std_width = table_7h_clean[table_7h_clean.label==label].max_width.std()
+        mean_height = table_7h_clean[table_7h_clean.label==label].max_height.mean()
+        std_height = table_7h_clean[table_7h_clean.label==label].max_height.std()
 
-    @property
-    def harps_with_noaa_df(self):
-        harps_with_noaa_df = pd.read_csv(self.harp_to_noaa_map, delim_whitespace=True)
-        return harps_with_noaa_df
+        data_class = {"max_height":max_height, "max_width": max_width, "min_height":min_height, "min_width":min_width, 
+                     "mean_width":mean_width, "std_width": std_width, "mean_height":mean_height, "std_height":std_height}
+        data[f"{label}"]=data_class
+    return data
 
-    @property
-    def aarps_full_df(self):
-        aarps_full_df = pd.read_csv(self.aarps_full_urlist, header=None, names=['urls'])
-        return aarps_full_df
+def get_fov_limits(table_7h_clean):
+    data = summarize_shapes(table_7h_clean)
+    pos_mean_height = data.get("1").get("mean_height")
+    pos_mean_width = data.get("1").get("mean_width")
+    pos_std_height = data.get("1").get("std_height")
+    pos_std_width = data.get("1").get("std_width")
 
-    def get_clean_goes_df(self):
-        harps_with_noaa_df = split_onmult(self.harps_with_noaa_df)
-        goes_df = self.goes_df
-        goes_df['harpnum'] = goes_df['noaa_active_region'].apply(match_noaa_to_harpnum, args=(harps_with_noaa_df,))
+    low_dims = pos_mean_height - pos_std_height, pos_mean_width - pos_std_width
+    high_dims = pos_mean_height + pos_std_height, pos_mean_width + pos_std_width
+    pos_max_height = data.get("1").get("max_height")
+    pos_max_width = data.get("1").get("max_width")
 
-        # remove cases where there is no corresponding noaa AR number that matches
-        goes_df  = goes_df.query("harpnum != -1")
-        # select only AARPS that have resulted in major flares
-        goes_df = goes_df[goes_df['goes_class'].apply(lambda x: x[0]) == "X"]
-        return goes_df
+    pos_min_height = data.get("1").get("min_height")
+    pos_min_width = data.get("1").get("min_width")
 
-    def get_selected_url_df(self):
-        urldf = split_urllist(self.aarps_full_df, "urls")
-        urldf['label'] = -99
-        urldf['goes_matched_start'] = None
-        goes_df = self.get_clean_goes_df()
-        goes_df_org = goes_df.copy()
+    low_dims = pos_min_height, pos_min_width
+    high_dims = pos_max_height, pos_max_width
+    return low_dims, high_dims
 
-        for index, row in tqdm(urldf.iterrows(), total=len(urldf)):
-            # import pdb; pdb.set_trace()
-            obs_start = datetime.strptime(row['Datetime'], "%Y.%m.%d_%H:%M:%S")
-            aarp_id = row['AARP']
-            if not any(goes_df_org['harpnum'] == aarp_id):
-                urldf.at[index, 'label'] = 0
-            elif any((goes_df['harpnum'] == aarp_id) & (obs_start + timedelta(hours=7) < self.goes_df['start_time'])):
-                matching_rows = goes_df[(goes_df['harpnum'] == aarp_id) & (obs_start + timedelta(hours=7) < goes_df['start_time'])]
-                if not matching_rows.empty:
-                    matched_start_time = matching_rows['start_time'].values[0]
-                    urldf.at[index, 'goes_matched_start'] = matched_start_time
-                    urldf.at[index, 'label'] = 1
+def apply_shape_limits(table_7h_clean, low_dims, high_dims):
+    neg_df = table_7h_clean[table_7h_clean.label==0]
+    pos_df = table_7h_clean[table_7h_clean.label==1]
+    neg_df = neg_df[(neg_df.max_height.between(low_dims[0], high_dims[0]) & neg_df.max_width.between(low_dims[1], high_dims[1]))]
+    table_7h_clean = pd.concat([neg_df, pos_df])
+    return table_7h_clean
 
-        print("No. of 7hr AARP observation matches", (urldf['label']==1).sum())
-        print("No. of unique AARPS", pd.unique(urldf[urldf['label']==1].AARP))
+def bias_analysis(table):
+    na_val = table.min_lon.min()
+    df = table[table.min_lon != na_val]
+    numerical_features = ['max_height', 'max_width', 'min_lon', 'max_lon']
+    for feature in numerical_features:
+        if feature in df.columns:
+            plt.figure(figsize=(10, 6))
+            sns.histplot(data=df, x=feature, hue='label', kde=True, palette='Set1', bins=30)
+            plt.title(f'Distribution of {feature} by Label')
+            plt.show()
 
-        # print(urldf[urldf['goes_matched_start'].notna()])
-        urls_pos = urldf['urls'][urldf['label']==1]
-        #TODO:incorporate grouping by wavelength and then shuffling to select the negative AARPS
-        urls_neg = urldf['urls'][urldf['label']==0][-5000:]
-        return urls_pos, urls_neg
+def pad_with_qs(image, target_shape=(512,512)):
+    """
+    Function to downsize image to specified size
+    Resizing is attempted in an aspect ratio aware way
+    The aspect ratio is computed and used to fix either the width or height.
+    The difference in the other dimension is calculated and this dimension is filled using 
+    the quiet sun background by sampling from all the edges of the image 2 pixels wide.
+    If the difference is odd, one of the edges is retained as black.
+
+    """
+    target_height, target_width = target_shape
+    aspect_ratio = image.shape[1]/image.shape[0]
+    #assert aspect_ratio != 1.
+    if aspect_ratio > 1:
+        return pad_along_height(image, target_shape=target_shape)
+
+    elif aspect_ratio < 1:
+        return pad_along_width(image, target_shape=target_shape)
+
+    else:
+        return image
+
+def pad_and_scale(image, target_shape, final_shape=(512,512)):
+    image = pad_image_with_border(image, target_shape=target_shape)
+    target_height, target_width = final_shape
+    return np.array(Image.fromarray(image).resize((target_width, target_height)))
+
+def pad_image_with_border(image, target_shape):
+    """
+    Pads an image with values randomly sampled from a 2-pixel-wide border to attain the target shape.
+
+    Parameters:
+        image (numpy.ndarray): Input image as a NumPy array.
+        target_shape (tuple): Target shape as (target_height, target_width).
+
+    Returns:
+        numpy.ndarray: Padded image with the target shape.
+    """
+    # Ensure the target shape is valid
+    target_height, target_width = target_shape
+    img_height, img_width = image.shape[:2]
+
+    if target_height < img_height or target_width < img_width:
+        raise ValueError("Target shape must be greater than or equal to the image shape.")
+
+    # Compute padding sizes
+    pad_top = (target_height - img_height) // 2
+    pad_bottom = target_height - img_height - pad_top
+    pad_left = (target_width - img_width) // 2
+    pad_right = target_width - img_width - pad_left
+
+    # Extract the 2-pixel-wide border
+    top_border = image[:2, :]
+    bottom_border = image[-2:, :]
+    left_border = image[:, :2]
+    right_border = image[:, -2:]
+
+    # Sample values from the borders
+    top_pad = np.random.choice(top_border.flatten(), (pad_top, img_width, image.shape[2] if image.ndim == 3 else 1))
+    bottom_pad = np.random.choice(bottom_border.flatten(), (pad_bottom, img_width, image.shape[2] if image.ndim == 3 else 1))
+    left_pad = np.random.choice(left_border.flatten(), (target_height, pad_left, image.shape[2] if image.ndim == 3 else 1))
+    right_pad = np.random.choice(right_border.flatten(), (target_height, pad_right, image.shape[2] if image.ndim == 3 else 1))
+
+    # Adjust dimensions if the image is grayscale
+    if image.ndim == 2:
+        top_pad = top_pad.squeeze()
+        bottom_pad = bottom_pad.squeeze()
+        left_pad = left_pad.squeeze()
+        right_pad = right_pad.squeeze()
+
+    # Pad the image
+    padded_image = np.zeros((target_height, target_width, image.shape[2] if image.ndim == 3 else 1), dtype=image.dtype)
+    if image.ndim == 2:
+        padded_image = padded_image.squeeze()
+
+    # Insert the original image into the center
+    padded_image[pad_top:pad_top + img_height, pad_left:pad_left + img_width] = image
+
+    # Fill top and bottom padding
+    padded_image[:pad_top, pad_left:pad_left + img_width] = top_pad
+    padded_image[pad_top + img_height:, pad_left:pad_left + img_width] = bottom_pad
+
+    # Fill left and right padding
+    padded_image[:, :pad_left] = left_pad
+    padded_image[:, pad_left + img_width:] = right_pad
+
+    return padded_image
+def pad_and_resize_in_parallel(files_to_process, dest, biggest_shape, targ_shape):
+    import pdb#; pdb.set_trace()
+    # Number of parallel threads/workers
+    num_threads = 15  # You can adjust this based on your system capabilities
+
+    for file_path in tqdm(files_to_process):
+
+        harpnum, wavelength, obs_start, timestamps, images = unpack_7h_fits(file_path)
+
+        # Using ThreadPoolExecutor for parallel processing
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+
+            # Map the resize_and_save function to each array in parallel
+            try:
+                pad_and_resized = list(executor.map(pad_and_scale, images, [biggest_shape]*77, [targ_shape]*77))
+            except Exception as e:
+                print(f"Resize failed for {file_path}")
+                print(f"{e} \n but image has shape {images[0].shape} and target is {biggest_shape}")
+                # pdb.set_trace()
+                #pad_and_resized = list(executor.map(pad_and_scale, images, [biggest_shape]*77, [targ_shape]*77))
+                continue
+
+            executor.map(save_to_fits, pad_and_resized, [harpnum]*77, [wavelength]*77, [obs_start]*77, timestamps, [dest]*77)
+
+def resample_on_shapes(shape_limited_df):
+    positive_class = shape_limited_df[shape_limited_df["label"] == 1]
+    negative_class = shape_limited_df[shape_limited_df["label"] == 0]
+    grouped = positive_class.groupby(["Datetime", "harpnum"])
+    first_row_values_pos = grouped.first().reset_index()
+    grouped = negative_class.groupby(["Datetime", "harpnum"])
+    first_row_values_neg = grouped.first().reset_index()
+    positive_features = first_row_values_pos[['max_height', 'max_width']]
+    kde = KernelDensity(kernel='gaussian', bandwidth=10)  # Adjust bandwidth as needed
+    kde.fit(positive_features)
+
+    negative_features = first_row_values_neg[['max_height', 'max_width']]
+    first_row_values_neg['density_score'] = np.exp(kde.score_samples(negative_features))
+    sampled_negatives = first_row_values_neg.sample(
+        n=len(first_row_values_neg),  # Match the number of positive samples
+        weights='density_score',  # Use density as sampling weight
+        random_state=42          # For reproducibility
+    )
+    concat_sampled = pd.concat([first_row_values_pos, sampled_negatives.drop("density_score", axis=1)])
+    selected_7h_df = pd.merge(
+        shape_limited_df,  # Original dataset
+        concat_sampled[["Datetime", "harpnum"]],  # Filtered group identifiers
+        on=["Datetime", "harpnum"],  # Columns to match
+        how="inner"  # Keep only matching rows
+    )
+    return selected_7h_df
+
+def process_fits_table(input_table):
+    """
+    Function to process the entire table
+    """
+    combined_data = []
+    for _, row in input_table.iterrows():
+        hdu_rows = process_fits_file(row)
+        combined_data.extend(hdu_rows)
+    return pd.DataFrame(combined_data)
+
+def process_fits_file(row):
+    """
+    Function to process a single FITS file
+    """
+    fits_fullpath = row['fits_fullpath']
+    harpnum = row['harpnum']
+    AARP = row['AARP']
+    wavelength = row['wavelength']
+    hdu_rows = []
+    try:
+        with fits.open(fits_fullpath) as hdulist:
+            for hdu_index, hdu in enumerate(hdulist):
+                if isinstance(hdu, fits.PrimaryHDU):
+                    continue
+                elif isinstance(hdu, fits.ImageHDU):
+                    image_hdu_rows = process_image_hdu(hdu, hdu_index, fits_fullpath, harpnum, AARP, wavelength)
+                    hdu_rows.extend(image_hdu_rows)
+                else:
+                    continue
+    except Exception as e:
+        print(f"Error processing file {fits_fullpath}: {e}")
+    return hdu_rows
+
+def process_image_hdu(hdu, hdu_index, fits_fullpath, harpnum, AARP, wavelength):
+    """
+    Function to extract metadata and image properties from an HDU
+    """
+    header = hdu.header
+    hdu_rows = []
+    obs_start = header.get('T_START', None)
+
+    # Extract image data properties (if present)
+    if hdu.data is not None:
+        num_images = hdu.data.shape[0]
+        for img_index in range(num_images):
+            image_data = hdu.data[img_index]
+            image_time = header.get(f"T_IMG{img_index:02d}", None)
+            hdu_rows.append({
+        "fits_fullpath": fits_fullpath,
+        "harpnum": harpnum,
+        "AARP": AARP,
+        "wavelength": wavelength,
+        "HDU_index": hdu_index,
+        "img_time": image_time,
+        "img_height": image_data.shape[0],
+        "img_width": image_data.shape[1]
+    }    )
+
+    return hdu_rows
