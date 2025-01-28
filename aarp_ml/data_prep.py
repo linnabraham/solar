@@ -13,8 +13,9 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.neighbors import KernelDensity
-from aarp_ml.data_prep import pad_along_height, pad_along_width
+from joblib import Memory
 np.random.seed(42)
+memory = Memory(location='/data/linn/cachedir', verbose=0)
 
 """
 Scripts used for data download and processing
@@ -93,6 +94,7 @@ def select_neg_urls(urldf, num_aarps):
     urldf = pd.concat(collected_groups, ignore_index=True)
     return urldf
 
+@memory.cache
 def get_download_list(goes_event_list, aarp_full_urls, harp_to_noaa):
     """
     Create list of files to download after applying certain
@@ -734,3 +736,87 @@ def process_image_hdu(hdu, hdu_index, fits_fullpath, harpnum, AARP, wavelength):
     }    )
 
     return hdu_rows
+
+def pad_along_height(image, target_shape=(512,512)):
+    qs_pixels = list(image[:2, :].flatten()) + list(image[-2:,:].flatten())+ \
+        list(image[:,:2].flatten()) + list(image[:,-2:].flatten())
+    aspect_ratio = image.shape[1]/image.shape[0]
+    target_height, target_width = target_shape
+    height_before_pad = int(target_width/aspect_ratio)
+    #print("Height before pad", height_before_pad)
+    height_diff = target_height - height_before_pad
+    half_diff = height_diff // 2
+    #print("Half diff", half_diff)
+    black = np.zeros(target_shape)
+    target_width = target_shape[1]
+    resized_image = np.array(Image.fromarray(image).resize((target_width,
+                                                            height_before_pad)))
+    #print("shape of resized image", resized_image.shape)
+    if height_diff % 2 == 0:
+        black[half_diff:-half_diff,:] = resized_image
+    else:
+        black[half_diff:-(half_diff+1),:] = resized_image
+        black[-half_diff-1,:] = resized_image [-1,:]
+
+
+    black_top = black[:half_diff,:]
+    top_qs = np.random.choice(qs_pixels, size=(black_top.shape))
+    for row in np.arange(top_qs.shape[0]):
+        row_from_bottom = top_qs.shape[0]-row
+        top_qs_height = top_qs.shape[0]
+        x = row_from_bottom/top_qs_height
+        black_top[row_from_bottom-1, :] = top_qs[row_from_bottom-1,:] * (1-x) + \
+                resized_image[0,:] * x
+
+    black_bottom = black[-half_diff:,:] 
+    bottom_qs = np.random.choice(qs_pixels, size=(black_bottom.shape))
+    for row in np.arange(bottom_qs.shape[0]):
+        row_from_bottom = bottom_qs.shape[0]-row
+        bottom_qs_height = bottom_qs.shape[0]
+        x = row_from_bottom/bottom_qs_height
+        #black_bottom[-(row_from_bottom-1), :] = bottom_qs[-(row_from_bottom-1),:] * (1-x) + resized_image[-1:,:] * x
+        black_bottom[-(row_from_bottom), :] = bottom_qs[-(row_from_bottom),:] * (1-x) + resized_image[-1:,:] * x
+
+    return black
+
+def pad_along_width(image, target_shape=(512,512)):
+    qs_pixels = list(image[:2, :].flatten()) + list(image[-2:,:].flatten())+ \
+        list(image[:,:2].flatten()) + list(image[:,-2:].flatten())
+    aspect_ratio = image.shape[1]/image.shape[0]
+    target_height, target_width = target_shape
+    width_before_pad = int(target_height * aspect_ratio)
+    #print("Width before pad", width_before_pad)
+    width_diff = target_width - width_before_pad
+    half_diff = width_diff // 2
+    #print("Half diff", half_diff)
+    black = np.zeros(target_shape)
+    target_width = target_shape[1]
+    resized_image = np.array(Image.fromarray(image).resize((width_before_pad,
+                                                            target_height)))
+    #print("shape of resized image", resized_image.shape)
+    if width_diff % 2 == 0:
+        black[:,half_diff:-half_diff] = resized_image
+    else:
+        black[:,half_diff:-(half_diff+1)] = resized_image
+        black[:,-half_diff-1] = resized_image [:,-1]
+
+
+    black_left = black[:,:half_diff]
+    left_qs = np.random.choice(qs_pixels, size=(black_left.shape))
+    for col in np.arange(left_qs.shape[1]):
+        col_from_right = left_qs.shape[1]-col
+        left_qs_width = left_qs.shape[1]
+        x = col_from_right/left_qs_width
+        black_left[:,col_from_right-1] = left_qs[:,col_from_right-1] * (1-x) + \
+                resized_image[:,0] * x
+
+    black_right = black[:,-half_diff:]
+    right_qs = np.random.choice(qs_pixels, size=(black_right.shape))
+    for col in np.arange(right_qs.shape[1]):
+        col_from_right = right_qs.shape[1]-col
+        right_qs_width = right_qs.shape[1]
+        x = col_from_right/right_qs_width
+        black_right[:,-col_from_right] = right_qs[:,-col_from_right] * (1-x) + \
+                resized_image[:,-3] * x
+
+    return black

@@ -26,8 +26,7 @@ def read_urls_from_csv(csv_file):
         return [row[0] for row in reader if row]
 
 # Main function to download all URLs in parallel with a progress bar
-def download_urls_in_parallel(csv_file, output_dir, max_workers=5):
-    urls = read_urls_from_csv(csv_file)
+def download_urls_in_parallel(urls, output_dir, max_workers=5):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(download_file, url, output_dir): url for url in urls}
         for future in tqdm(as_completed(futures), total=len(futures), desc="Downloading files"):
