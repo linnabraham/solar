@@ -129,53 +129,6 @@ def get_download_list(goes_event_list, aarp_full_urls, harp_to_noaa):
     print(f"URLs in negative class:", len(matched_urls))
     return pos_urls, neg_urls
 
-def pad_to_size(image, target_height, target_width):
-    current_height, current_width = image.shape[:2]
-    pad_height = target_height - current_height
-    pad_width = target_width - current_width
-
-    # Calculate padding for each side
-    top = pad_height // 2
-    bottom = pad_height - top
-    left = pad_width // 2
-    right = pad_width - left
-
-    # Determine the number of channels (grayscale or color)
-    if len(image.shape) == 2:  # Grayscale image
-        return np.pad(image, ((top, bottom), (left, right)), mode='constant', constant_values=0)
-    elif len(image.shape) == 3:  # Color image
-        return np.pad(image, ((top, bottom), (left, right), (0, 0)), mode='constant', constant_values=0)
-    else:
-        raise ValueError("Unsupported image shape: {}".format(image.shape))
-
-def pad_and_resize(image, biggest_shape, final_shape):
-    target_height, target_width = biggest_shape
-    final_height, final_width = final_shape
-    image = pad_to_size(image, target_height, target_width)
-    resized = np.array(Image.fromarray(image).resize((final_width, final_height)))
-    return resized
-
-def resize_and_save_in_parallel(files_to_process, dest, biggest_shape, targ_shape):
-
-    # Number of parallel threads/workers
-    num_threads = 15  # You can adjust this based on your system capabilities
-
-    for file_path in tqdm(files_to_process):
-
-        harpnum, wavelength, obs_start, timestamps, images = unpack_7h_fits(file_path)
-
-        # Using ThreadPoolExecutor for parallel processing
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-
-            # Map the resize_and_save function to each array in parallel
-            try:
-                pad_and_resized = list(executor.map(pad_and_resize, images, [biggest_shape]*77, [targ_shape]*77))
-            except:
-                print(f"Resize failed for {file_path}")
-                continue
-
-            executor.map(save_to_fits, pad_and_resized, [harpnum]*77, [wavelength]*77, [obs_start]*77, timestamps, [dest]*77)
-
 def extract_7h(df, pos_data, neg_data, biggest_shape, target_shape):
     # df = pd.read_csv(selected_7h)
     # targ_shape = (512, 512)
@@ -332,31 +285,6 @@ def remove_offlimb(df, lon_threshold=60):
                 concat_list.append(group_df)
     return pd.concat(concat_list)
 
-def get_table_clean(pos_dir_7h, neg_dir_7h):
-    table_7h = gen_table_7h(pos_dir_7h, neg_dir_7h)
-    table_7h[["Datetime", "AARP", "Wavelength"]] = split_urllist(table_7h, "fits_fullpath")[["Datetime", "AARP", "Wavelength"]]
-    table_7h.min_lon = table_7h.min_lon.replace(-999999, np.nan)
-    table_7h.max_lon = table_7h.max_lon.replace(-999999, np.nan)
-    table_7h_clean = table_7h[(table_7h.min_lon.notna() |  table_7h.max_lon.notna()) ]
-    table_7h_clean = remove_offlimb(table_7h_clean)
-    return table_7h_clean
-
-def get_biggest_shape(table_7h_clean):
-    biggest_height = table_7h_clean.max_height.max()
-    biggest_width = table_7h_clean.max_width.max()
-    biggest_shape = (biggest_height, biggest_width)
-    return biggest_shape
-
-def extract_from_dir(pos_dir_7h,
-                     neg_dir_7h, pos_dir_single, neg_dir_single, target_shape=(512,512)):
-    """
-    Extract files as individual images with padding applied
-    """
-    table_7h_clean = get_table_clean(pos_dir_7h, neg_dir_7h)
-    resampled_7h_df = resample_on_shapes(table_7h_clean)
-    biggest_shape = get_biggest_shape(resampled_7h_df)
-    extract_7h(resampled_7h_df, pos_dir_single, neg_dir_single, biggest_shape, target_shape=target_shape)
-
 def split_data(harpnums: pd.Series):
     """
     Given a list of harp ids find the unique ids and split it into train, val and test
@@ -382,58 +310,6 @@ def simultaneous_multiband(df):
             group_harpnum = int(group_key[0])
             group_timestamp = group_key[1]
             yield (group_harpnum, group_timestamp, group_df)
-
-def dir_to_dataset(dir_path, label):
-    """
-    Accepts the directory corresponding to positive or negative class and does the processing
-    required to generate the json file
-    """
-    fits_full_paths = glob(f"{dir_path}/*.fits")
-    df = pd.DataFrame(fits_full_paths, columns=['fits_full_path'])
-
-    df['fits_path'] = df['fits_full_path'].apply(lambda x: os.path.basename(x))
-
-    df[['harpnum','wavelength', 'obs_start', 'timestamp']] = df['fits_path'].apply(split_filepath).apply(pd.Series)
-    df['harpnum'] = df['harpnum'].astype(int)
-    df['wavelength'] = df['wavelength'].astype(int)
-
-    training = []
-    validation = []
-    test = []
-
-    aarps_for_train, aarps_for_val, aarps_for_test = split_data(df['harpnum'])
-    print(len(aarps_for_train), len(aarps_for_val), len(aarps_for_test))
-
-    fixed_bands = [94, 131, 171, 193, 211, 304, 335]
-
-    for group_harpnum, group_timestamp, group_df in simultaneous_multiband(df):
-
-        result =  group_df.loc[group_df['wavelength']==fixed_bands[0]].values[0]
-
-        entry = {
-         "0": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[0]].values[0],
-         "1": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[1]].values[0],
-         "2": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[2]].values[0],
-         "3": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[3]].values[0],
-         "4": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[4]].values[0],
-         "5": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[5]].values[0],
-         "6": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[6]].values[0],
-         "label": label,
-         "aarp_id": group_harpnum,
-         "timestamp": group_timestamp
-           }
-
-        if group_harpnum in aarps_for_train:
-            training.append(entry)
-        elif group_harpnum in aarps_for_val:
-            validation.append(entry)
-        elif group_harpnum in aarps_for_test:
-            test.append(entry)
-        else:
-            print("Found aarp id not in given list")
-
-    return training, validation, test
-
 
 def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
     """
@@ -470,20 +346,6 @@ def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
 
     with open(filename, "w") as write_file:
         json.dump(metadata, write_file, indent=4)
-
-def split_filepath(file_path):
-    """
-    Function that reads the name of individual file as a string and extracts AARP id, wavelength, observation
-    start time and the timestamp encoded in the string.
-    """
-    pattern = r'(\d+)_(\d+)_(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_TAI_(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
-    match = re.search(pattern, file_path)
-    if match:
-        result = match.groups()
-        return(result)
-    else:
-        print("No match found.")
-        return None
 
 def summarize_shapes(table_7h_clean):
     data = {}
@@ -538,28 +400,6 @@ def bias_analysis(table):
             sns.histplot(data=df, x=feature, hue='label', kde=True, palette='Set1', bins=30)
             plt.title(f'Distribution of {feature} by Label')
             plt.show()
-
-def pad_with_qs(image, target_shape=(512,512)):
-    """
-    Function to downsize image to specified size
-    Resizing is attempted in an aspect ratio aware way
-    The aspect ratio is computed and used to fix either the width or height.
-    The difference in the other dimension is calculated and this dimension is filled using 
-    the quiet sun background by sampling from all the edges of the image 2 pixels wide.
-    If the difference is odd, one of the edges is retained as black.
-
-    """
-    target_height, target_width = target_shape
-    aspect_ratio = image.shape[1]/image.shape[0]
-    #assert aspect_ratio != 1.
-    if aspect_ratio > 1:
-        return pad_along_height(image, target_shape=target_shape)
-
-    elif aspect_ratio < 1:
-        return pad_along_width(image, target_shape=target_shape)
-
-    else:
-        return image
 
 def pad_and_scale(image, target_shape, final_shape=(512,512)):
     image = pad_image_with_border(image, target_shape=target_shape)
@@ -677,39 +517,6 @@ def resample_on_shapes(shape_limited_df):
     )
     return selected_7h_df
 
-def process_fits_table(input_table):
-    """
-    Function to process the entire table
-    """
-    combined_data = []
-    for _, row in input_table.iterrows():
-        hdu_rows = process_fits_file(row)
-        combined_data.extend(hdu_rows)
-    return pd.DataFrame(combined_data)
-
-def process_fits_file(row):
-    """
-    Function to process a single FITS file
-    """
-    fits_fullpath = row['fits_fullpath']
-    harpnum = row['harpnum']
-    AARP = row['AARP']
-    wavelength = row['wavelength']
-    hdu_rows = []
-    try:
-        with fits.open(fits_fullpath) as hdulist:
-            for hdu_index, hdu in enumerate(hdulist):
-                if isinstance(hdu, fits.PrimaryHDU):
-                    continue
-                elif isinstance(hdu, fits.ImageHDU):
-                    image_hdu_rows = process_image_hdu(hdu, hdu_index, fits_fullpath, harpnum, AARP, wavelength)
-                    hdu_rows.extend(image_hdu_rows)
-                else:
-                    continue
-    except Exception as e:
-        print(f"Error processing file {fits_fullpath}: {e}")
-    return hdu_rows
-
 def process_image_hdu(hdu, hdu_index, fits_fullpath, harpnum, AARP, wavelength):
     """
     Function to extract metadata and image properties from an HDU
@@ -737,86 +544,3 @@ def process_image_hdu(hdu, hdu_index, fits_fullpath, harpnum, AARP, wavelength):
 
     return hdu_rows
 
-def pad_along_height(image, target_shape=(512,512)):
-    qs_pixels = list(image[:2, :].flatten()) + list(image[-2:,:].flatten())+ \
-        list(image[:,:2].flatten()) + list(image[:,-2:].flatten())
-    aspect_ratio = image.shape[1]/image.shape[0]
-    target_height, target_width = target_shape
-    height_before_pad = int(target_width/aspect_ratio)
-    #print("Height before pad", height_before_pad)
-    height_diff = target_height - height_before_pad
-    half_diff = height_diff // 2
-    #print("Half diff", half_diff)
-    black = np.zeros(target_shape)
-    target_width = target_shape[1]
-    resized_image = np.array(Image.fromarray(image).resize((target_width,
-                                                            height_before_pad)))
-    #print("shape of resized image", resized_image.shape)
-    if height_diff % 2 == 0:
-        black[half_diff:-half_diff,:] = resized_image
-    else:
-        black[half_diff:-(half_diff+1),:] = resized_image
-        black[-half_diff-1,:] = resized_image [-1,:]
-
-
-    black_top = black[:half_diff,:]
-    top_qs = np.random.choice(qs_pixels, size=(black_top.shape))
-    for row in np.arange(top_qs.shape[0]):
-        row_from_bottom = top_qs.shape[0]-row
-        top_qs_height = top_qs.shape[0]
-        x = row_from_bottom/top_qs_height
-        black_top[row_from_bottom-1, :] = top_qs[row_from_bottom-1,:] * (1-x) + \
-                resized_image[0,:] * x
-
-    black_bottom = black[-half_diff:,:] 
-    bottom_qs = np.random.choice(qs_pixels, size=(black_bottom.shape))
-    for row in np.arange(bottom_qs.shape[0]):
-        row_from_bottom = bottom_qs.shape[0]-row
-        bottom_qs_height = bottom_qs.shape[0]
-        x = row_from_bottom/bottom_qs_height
-        #black_bottom[-(row_from_bottom-1), :] = bottom_qs[-(row_from_bottom-1),:] * (1-x) + resized_image[-1:,:] * x
-        black_bottom[-(row_from_bottom), :] = bottom_qs[-(row_from_bottom),:] * (1-x) + resized_image[-1:,:] * x
-
-    return black
-
-def pad_along_width(image, target_shape=(512,512)):
-    qs_pixels = list(image[:2, :].flatten()) + list(image[-2:,:].flatten())+ \
-        list(image[:,:2].flatten()) + list(image[:,-2:].flatten())
-    aspect_ratio = image.shape[1]/image.shape[0]
-    target_height, target_width = target_shape
-    width_before_pad = int(target_height * aspect_ratio)
-    #print("Width before pad", width_before_pad)
-    width_diff = target_width - width_before_pad
-    half_diff = width_diff // 2
-    #print("Half diff", half_diff)
-    black = np.zeros(target_shape)
-    target_width = target_shape[1]
-    resized_image = np.array(Image.fromarray(image).resize((width_before_pad,
-                                                            target_height)))
-    #print("shape of resized image", resized_image.shape)
-    if width_diff % 2 == 0:
-        black[:,half_diff:-half_diff] = resized_image
-    else:
-        black[:,half_diff:-(half_diff+1)] = resized_image
-        black[:,-half_diff-1] = resized_image [:,-1]
-
-
-    black_left = black[:,:half_diff]
-    left_qs = np.random.choice(qs_pixels, size=(black_left.shape))
-    for col in np.arange(left_qs.shape[1]):
-        col_from_right = left_qs.shape[1]-col
-        left_qs_width = left_qs.shape[1]
-        x = col_from_right/left_qs_width
-        black_left[:,col_from_right-1] = left_qs[:,col_from_right-1] * (1-x) + \
-                resized_image[:,0] * x
-
-    black_right = black[:,-half_diff:]
-    right_qs = np.random.choice(qs_pixels, size=(black_right.shape))
-    for col in np.arange(right_qs.shape[1]):
-        col_from_right = right_qs.shape[1]-col
-        right_qs_width = right_qs.shape[1]
-        x = col_from_right/right_qs_width
-        black_right[:,-col_from_right] = right_qs[:,-col_from_right] * (1-x) + \
-                resized_image[:,-3] * x
-
-    return black
