@@ -15,7 +15,8 @@ def print_image_stats(data, percentile_level=99):
 
 class aarp_dataset:
     def __init__(self, json_path):
-        with open(json_path) as f:
+        self.json_path = json_path
+        with open(self.json_path) as f:
             data = json.load(f)
         self.json_data = data
 
