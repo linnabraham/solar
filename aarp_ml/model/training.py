@@ -9,6 +9,7 @@ import json
 import pickle
 from tensorflow.keras.models import load_model
 from .alexnet import AlexNet
+from aarp_ml.dataset import aarp_dataset
 
 INPUT_SHAPE = (512,512)
 NUM_CHANNELS = 7
@@ -138,11 +139,13 @@ class SaveHistoryCallback(Callback):
             json.dump(self.history, f)
 
 class ml_dataset:
-    def __init__(self, aarp_dataset):
-        self.aarp_dataset = aarp_dataset
+    def __init__(self, json_path):
+        self.json_path = json_path
+
 
     def get_tfds(self, subset_name):
-        subset = self.aarp_dataset.get_subset(subset_name)
+        aarp_ds = aarp_dataset(json_path=self.json_path)
+        subset = aarp_ds.get_subset(subset_name)
         file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
                              for file_path in subset.file_paths]
         labels_list = subset.labels
