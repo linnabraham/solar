@@ -310,6 +310,72 @@ def simultaneous_multiband(df):
             group_timestamp = group_key[1]
             yield (group_harpnum, group_timestamp, group_df)
 
+def split_filepath(file_path):
+    """
+    Function that reads the name of individual file as a string and extracts AARP id, wavelength, observation
+    start time and the timestamp encoded in the string.
+    """
+    pattern = r'(\d+)_(\d+)_(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_TAI_(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
+    match = re.search(pattern, file_path)
+    if match:
+        result = match.groups()
+        return(result)
+    else:
+        print("No match found.")
+        return None
+
+def dir_to_dataset(dir_path, label):
+    """
+    Accepts the directory corresponding to positive or negative class and does the processing
+    required to generate the json file
+    """
+    fits_full_paths = glob(f"{dir_path}/*.fits")
+    df = pd.DataFrame(fits_full_paths, columns=['fits_full_path'])
+
+    df['fits_path'] = df['fits_full_path'].apply(lambda x: os.path.basename(x))
+
+    df[['harpnum','wavelength', 'obs_start', 'timestamp']] = df['fits_path'].apply(split_filepath).apply(pd.Series)
+    df['harpnum'] = df['harpnum'].astype(int)
+    df['wavelength'] = df['wavelength'].astype(int)
+
+    training = []
+    validation = []
+    test = []
+
+    aarps_for_train, aarps_for_val, aarps_for_test = split_data(df['harpnum'])
+    print(len(aarps_for_train), len(aarps_for_val), len(aarps_for_test))
+
+    fixed_bands = [94, 131, 171, 193, 211, 304, 335]
+
+    for group_harpnum, group_timestamp, group_df in simultaneous_multiband(df):
+
+        result =  group_df.loc[group_df['wavelength']==fixed_bands[0]].values[0]
+
+        entry = {
+         "0": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[0]].values[0],
+         "1": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[1]].values[0],
+         "2": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[2]].values[0],
+         "3": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[3]].values[0],
+         "4": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[4]].values[0],
+         "5": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[5]].values[0],
+         "6": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[6]].values[0],
+         "label": label,
+         "aarp_id": group_harpnum,
+         "timestamp": group_timestamp
+           }
+
+        if group_harpnum in aarps_for_train:
+            training.append(entry)
+        elif group_harpnum in aarps_for_val:
+            validation.append(entry)
+        elif group_harpnum in aarps_for_test:
+            test.append(entry)
+        else:
+            print("Found aarp id not in given list")
+
+    return training, validation, test
+
+
 def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
     """
     Create a training metadata file as json
@@ -591,3 +657,24 @@ def process_table_on_disk(table_on_disk):
             combined_data.extend(hdu_rows)
         combined_df = pd.DataFrame(combined_data)
     return combined_df
+
+class data_prep:
+    def __init__(self, goes_event_list, harp_to_noaa_map, aarps_full_urlist):
+        self.goes_event_list = goes_event_list
+        self.harp_to_noaa_map = harp_to_noaa_map
+        self.aarps_full_urlist = aarps_full_urlist
+
+    @property
+    def goes_df(self):
+        goes_df = pd.read_csv(self.goes_event_list, parse_dates=["event_date", "start_time", "peak_time", "end_time"])
+        return goes_df
+
+    @property
+    def harps_with_noaa_df(self):
+        harps_with_noaa_df = pd.read_csv(self.harp_to_noaa_map, delim_whitespace=True)
+        return harps_with_noaa_df
+
+    @property
+    def aarps_full_df(self):
+        aarps_full_df = pd.read_csv(self.aarps_full_urlist, header=None, names=['urls'])
+        return aarps_full_df
