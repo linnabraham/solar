@@ -624,6 +624,7 @@ def read_from_disk(pos_dir, neg_dir):
     table_on_disk = pd.DataFrame(rows)
     return table_on_disk
 
+@memory.cache
 def process_table_on_disk(table_on_disk):
     """
     Input: DataFrame where each row corresponds to a downloaded FITS file
@@ -631,7 +632,8 @@ def process_table_on_disk(table_on_disk):
     Ouput: DataFrame where each row corresponds to a single image in any of the FITS files
     """
     combined_data = []
-    for _, row in table_on_disk.iterrows():
+
+    for _, row in tqdm(table_on_disk.iterrows(), total=len(table_on_disk)):
         fits_fullpath = row['fits_fullpath']
         AARP = row['AARP']
         wavelength = row['Wavelength']
