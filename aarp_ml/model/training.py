@@ -8,6 +8,7 @@ from wandb.keras import WandbCallback
 import json
 import pickle
 from tensorflow.keras.models import load_model
+from sklearn.utils import shuffle
 from .alexnet import AlexNet
 from aarp_ml.dataset import aarp_dataset
 
@@ -154,6 +155,7 @@ class ml_dataset:
         file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
                              for file_path in subset.file_paths]
         labels_list = subset.labels
+        file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
         subset._generate_sample_image()
         image_sample = subset.sample_image.get('data')
         height, width = image_sample.shape
