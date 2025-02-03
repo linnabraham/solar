@@ -93,17 +93,17 @@ if __name__ == "__main__":
 
     ds  = aarp_dataset(json_path=json_filename)
     num_channels = 7
-    train_ds = ml_dataset(ds).get_tfds(subset_name="training")
-    train_ds = train_ds.batch(256)
-
-    data_mean, data_std = compute_mean_and_std(train_ds)
-    stats = {
-            'mean' : {f'channel_{i}': data_mean.numpy()[i] for i in range(num_channels)},
-            'std' : {f'channel_{i}': data_std.numpy()[i] for i in range(num_channels)}
-            }
-    print(stats)
-
     with open(pickle_file, 'wb') as f:
+        train_ds = ml_dataset(ds).get_tfds(subset_name="training")
+        train_ds = train_ds.batch(256)
+
+        data_mean, data_std = compute_mean_and_std(train_ds)
+        stats = {
+                'mean' : {f'channel_{i}': data_mean.numpy()[i] for i in range(num_channels)},
+                'std' : {f'channel_{i}': data_std.numpy()[i] for i in range(num_channels)}
+                }
+        print(stats)
+
         pickle.dump(stats, f)
 
     print(f"Script ran for {time.time() - st} seconds")
