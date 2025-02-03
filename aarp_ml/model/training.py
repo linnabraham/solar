@@ -142,6 +142,11 @@ class ml_dataset:
     def __init__(self, json_path):
         self.json_path = json_path
 
+    @property
+    def json_data(self):
+        with open(self.json_path) as f:
+            data = json.load(f)
+        return data
 
     def get_tfds(self, subset_name):
         aarp_ds = aarp_dataset(json_path=self.json_path)
