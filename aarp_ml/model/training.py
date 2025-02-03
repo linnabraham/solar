@@ -206,11 +206,12 @@ class trained_model:
         return (predicted_labels, predictions)
 
 class training:
-    def __init__(self, aarp_dataset, stats_file, input_shape=INPUT_SHAPE, num_channels=NUM_CHANNELS, trained_model_path=None):
+    def __init__(self, json_path, stats_file, input_shape=INPUT_SHAPE, num_channels=NUM_CHANNELS, trained_model_path=None):
         self.input_shape = input_shape
         self.num_channels = num_channels
         self.stats_file = stats_file
-        self.aarp_dataset = aarp_dataset
+        self.json_path = json_path
+        self.aarp_dataset = aarp_dataset(json_path=self.json_path)
         self.trained_model_path = trained_model_path
 
     def get_compiled_model(self):
@@ -271,8 +272,8 @@ class training:
         hc = SaveHistoryCallback(history_path)
 
         AUTOTUNE = tf.data.AUTOTUNE
-        train_ds = ml_dataset(self.aarp_dataset).get_tfds(subset_name="training")
-        val_ds = ml_dataset(self.aarp_dataset).get_tfds(subset_name="validation")
+        train_ds = ml_dataset(self.json_path).get_tfds(subset_name="training")
+        val_ds = ml_dataset(self.json_path).get_tfds(subset_name="validation")
 
         train_ds = (train_ds
                     .batch(batch_size)
