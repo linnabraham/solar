@@ -241,7 +241,7 @@ class training:
             alpha=0.0                    # Minimum learning rate as a fraction of initial LR (0.0 = 0)
         )
         print("[INFO] compiling model...")
-        model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=cosine_annealing_lr), metrics=METRICS)
+        model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), metrics=METRICS)
         return model
 
     def train(self, epochs, batch_size, output_prefix):
