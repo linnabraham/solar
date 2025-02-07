@@ -57,13 +57,14 @@ def match_noaa_to_harpnum(x, harps_with_noaa_df):
 
 def label_urls(urldf, goes_df):
         urldf['label'] = -99
-        flared_aarp_ids = set(goes_df.harpnum)
         for index, row in tqdm(urldf.iterrows(), total=len(urldf)):
             aarp_id = row['AARP']
             if not any(goes_df['harpnum'] == aarp_id):
                 urldf.at[index, 'label'] = 0
             elif any(goes_df['harpnum'] == aarp_id):
                 urldf.at[index, 'label'] = 1
+            else:
+                raise NotImplementedError
         return urldf
 
 def split_urllist(df, name):
@@ -78,7 +79,12 @@ def split_urllist(df, name):
 
     return urldf
 
-def select_neg_urls(urldf, num_aarps):
+def random_select_neg_urls(urldf, num_aarps):
+    """
+    Inputs:
+        urldf: DataFrame with rows corresponding to negative samples
+        num_aarps: number of unique aarp ids to sample
+    """
     urldf = urldf.sample(frac=1).reset_index(drop=True)
     neg_aarp_ids = urldf.AARP.unique()[:num_aarps]
     urldf = urldf[urldf.AARP.isin(neg_aarp_ids)]
@@ -95,11 +101,7 @@ def select_neg_urls(urldf, num_aarps):
     return urldf
 
 @memory.cache
-def get_download_list(goes_event_list, aarp_full_urls, harp_to_noaa):
-    """
-    Create list of files to download after applying certain
-    selections
-    """
+def get_clean_df(goes_event_list, aarp_full_urls, harp_to_noaa):
     goes_df = pd.read_csv(goes_event_list, parse_dates=["event_date", "start_time", "peak_time", "end_time"])
 
     aarps_full_df = pd.read_csv(aarp_full_urls, header=None, names=['urls'])
@@ -111,23 +113,8 @@ def get_download_list(goes_event_list, aarp_full_urls, harp_to_noaa):
 
     goes_df['harpnum'] = goes_df.noaa_active_region.apply(match_noaa_to_harpnum, args=(harp_to_noaa_df,))
     goes_df = goes_df[goes_df.harpnum != -1]
+    return goes_df, aarps_clean_df
 
-    urldf = label_urls(aarps_clean_df, goes_df)
-    pos_urls = urldf[urldf.label==1]
-
-    selected_urls = select_urls(pos_urls, goes_df)
-
-    matched_urls = selected_urls[selected_urls.goes_matched_start.notna()]
-    print(f"URLs with matches:", len(matched_urls))
-
-    pos_urls = selected_urls[~selected_urls.goes_matched_start.notna()]
-    print(f"URLs in positive class:", len(pos_urls))
-
-    neg_urls = urldf[urldf.label==0]
-    num_aarps = pos_urls.AARP.nunique()*4
-    neg_urls = select_neg_urls(neg_urls, num_aarps)
-    print(f"URLs in negative class:", len(matched_urls))
-    return pos_urls, neg_urls
 
 def extract_7h(df, padding_func, pos_data, neg_data, biggest_shape, target_shape):
     # make sure we are not extracting same file again
@@ -234,18 +221,30 @@ def summarize(shapes_7h:list, lons_7h:list, exp_7h:list, timestamps:list):
     return stats
 
 def unpack_7h_fits(fits_path):
-    hdul = fits.open(fits_path)
+    try:
+        hdul = fits.open(fits_path)
+    except Exception as e:
+        print(f"Error opening FITS file: {e}")
+        return None, None, None, None, None
+
     main_header = hdul[0].header
     wavelength = main_header['WAVELNTH']
     harpnum = main_header['HARPNUM']
     obs_start = main_header['T_START']
     images = []
     timestamps = []
-    for hour_num in range(1,main_header['NTIMES']+1):
-        data = hdul[hour_num].data
-        if data is None:
-            print("Empty data encountered in hour number",hour_num, fits_path)
+
+    for hour_num in range(1, main_header['NTIMES'] + 1):
+        try:
+            data = hdul[hour_num].data
+        except Exception as e:
+            print(f"Error reading data from HDU {hour_num} in file {fits_path}: {e}")
             continue
+
+        if data is None:
+            print(f"Empty data encountered in hour number {hour_num} in file {fits_path}")
+            continue
+
         header = hdul[hour_num].header
         extname = f"T_IMG{hour_num:0>2d}"
         nimgs = data.shape[0]
@@ -255,10 +254,11 @@ def unpack_7h_fits(fits_path):
             obstime_key = f"T_IMG{nimg:0>2d}"
             timestamp = header[obstime_key]
             if timestamp == 'NaN':
-                print("timstamp missing in header", obstime_key, fits_path)
+                print(f"Timestamp missing in header {obstime_key} in file {fits_path}")
                 continue
             images.append(img)
             timestamps.append(timestamp)
+
     return harpnum, wavelength, obs_start, timestamps, images
 
 def save_to_fits(image, harpnum, wavelength, obs_start, timestamp, dest):
@@ -274,9 +274,6 @@ def remove_offlimb(df, lon_threshold=60):
     concat_list = []
     for group_key, group_df in tqdm(grouped):
             group_len = len(group_df)
-            if not len(group_df) == 77:
-                print(f"Found group with length {group_len} not equal to 77 for haprnum: {group_key[1]}, Skipping....")
-                continue
             group_df["max_abs_lon"] = group_df[["Longitude"]].abs().max(axis=1)
             if len(group_df[group_df.max_abs_lon > lon_threshold]) > 0:
                 continue
@@ -343,7 +340,7 @@ def dir_to_dataset(dir_path, label):
     test = []
 
     aarps_for_train, aarps_for_val, aarps_for_test = split_data(df['harpnum'])
-    print(len(aarps_for_train), len(aarps_for_val), len(aarps_for_test))
+    print(f"{len(aarps_for_train)=}, {len(aarps_for_val)=}, {len(aarps_for_test)=}")
 
     fixed_bands = [94, 131, 171, 193, 211, 304, 335]
 
@@ -376,7 +373,7 @@ def dir_to_dataset(dir_path, label):
     return training, validation, test
 
 
-def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
+def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename=None):
     """
     Create a training metadata file as json
     """
@@ -385,6 +382,7 @@ def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
     test_full = []
 
     for label, extracted_path in zip((1,0), (extracted_dest_pos, extracted_dest_neg)):
+        print(f"Processing {label=}")
         training, validation, test = dir_to_dataset(extracted_path, label=label)
         training_full.extend(training)
         validation_full.extend(validation)
@@ -408,9 +406,10 @@ def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename):
             "test" : test
             }
     pretty = json.dumps(metadata, indent=4)
-
-    with open(filename, "w") as write_file:
-        json.dump(metadata, write_file, indent=4)
+    if filename not None:
+        with open(filename, "w") as write_file:
+            json.dump(metadata, write_file, indent=4)
+    return metadata
 
 def summarize_shapes(table_7h_clean):
     data = {}
@@ -659,6 +658,19 @@ def process_table_on_disk(table_on_disk):
             combined_data.extend(hdu_rows)
         combined_df = pd.DataFrame(combined_data)
     return combined_df
+
+def annotate_images(urldf, goes_df):
+    urldf_copy = urldf.copy()
+    for index_, row_ in tqdm(goes_df.iterrows(), total=len(goes_df)):
+        harpnum = row_['harpnum']
+        goes_df_st = row_['start_time']
+        for index, row in urldf[urldf.AARP==harpnum].iterrows():
+            obs_start = datetime.strptime(row['Datetime'], "%Y-%m-%dT%H:%M:%SZ")
+            if obs_start  > goes_df_st:
+                urldf_copy.at[index, 'goes_matched_start'] = goes_df_st
+            else:
+                 urldf_copy.at[index, 'goes_matched_start'] = None
+    return urldf_copy
 
 class data_prep:
     def __init__(self, goes_event_list, harp_to_noaa_map, aarps_full_urlist):
