@@ -96,6 +96,36 @@ def get_true_labels(tfds):
     labels = labels.reshape(-1, 1)
     return labels
 
+def get_balanced_lists(file_paths, labels_list):
+    class_counts = np.bincount(labels_list)
+
+    # Identify the class with the maximum count (majority class)
+    majority_class_count = np.max(class_counts)
+
+    # Create a balanced training set by over-sampling the minority classes
+    file_paths = np.array(file_paths)
+    labels_arr = np.array(labels_list)
+
+    balanced_file_paths = []
+    balanced_labels = []
+    for class_id in np.unique(labels_arr):
+        class_indices = np.where(labels_arr == class_id)[0]
+        num_class_samples = len(class_indices)
+
+        # If the class is underrepresented, over-sample it
+        if num_class_samples < majority_class_count:
+            # Calculate the number of repetitions needed
+            num_repeats = majority_class_count // num_class_samples
+            # Randomly sample indices to repeat
+            sampled_indices = np.random.choice(class_indices, majority_class_count - num_class_samples, replace=True)
+            balanced_file_paths.extend(file_paths[class_indices].tolist() + file_paths[sampled_indices].tolist())
+            balanced_labels.extend(labels_arr[class_indices].tolist() + labels_arr[sampled_indices].tolist())
+        else:
+            balanced_file_paths.extend(file_paths[class_indices].tolist())
+            balanced_labels.extend(labels_arr[class_indices].tolist())
+
+    return balanced_file_paths, balanced_labels
+
 def flip_augment(images, labels, seed):
     new_seed = tf.random.experimental.stateless_split((seed,seed), num=1)[0, :]
 
@@ -149,12 +179,15 @@ class ml_dataset:
             data = json.load(f)
         return data
 
-    def get_tfds(self, subset_name):
+    def get_tfds(self, subset_name, balanced=False):
         aarp_ds = aarp_dataset(json_path=self.json_path)
         subset = aarp_ds.get_subset(subset_name)
         file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
                              for file_path in subset.file_paths]
         labels_list = subset.labels
+        if balanced == True:
+            file_path_list, labels_list = get_balanced_lists(file_path_list, labels_list)
+
         file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
         subset._generate_sample_image()
         image_sample = subset.sample_image.get('data')
@@ -272,8 +305,8 @@ class training:
         hc = SaveHistoryCallback(history_path)
 
         AUTOTUNE = tf.data.AUTOTUNE
-        train_ds = ml_dataset(self.json_path).get_tfds(subset_name="training")
-        val_ds = ml_dataset(self.json_path).get_tfds(subset_name="validation")
+        train_ds = ml_dataset(self.json_path).get_tfds(subset_name="training", balanced=True)
+        val_ds = ml_dataset(self.json_path).get_tfds(subset_name="validation", balanced=True)
 
         train_ds = (train_ds
                     .batch(batch_size)
