@@ -15,7 +15,8 @@ import seaborn as sns
 from sklearn.neighbors import KernelDensity
 from joblib import Memory
 np.random.seed(42)
-memory = Memory(location='/data/linn/cachedir', verbose=0)
+USE_CACHE = False
+memory = Memory(location='/data/linn/cachedir', verbose=0) if USE_CACHE else Memory(location=None, verbose=0)
 
 """
 Scripts used for data download and processing
@@ -100,7 +101,6 @@ def random_select_neg_urls(urldf, num_aarps):
     urldf = pd.concat(collected_groups, ignore_index=True)
     return urldf
 
-@memory.cache
 def get_clean_df(goes_event_list, aarp_full_urls, harp_to_noaa):
     goes_df = pd.read_csv(goes_event_list, parse_dates=["event_date", "start_time", "peak_time", "end_time"])
 
@@ -288,7 +288,8 @@ def split_data(harpnums: pd.Series):
     """
     unique_harps = pd.unique(harpnums)
     train_data, test_data = train_test_split(unique_harps, test_size=0.2, random_state=42)
-    train_data, val_data = train_test_split(train_data, test_size=0.2, random_state=42)
+    val_frac = 0.15/0.65
+    train_data, val_data = train_test_split(train_data, test_size=val_frac, random_state=42)
     aarp_lists = (train_data, val_data, test_data)
     return aarp_lists
 
@@ -406,7 +407,7 @@ def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename=None):
             "test" : test
             }
     pretty = json.dumps(metadata, indent=4)
-    if filename not None:
+    if filename is not None:
         with open(filename, "w") as write_file:
             json.dump(metadata, write_file, indent=4)
     return metadata
