@@ -28,7 +28,7 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser()
     #parser.add_argument('--trained_model_path', required=False)
     args = parser.parse_args()
-    args.trained_model_path = "outputs/electric-star-195/best_model.h5"
+    args.trained_model_path = "outputs/curious-bush-242/best_model.h5"
     print(f"Using trained model:{args.trained_model_path}")
     
     stats_file=os.path.expanduser("~/july/solar/stats.pkl")
@@ -47,7 +47,7 @@ if __name__=="__main__":
     # num_threads = min(2, len(test_ds.unique_aarp_ids))
     # print(f"Starting multithreading with {num_threads} threads...")
 
-    st = time.time()
+    global_st = time.time()
     tracemalloc.start()
 
     # with ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -74,7 +74,7 @@ if __name__=="__main__":
         np.savez(save_path, aarp_images=aarp_images, attbn_images=attbn_images, label=aarp_seq.label)
         #break
 
-    print(f"All AARP IDs processed. Time taken: {time.time() - st} seconds")
+    print(f"All AARP IDs processed. Time taken: {time.time() - global_st} seconds")
     current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     print(f"Current memory usage: {current / 10**6} MB; Peak memory usage: {peak / 10**6} MB")

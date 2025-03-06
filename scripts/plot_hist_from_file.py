@@ -1,7 +1,8 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_histograms(counts_0, counts_1, bins, normalize=False):
+def plot_histograms(dir_path, counts_0, counts_1, bins, normalize=False):
     plt.figure()
     bin_centers = (bins[:-1] + bins[1:]) / 2
     if normalize:
@@ -17,15 +18,17 @@ def plot_histograms(counts_0, counts_1, bins, normalize=False):
     else:
         plt.ylabel("Frequency")
         plt.title("Histogram of Intensities")
-    plt.savefig("histogram.png")
+    plt.savefig(os.path.join(dir_path,"histogram.png"))
     plt.close()
 
 def main():
-    data = np.load("histogram_data_94pb_99_percentile.npz")
+    dir_path = "/data/linn/attribution_output/curious-bush-242/histogram/"
+    hist_file = "histogram_data_94_pb_99_percentile.npz"
+    data = np.load(os.path.join(dir_path, hist_file))
     counts_0 = data["global_counts_0"]
     counts_1 = data["global_counts_1"]
     bins = data["bin_edges"]
-    plot_histograms(counts_0, counts_1, bins, normalize=True)
+    plot_histograms(dir_path, counts_0, counts_1, bins, normalize=True)
 
 if __name__ == "__main__":
     main()
