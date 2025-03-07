@@ -1,0 +1,5 @@
+outs:
+- md5: 8fb3961079b4bbb27fa71790fffd0ea9
+  size: 21596
+  hash: md5
+  path: histogram_94.png
