@@ -72,6 +72,8 @@ if __name__ == "__main__":
 
     pos_urls = pos_urls_df.urls
 
+    if args.download == True:
+        download_urls_in_parallel(pos_urls, pos_dir_7h, max_workers=10)
 
     pos_urls_df['fits_fullpath'] = pos_urls_df['urls'].apply(lambda url: os.path.join(pos_dir_7h, os.path.basename(url)))
     pos_downloaded_df = pos_urls_df[pos_urls_df['fits_fullpath'].apply(os.path.exists)]
@@ -114,8 +116,7 @@ if __name__ == "__main__":
     grouped_df = shape_limited_df.groupby('fits_fullpath', as_index=False).agg(agg_funcs)
     grouped_df = grouped_df.rename({"img_height":"max_height", "img_width":"max_width"}, axis=1)
 
-    # resample to avoid biases in intrinsic shapes between classes
-    selected_7h_df = resample_on_shapes(grouped_df)
+    selected_7h_df = grouped_df
 
     height = selected_7h_df.max_height.max()
     width = selected_7h_df.max_width.max()
@@ -125,9 +126,24 @@ if __name__ == "__main__":
     dim = height if height > width else width
     print(f"Using dimensions {(dim, dim)}")
 
-    extract_7h(selected_7h_df, pad_with_quiet, pos_dir_single, neg_dir_single,
-               biggest_shape=(dim, dim), target_shape=(512, 512))
+    df = selected_7h_df
+    print(f"{df=}")
+    if args.extract == True:
+        # make sure we are not extracting same file again
+        assert len(pd.unique(df.fits_fullpath)) == len(df.fits_fullpath)
 
+        print("Extracting 7h FITS observation into individual images")
+        for dest, label in zip((pos_dir_single, neg_dir_single), (1,0)):
+        # for dest, label in [(neg_dir_single, 0)]:
+
+            files = df.fits_fullpath[df.Label==label]
+            print(f"Working on samples with label:{label} first")
+            print("Files to extract", len(files))
+            if not os.path.exists(dest):
+                os.mkdir(dest)
+            print("Saving to ", dest)
+            pad_and_resize_in_parallel(files, padding_func=pad_with_quiet, dest=dest, biggest_shape=(dim, dim), 
+                                    targ_shape=(512, 512))
     if args.json == True:
         dir_to_json(pos_dir_single, neg_dir_single, json_filename)
 
