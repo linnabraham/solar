@@ -79,7 +79,7 @@ if __name__ == "__main__":
     pos_downloaded_df = pos_urls_df[pos_urls_df['fits_fullpath'].apply(os.path.exists)]
 
     neg_urls_selected_df = random_select_neg_urls(neg_urls_df,
-                                                 pos_downloaded_df.AARP.nunique()*4)
+                                                 pos_downloaded_df.AARP.nunique()*12)
 
     neg_urls = neg_urls_selected_df.urls
 
@@ -92,6 +92,7 @@ if __name__ == "__main__":
 
     downloaded_df = pd.concat([pos_downloaded_df, neg_downloaded_df])
     combined_df = process_table_on_disk(downloaded_df)
+    combined_df.to_csv("combined_df.csv", index=False)
 
     # remove images with no location information
     combined_df.Longitude = combined_df.Longitude.replace(-999999, np.nan)
@@ -117,6 +118,7 @@ if __name__ == "__main__":
     grouped_df = grouped_df.rename({"img_height":"max_height", "img_width":"max_width"}, axis=1)
 
     selected_7h_df = grouped_df
+    selected_7h_df.to_csv("selected_7h_df.csv", index=False)
 
     height = selected_7h_df.max_height.max()
     width = selected_7h_df.max_width.max()
