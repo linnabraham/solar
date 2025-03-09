@@ -8,3 +8,5 @@ deps:
 outs:
 - hash: md5
   path: stats.pkl
+  md5: 06bfca1d104d96af4ab66dd8a915192f
+  size: 500
