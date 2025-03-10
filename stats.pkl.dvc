@@ -1,5 +1,5 @@
 outs:
 - hash: md5
   path: stats.pkl
-  md5: 4efe3ddb780e77b810494772241b2e0c
+  md5: c5b83784c8db2c9b74322f87cdb3934c
   size: 500
