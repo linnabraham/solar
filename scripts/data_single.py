@@ -21,7 +21,7 @@ from aarp_ml.data_prep import (get_clean_df, label_urls, select_urls, random_sel
                                apply_shape_limits, pad_and_resize_in_parallel,
                                resample_on_shapes, extract_7h, process_table_on_disk,
                                split_urllist, remove_offlimb, pad_with_quiet,
-                               read_from_disk, dir_to_json, annotate_images, get_fov_limits)
+                               read_from_disk, annotate_images, get_fov_limits, create_json)
 
 def get_download_list(goes_event_list, aarps_full_urls, harp_to_noaa, goes_class="X"):
     goes_df, aarps_clean_df = get_clean_df(goes_event_list, aarps_full_urls, harp_to_noaa)
@@ -44,9 +44,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     st = time.time()
-    goes_event_list = os.path.join(parent_dir, "./data/GOES_event_list.csv")
-    aarp_full_urls = os.path.join(parent_dir, "./data/aarps_full_urlist.txt")
-    harp_to_noaa = os.path.join(parent_dir, "./data/all_harps_with_noaa_ars.txt")
+    goes_event_list = os.path.join(parent_dir, "data/GOES_event_list.csv")
+    aarp_full_urls = os.path.join(parent_dir, "data/aarps_full_urlist.txt")
+    harp_to_noaa = os.path.join(parent_dir, "data/all_harps_with_noaa_ars.txt")
 
     pickle_file = os.path.join(parent_dir, "stats_E8.pkl")
     if args.stats and os.path.exists(pickle_file):
@@ -80,6 +80,8 @@ if __name__ == "__main__":
 
     neg_urls_selected_df = random_select_neg_urls(neg_urls_df,
                                                  pos_downloaded_df.AARP.nunique()*12)
+    download_list_combined = pd.concat([pos_urls_df, neg_urls_selected_df])
+    download_list_combined.to_csv(os.path.join(parent_dir, "data/download_list_combined.csv"), index=False)
 
     neg_urls = neg_urls_selected_df.urls
 
@@ -147,7 +149,7 @@ if __name__ == "__main__":
             pad_and_resize_in_parallel(files, padding_func=pad_with_quiet, dest=dest, biggest_shape=(dim, dim), 
                                     targ_shape=(512, 512))
     if args.json == True:
-        dir_to_json(pos_dir_single, neg_dir_single, json_filename)
+        create_json(pos_dir_single, neg_dir_single, json_filename)
 
     if args.stats == True:
         ds  = aarp_dataset(json_path=json_filename)
