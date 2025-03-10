@@ -281,18 +281,6 @@ def remove_offlimb(df, lon_threshold=60):
                 concat_list.append(group_df)
     return pd.concat(concat_list)
 
-def split_data(harpnums: pd.Series):
-    """
-    Given a list of harp ids find the unique ids and split it into train, val and test
-    so that no two sets have the same harp id
-    """
-    unique_harps = pd.unique(harpnums)
-    train_data, test_data = train_test_split(unique_harps, test_size=0.2, random_state=42)
-    val_frac = 0.15/0.65
-    train_data, val_data = train_test_split(train_data, test_size=val_frac, random_state=42)
-    aarp_lists = (train_data, val_data, test_data)
-    return aarp_lists
-
 def simultaneous_multiband(df):
     """
     Accepts a dataframe with each row referring to a single AARP observation
@@ -322,76 +310,86 @@ def split_filepath(file_path):
         print("No match found.")
         return None
 
-def dir_to_dataset(dir_path, label):
-    """
-    Accepts the directory corresponding to positive or negative class and does the processing
-    required to generate the json file
-    """
+def dir_to_df(dir_path):
     fits_full_paths = glob(f"{dir_path}/*.fits")
     df = pd.DataFrame(fits_full_paths, columns=['fits_full_path'])
-
     df['fits_path'] = df['fits_full_path'].apply(lambda x: os.path.basename(x))
-
     df[['harpnum','wavelength', 'obs_start', 'timestamp']] = df['fits_path'].apply(split_filepath).apply(pd.Series)
     df['harpnum'] = df['harpnum'].astype(int)
-    df['wavelength'] = df['wavelength'].astype(int)
+    df['wavelength'] = df['wavelength'].astype(int) 
+    return df
 
-    training = []
-    validation = []
-    test = []
+def split_three_way(unique_harps, test_size=0.2,  val_frac = 0.15/0.65):
+    train_data, aarps_for_test = train_test_split(unique_harps, test_size=test_size, random_state=42)
+    aarps_for_train, aarps_for_val = train_test_split(train_data, test_size=val_frac, random_state=42)
+    return aarps_for_train, aarps_for_val, aarps_for_test
 
-    aarps_for_train, aarps_for_val, aarps_for_test = split_data(df['harpnum'])
-    print(f"{len(aarps_for_train)=}, {len(aarps_for_val)=}, {len(aarps_for_test)=}")
+def split_balanced(unique_harps, test_val_size, test_frac):
+    aarps_for_train, test_data = train_test_split(unique_harps, test_size=test_val_size, random_state=42)
+    aarps_for_val, aarps_for_test = train_test_split(test_data, test_size=test_frac, random_state=42)
+    return aarps_for_train, aarps_for_val, aarps_for_test
 
-    fixed_bands = [94, 131, 171, 193, 211, 304, 335]
-
-    for group_harpnum, group_timestamp, group_df in simultaneous_multiband(df):
-
-        result =  group_df.loc[group_df['wavelength']==fixed_bands[0]].values[0]
-
-        entry = {
-         "0": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[0]].values[0],
-         "1": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[1]].values[0],
-         "2": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[2]].values[0],
-         "3": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[3]].values[0],
-         "4": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[4]].values[0],
-         "5": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[5]].values[0],
-         "6": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[6]].values[0],
-         "label": label,
-         "aarp_id": group_harpnum,
-         "timestamp": group_timestamp
-           }
-
-        if group_harpnum in aarps_for_train:
-            training.append(entry)
-        elif group_harpnum in aarps_for_val:
-            validation.append(entry)
-        elif group_harpnum in aarps_for_test:
-            test.append(entry)
-        else:
-            print("Found aarp id not in given list")
-
-    return training, validation, test
-
-
-def dir_to_json(extracted_dest_pos, extracted_dest_neg, filename=None):
-    """
-    Create a training metadata file as json
-    """
+def create_json(pos_dir, neg_dir, filename=None):
     training_full = []
     validation_full = []
     test_full = []
 
-    for label, extracted_path in zip((1,0), (extracted_dest_pos, extracted_dest_neg)):
-        print(f"Processing {label=}")
-        training, validation, test = dir_to_dataset(extracted_path, label=label)
+    fixed_bands = [94, 131, 171, 193, 211, 304, 335]
+
+    test_val_size = 0.0
+    test_frac = 0.0
+
+    for label, dir_path in zip((1,0), (pos_dir, neg_dir)):
+        df = dir_to_df(dir_path)
+
+        training = []
+        validation = []
+        test = []
+
+        unique_harps = pd.unique(df['harpnum'])
+        if label == 1:
+            aarps_for_train, aarps_for_val, aarps_for_test = split_three_way(unique_harps, test_size=0.2, val_frac=0.15/0.65)
+            len_pos_test = len(aarps_for_test)
+            len_pos_val = len(aarps_for_val)
+        if label == 0:
+            print(f"Using {len_pos_test=}, {len_pos_val=}")
+            test_val_size = (len_pos_test+len_pos_val)/len(unique_harps)
+            test_frac = len_pos_test/(len_pos_val+len_pos_test)
+            aarps_for_train, aarps_for_val, aarps_for_test = split_balanced(unique_harps, test_val_size=test_val_size, test_frac=test_frac)
+
+        print(f"{len(aarps_for_train)=}, {len(aarps_for_val)=}, {len(aarps_for_test)=}")
+
+        for group_harpnum, group_timestamp, group_df in simultaneous_multiband(df):
+
+            result =  group_df.loc[group_df['wavelength']==fixed_bands[0]].values[0]
+
+            entry = {
+             "0": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[0]].values[0],
+             "1": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[1]].values[0],
+             "2": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[2]].values[0],
+             "3": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[3]].values[0],
+             "4": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[4]].values[0],
+             "5": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[5]].values[0],
+             "6": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[6]].values[0],
+             "label": label,
+             "aarp_id": group_harpnum,
+             "timestamp": group_timestamp
+               }
+
+            if group_harpnum in aarps_for_train:
+                training.append(entry)
+            elif group_harpnum in aarps_for_val:
+                validation.append(entry)
+            elif group_harpnum in aarps_for_test:
+                test.append(entry)
+            else:
+                print("Found aarp id not in given list")
+
         training_full.extend(training)
         validation_full.extend(validation)
         test_full.extend(test)
 
-    fixed_bands = [94, 131, 171, 193, 211, 304, 335]
-
-    metadata = { "name" : "Fixed size AARPS",
+        metadata = { "name" : "Fixed size AARPS",
             "description" : "Active Region patches from AARPS database downscaled or padded to a fixed resolution and unpacked",
             "channels" : {
                 "0" : fixed_bands[0],
