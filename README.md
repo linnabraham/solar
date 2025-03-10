@@ -114,6 +114,11 @@ Scripts in the `examples` directory
 + `download_specific_data.py` - AIApy example script for downloading AIA sequence data
 
 ## Changelog
+2025-03-09
+
++ `py scripts/data_single.py --download --extract --json --stats` - single command for data download, extraction, 
++ `py scripts/create_config_stats.py` - to run just the part to create json file and compute stats this script is better.
+creating config file and computing statistics of the data
 2024-06-05 (Data processing)
 
 + The scripts used for obtaining and pre-processing the data are `modified_pipeline.py`, `gen_table_7h.py`, `select_7h.py`, `extract_7h.py` and `csv_to_json.py`. 
