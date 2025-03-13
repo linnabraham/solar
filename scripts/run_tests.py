@@ -19,6 +19,9 @@ from aarp_ml.model.training import img_generator, label_generator, get_balanced_
 from colorama import Fore, Style
 from aarp_ml.data_prep import remove_offlimb, process_table_on_disk, get_fov_limits, dir_to_json
 from scripts.data_single import get_download_list
+from aarp_ml.utils import parse_json, get_aarp_ids
+from aarp_ml.dataset import get_filepaths_labels
+
 aarp_ml.USE_CACHE = True
 
 def log_info(message):
@@ -33,16 +36,7 @@ def log_success(message):
 def log_error(message):
     print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {message}")
 
-def parse_json(json_path):
-    with open(json_path) as f:
-        data = json.load(f)
-    return data
 
-def get_filepaths_labels(data, subset_name):
-    subset = data.get(subset_name)
-    filepaths = [ [entry[str(i)] for i in range(len(data["channels"]))] for entry in subset ]
-    labels = [entry["label"] for entry in subset]
-    return filepaths, labels
 
 class TestDataPrep(unittest.TestCase):
     def setUp(self):
@@ -61,15 +55,16 @@ class TestDataPrep(unittest.TestCase):
             self.assertTrue(pd.api.types.is_datetime64_any_dtype(self.goes_df[column]),
                             f"Column '{column}' is not of datetime type")
 
+
     def test_data_dir(self):
         metadata = dir_to_json(self.data_dir_pos, self.data_dir_neg)
-
-        aarp_ids_train_pos = [dict_['aarp_id'] for dict_ in metadata.get('training') if dict_['label'] == 1]
-        aarp_ids_train_neg = [dict_['aarp_id'] for dict_ in metadata.get('training') if dict_['label'] == 0]
-        aarp_ids_val_pos = [dict_['aarp_id'] for dict_ in metadata.get('validation') if dict_['label']==1 ]
-        aarp_ids_val_neg = [dict_['aarp_id'] for dict_ in metadata.get('validation') if dict_['label']==0 ]
-        aarp_ids_test_pos = [dict_['aarp_id'] for dict_ in metadata.get('test') if dict_['label']==1 ]
-        aarp_ids_test_neg = [dict_['aarp_id'] for dict_ in metadata.get('test') if dict_['label']==0 ]
+        aarp_ids = get_aarp_ids(metadata)
+        aarp_ids_train_pos = aarp_ids['train']['pos']
+        aarp_ids_train_neg = aarp_ids['train']['neg']
+        aarp_ids_val_pos = aarp_ids['val']['pos']
+        aarp_ids_val_neg = aarp_ids['val']['neg']
+        aarp_ids_test_pos = aarp_ids['test']['pos']
+        aarp_ids_test_neg = aarp_ids['test']['neg']
 
         self.train_pos = set(aarp_ids_train_pos)
         self.train_neg = set(aarp_ids_train_neg)
