@@ -7,6 +7,31 @@ from .aarp_sequence import aarp_sequence
 from astro_utils.aia import plot_aia_image
 from astro_utils.general import read_fits_single
 
+def get_filepaths_labels(data:dict, subset_name, passband:int):
+    """
+    Get the filepaths and labels for a given subset.
+    
+    Parameters:
+    data (dict): The JSON data loaded from the JSON file.
+    subset_name (str): The name of the subset to get the filepaths and labels for.
+    passband (int): The passband value to filter the filepaths.
+
+    Returns:
+    tuple: A tuple containing a list of filepaths and a list of labels for each entry in the subset.
+    """
+    subset = data.get(subset_name)
+    if not passband is None:
+        if not passband in data["channels"].values():
+            raise ValueError(f"Passband {passband} not in the channels list")
+        else:
+            channel_idx = next(k for k, v in data["channels"].items() if v == passband)
+            filepaths = [entry[channel_idx] for entry in subset]
+            labels = [entry["label"] for entry in subset]
+    else:
+        filepaths = [ [entry[str(i)] for i in range(len(data["channels"]))] for entry in subset ]
+        labels = [entry["label"] for entry in subset]
+    return filepaths, labels
+
 def print_image_stats(data, percentile_level=99):
     print("Image shape:", data.shape)
     print("Image minimum:", np.min(data))

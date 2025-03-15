@@ -3,7 +3,37 @@ import numpy as np
 from scipy import stats
 from astro_utils.flare import fetch_goes_data
 import datetime
+import json
 
+def parse_json(json_path):
+    with open(json_path) as f:
+        data = json.load(f)
+    return data
+
+def get_aarp_ids(metadata:dict):
+    """
+    Get the AARP ids for each subset and label.
+    Input:
+    metadata: The metadata dictionary parsed from the json file.
+    Output:
+    A dictionary containing the AARP ids for each subset and label.
+    """
+    def extract_ids(subset, label):
+        return [item['aarp_id'] for item in metadata.get(subset) if item['label'] == label]
+
+    train_pos = extract_ids('training', 1)
+    train_neg = extract_ids('training', 0)
+    val_pos = extract_ids('validation', 1)
+    val_neg = extract_ids('validation', 0)
+    test_pos = extract_ids('test', 1)
+    test_neg = extract_ids('test', 0)
+
+    return {
+        'train': {'pos': train_pos, 'neg': train_neg},
+        'val': {'pos': val_pos, 'neg': val_neg},
+        'test': {'pos': test_pos, 'neg': test_neg}
+    }
+    
 def make_log_safe(data):
     min_pos_value = np.min(data[data > 0])
     epsilon = min_pos_value * 1e-5
