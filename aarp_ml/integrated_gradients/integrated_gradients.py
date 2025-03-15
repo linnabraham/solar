@@ -76,8 +76,6 @@ def integrated_gradients(model,
 
 def get_attributions_mask(images, model, target_class_idx, input_shape, num_channels):
 
-    m_steps=50
-    alphas = tf.linspace(start=0.0, stop=1.0, num=m_steps+1) # Generate m_steps intervals for integral_approximation() below.
     height, width = input_shape
     nchannels = num_channels
     baseline = tf.zeros(shape=(nchannels, height, width))
