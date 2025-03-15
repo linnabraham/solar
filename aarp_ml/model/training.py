@@ -96,33 +96,32 @@ def get_true_labels(tfds):
     labels = labels.reshape(-1, 1)
     return labels
 
-def get_balanced_lists(file_paths, labels_list):
+def get_balanced_lists(file_paths, labels_list, target_ratios={0:0.5, 1:0.5}):
     class_counts = np.bincount(labels_list)
 
-    # Identify the class with the maximum count (majority class)
-    majority_class_count = np.max(class_counts)
-
-    # Create a balanced training set by over-sampling the minority classes
     file_paths = np.array(file_paths)
     labels_arr = np.array(labels_list)
 
     balanced_file_paths = []
     balanced_labels = []
-    for class_id in np.unique(labels_arr):
+
+    total_samples = len(labels_arr)
+    target_class_counts = {cls: int(total_samples * ratio) for cls, ratio in target_ratios.items()}
+
+    for class_id, target_count in target_class_counts.items():
         class_indices = np.where(labels_arr == class_id)[0]
         num_class_samples = len(class_indices)
 
         # If the class is underrepresented, over-sample it
-        if num_class_samples < majority_class_count:
-            # Calculate the number of repetitions needed
-            num_repeats = majority_class_count // num_class_samples
+        if num_class_samples < target_count:
             # Randomly sample indices to repeat
-            sampled_indices = np.random.choice(class_indices, majority_class_count - num_class_samples, replace=True)
+            sampled_indices = np.random.choice(class_indices, target_count - num_class_samples, replace=True)
             balanced_file_paths.extend(file_paths[class_indices].tolist() + file_paths[sampled_indices].tolist())
             balanced_labels.extend(labels_arr[class_indices].tolist() + labels_arr[sampled_indices].tolist())
         else:
-            balanced_file_paths.extend(file_paths[class_indices].tolist())
-            balanced_labels.extend(labels_arr[class_indices].tolist())
+            sampled_indices = np.random.choice(class_indices, target_count, replace=False)
+            balanced_file_paths.extend(file_paths[sampled_indices].tolist())
+            balanced_labels.extend(labels_arr[sampled_indices].tolist())
 
     return balanced_file_paths, balanced_labels
 
@@ -179,16 +178,39 @@ class ml_dataset:
             data = json.load(f)
         return data
 
-    def get_tfds(self, subset_name, balanced=False):
+    def get_tfds_with_paths(self, subset_name, shuffle=True):
+        aarp_ds = aarp_dataset(json_path=self.json_path)
+        subset = aarp_ds.get_subset(subset_name)
+        file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
+                             for file_path in subset.file_paths]
+        labels_list = subset.labels
+        if shuffle:
+            file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
+        subset._generate_sample_image()
+        image_sample = subset.sample_image.get('data')
+        height, width = image_sample.shape
+        nchannels = len(subset.all_wavelengths)
+        images = tf.data.Dataset.from_generator(generator = lambda: img_generator(file_path_list),
+                                                output_types=tf.float32,
+                                                output_shapes=[nchannels, height, width])
+        labels = tf.data.Dataset.from_generator(generator = lambda: label_generator(labels_list),
+                                                output_types = tf.int32,
+                                                output_shapes = ())
+        tfds = tf.data.Dataset.zip((images, labels))
+        return file_path_list, tfds
+
+    def get_tfds(self, subset_name, shuffle=True, balanced=False):
         aarp_ds = aarp_dataset(json_path=self.json_path)
         subset = aarp_ds.get_subset(subset_name)
         file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
                              for file_path in subset.file_paths]
         labels_list = subset.labels
         if balanced == True:
-            file_path_list, labels_list = get_balanced_lists(file_path_list, labels_list)
-
-        file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
+            # Define target class proportions
+            target_ratios = {0: 0.3, 1: 0.7}  # 70% class 1, 30% class 0
+            file_path_list, labels_list = get_balanced_lists(file_path_list, labels_list, target_ratios=target_ratios)
+        if shuffle:
+            file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
         subset._generate_sample_image()
         image_sample = subset.sample_image.get('data')
         height, width = image_sample.shape
