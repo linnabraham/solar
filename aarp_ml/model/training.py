@@ -178,13 +178,13 @@ class ml_dataset:
             data = json.load(f)
         return data
 
-    def get_tfds_with_paths(self, subset_name, shuffle=True):
+    def get_tfds_with_paths(self, subset_name, do_shuffle=True):
         aarp_ds = aarp_dataset(json_path=self.json_path)
         subset = aarp_ds.get_subset(subset_name)
         file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
                              for file_path in subset.file_paths]
         labels_list = subset.labels
-        if shuffle:
+        if do_shuffle:
             file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
         subset._generate_sample_image()
         image_sample = subset.sample_image.get('data')
@@ -199,7 +199,7 @@ class ml_dataset:
         tfds = tf.data.Dataset.zip((images, labels))
         return file_path_list, tfds
 
-    def get_tfds(self, subset_name, shuffle=True, balanced=False):
+    def get_tfds(self, subset_name, do_shuffle=True, balanced=False):
         aarp_ds = aarp_dataset(json_path=self.json_path)
         subset = aarp_ds.get_subset(subset_name)
         file_path_list = [ [ file_path_channel for file_path_channel in file_path.values()]
@@ -209,7 +209,7 @@ class ml_dataset:
             # Define target class proportions
             target_ratios = {0: 0.3, 1: 0.7}  # 70% class 1, 30% class 0
             file_path_list, labels_list = get_balanced_lists(file_path_list, labels_list, target_ratios=target_ratios)
-        if shuffle:
+        if do_shuffle:
             file_path_list, labels_list = shuffle(file_path_list, labels_list, random_state=42)
         subset._generate_sample_image()
         image_sample = subset.sample_image.get('data')
@@ -327,8 +327,8 @@ class training:
         hc = SaveHistoryCallback(history_path)
 
         AUTOTUNE = tf.data.AUTOTUNE
-        train_ds = ml_dataset(self.json_path).get_tfds(subset_name="training", balanced=True)
-        val_ds = ml_dataset(self.json_path).get_tfds(subset_name="validation", balanced=True)
+        train_ds = ml_dataset(self.json_path).get_tfds(subset_name="training", do_shuffle=True, balanced=True)
+        val_ds = ml_dataset(self.json_path).get_tfds(subset_name="validation", do_shuffle=False, balanced=True)
 
         train_ds = (train_ds
                     .batch(batch_size)
