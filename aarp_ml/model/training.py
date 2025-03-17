@@ -327,11 +327,12 @@ class training:
         AUTOTUNE = tf.data.AUTOTUNE
 
         # Define target class proportions
-        target_ratios = {0: 0.5, 1: 0.5}  # 70% class 1, 30% class 0
+        target_ratios_train = {0: 0.3, 1: 0.7}  # 70% class 1, 30% class 0
         train_ds = ml_dataset(self.json_path).get_tfds(subset_name="training", do_shuffle=True,
-                                                       balanced=True, target_ratios=target_ratios)
+                                                       balanced=True, target_ratios=target_ratios_train)
+        target_ratios_val = {0: 0.5, 1: 0.5}  # 70% class 1, 30% class 0
         val_ds = ml_dataset(self.json_path).get_tfds(subset_name="validation", do_shuffle=False,
-                                                     balanced=True, target_ratios=target_ratios)
+                                                     balanced=True, target_ratios=target_ratios_val)
 
         train_ds = (train_ds
                     .batch(batch_size)
