@@ -113,6 +113,18 @@ Scripts in the `examples` directory
 + `download_AIA_example.py` - Download cutout data from AIA based on SunPy example
 + `download_specific_data.py` - AIApy example script for downloading AIA sequence data
 
+## Example code to visualize an AARP sequence
+```
+from aarp_ml.dataset import aarp_dataset
+from astro_utils.aia import plot_aia_image
+
+ds = aarp_dataset(json_path='solar_dataset.json')
+val_dataset = ds.get_subset(subset_name='validation')
+val_dataset.flared_ids
+aarp_seq = val_dataset.create_aarp_sequence(aarp_id=4000)
+aarp_images = aarp_seq.get_images(passband=94)
+plot_aia_image(aarp_images[14], passband=94, vmax_percentile=99.8)
+```
 ## Changelog
 2025-03-09
 
