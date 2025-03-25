@@ -47,14 +47,8 @@ if __name__ == "__main__":
                                                    balanced=True, target_ratios=target_ratios)
     train_ds = train_ds.batch(32)
     test_ds = test_ds.batch(32)
-    # train_ds = train_ds.take(32)
-    # num_train_samples = 10  # Adjust based on your dataset
-    # num_test_samples = 2    # Adjust based on your dataset
 
-    # import pdb; pdb.set_trace()
-    # X_train, y_train = extract_features_from_generator(train_ds, num_train_samples)
     X_train, y_train = extract_features_from_generator(train_ds)
-    # X_test, y_test = extract_features_from_generator(test_ds, num_test_samples)
     X_test, y_test = extract_features_from_generator(test_ds)
 
     # Convert the dataset into DMatrix format for XGBoost

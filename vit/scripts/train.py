@@ -74,10 +74,10 @@ def train_loop(train_dataset, train_loader, val_loader, model, device):
 
     start_epoch = 0
 
-    if args.resume:
-        if args.modelpath:
-            print(f"Loding saved model from f{args.modelpath}")
-            checkpoint = torch.load(args.modelpath, map_location=device)
+    if args.retrain == True:
+        if args.trained_model_path:
+            print(f"Loding saved model from f{args.trained_model_path}")
+            checkpoint = torch.load(args.trained_model_path, map_location=device)
             if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                 model.load_state_dict(checkpoint['model_state_dict'])
             else:
@@ -90,7 +90,7 @@ def train_loop(train_dataset, train_loader, val_loader, model, device):
                 start_epoch = 0  # Default start epoch
 
         else:
-            raise FileNotFoundError(f"Checkpoint file not found at {args.modelpath}")
+            raise FileNotFoundError(f"Checkpoint file not found at {args.trained_model_path}")
 
     for epoch in range(start_epoch, args.epochs):
         model.train()
@@ -207,8 +207,8 @@ if __name__== "__main__":
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
-    parser.add_argument('-resume', '--resume', action="store_true", help="Flag to resume training from a previous epoch")
-    parser.add_argument('-modelpath', '--modelpath', help="location of saved model")
+    parser.add_argument('--retrain',  action="store_true", help="Flag to resume training from a previous epoch")
+    parser.add_argument('--trained-model-path', help="location of saved model")
 
     args = parser.parse_args()
     train(args)
