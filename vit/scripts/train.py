@@ -12,6 +12,8 @@ from torchvision.transforms import v2
 import torch
 from torch.utils.data import DataLoader
 
+threshold = 5000  # GPU memory threshold measured in megabytes
+
 def validate_model(model, val_dl, loss_func, device):
     model.eval()
     val_loss = 0.
@@ -55,20 +57,21 @@ def validate_model(model, val_dl, loss_func, device):
             recall = 0
     return val_loss / len(val_dl.dataset), correct / len(val_dl.dataset), precision, recall
 
+def training_step(inputs, labels, model, criterion, optimizer):
+    optimizer.zero_grad()
+    outputs = model(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
+    optimizer.step()
+    return loss
 
-def train_loop(train_dataset, train_loader, val_loader, model, device):
+def train_loop(train_loader, val_loader, model, device, output_dir, args):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    threshold = 5000  # GPU memory threshold measured in megabytes
 
-    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
     print(f"Length of training data", len(train_loader.dataset))
+    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
     print(f"Steps per epoch:{n_steps_per_epoch}")
-
-    wandb_dir = wandb.run.name
-    output_dir = os.path.join("output", wandb_dir)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
 
     save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
 
@@ -103,27 +106,22 @@ def train_loop(train_dataset, train_loader, val_loader, model, device):
         for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
 
             current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
-
             if current_memory > threshold:
                 print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
-                sys.exit(0)
+                return
 
             inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+            loss = training_step(inputs, labels, model, criterion, optimizer)
             running_loss += loss.item() * inputs.size(0)
             metrics = {"train/train_loss": loss,
                        "train/epoch": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch
                        }
             if step + 1 < n_steps_per_epoch:
-                # Log train metrics to wandb 
+                # Log train metrics to wandb
                 wandb.log(metrics)
         val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion, device)
 
-        val_metrics = {"val/val_loss": val_loss, 
+        val_metrics = {"val/val_loss": val_loss,
                        "val/val_accuracy": accuracy,
                        "val/precision":precision,
                        "val/recall":recall}
@@ -132,7 +130,7 @@ def train_loop(train_dataset, train_loader, val_loader, model, device):
 
         save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
 
-        epoch_loss = running_loss / len(train_dataset)
+        epoch_loss = running_loss / len(train_loader.dataset)
         print(f"Epoch loss: {epoch_loss}")
 
         val_ds = aia_euv(args.json_path, subset='validation')
@@ -197,7 +195,12 @@ def train(args):
 
     model.to(device)
 
-    train_loop(train_dataset, train_loader, val_loader, model, device)
+    wandb_dir = wandb.run.name
+    output_dir = os.path.join("output", wandb_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    train_loop(train_dataset, train_loader, val_loader, model, device, output_dir, args)
 
 if __name__== "__main__":
 
