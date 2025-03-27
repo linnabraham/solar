@@ -10,7 +10,9 @@ from tqdm import tqdm
 import pickle
 from torchvision.transforms import v2
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
+import json
+from collections import Counter
 
 threshold = 5000  # GPU memory threshold measured in megabytes
 
@@ -172,6 +174,23 @@ def train(args):
         v2.RandomHorizontalFlip(p=0.5),
         v2.RandomVerticalFlip(p=0.5)
         ]))
+
+    # Compute class weights
+    class_counts = Counter(train_dataset.labels)  # Count occurrences
+    total_samples = sum(class_counts.values())
+
+    # Compute weights for each class (inverse of frequency)
+    class_weights = {cls: total_samples / count for cls, count in class_counts.items()}
+
+    # Assign sample weights
+    sample_weights = [class_weights[label] for label in train_dataset.labels]
+
+    # Create a sampler
+    sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(train_dataset), replacement=True)
+
+    # Create DataLoader with oversampling
+    train_loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)
+
 
     validation_dataset = aia_euv(json_path, subset='validation', transform=v2.Compose([CustomTransform(means, stds)]))
 

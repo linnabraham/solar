@@ -19,6 +19,7 @@ class aia_euv(Dataset):
     def __init__(self, json_path, subset, transform=None):
         self.data = self._load_data(json_path, subset)
         self.transform = transform
+        self.labels = [item['label'] for item in self.data]
 
     def _load_data(self, json_file, subset):
         with open(json_file, 'r') as f:
