@@ -13,6 +13,7 @@ import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from collections import Counter
 from sklearn.metrics import confusion_matrix
+import torch.optim.lr_scheduler
 
 threshold = 5000  # GPU memory threshold measured in megabytes
 
@@ -79,6 +80,12 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+    # Initialize scheduler based on the argument
+    if args.scheduler == "cosine_annealing":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
+    else:
+        scheduler = None  # No scheduler
+
     print(f"Length of training data", len(train_loader.dataset))
     n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
     print(f"Steps per epoch:{n_steps_per_epoch}")
@@ -87,9 +94,9 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
 
     start_epoch = 0
 
-    if args.retrain == True:
+    if args.retrain:
         if args.trained_model_path:
-            print(f"Loding saved model from f{args.trained_model_path}")
+            print(f"Loading saved model from {args.trained_model_path}")
             checkpoint = torch.load(args.trained_model_path, map_location=device)
             if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                 model.load_state_dict(checkpoint['model_state_dict'])
@@ -101,7 +108,6 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
                 start_epoch = checkpoint['epoch'] + 1
             else:
                 start_epoch = 0  # Default start epoch
-
         else:
             raise FileNotFoundError(f"Checkpoint file not found at {args.trained_model_path}")
 
@@ -114,7 +120,6 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
         print(f"Epoch:{epoch}")
 
         for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
-
             current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
             if current_memory > threshold:
                 print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
@@ -129,22 +134,24 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
             if step + 1 < n_steps_per_epoch:
                 # Log train metrics to wandb
                 wandb.log(metrics)
+
+        # Validation step
         val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion, device)
 
         val_metrics = {"val/val_loss": val_loss,
                        "val/val_accuracy": accuracy,
-                       "val/precision":precision,
-                       "val/recall":recall}
+                       "val/precision": precision,
+                       "val/recall": recall}
 
         wandb.log({**metrics, **val_metrics})
 
-        save_best_model_callback(val_loss, model, os.path.join(output_dir,"trained_model.pth"))
+        save_best_model_callback(val_loss, model, os.path.join(output_dir, "trained_model.pth"))
 
         epoch_loss = running_loss / len(train_loader.dataset)
         print(f"Epoch loss: {epoch_loss}")
 
         epoch_time = time.time() - start_time
-        print(f"Time taken to run single epoch: {epoch_time/60} mins")
+        print(f"Time taken to run single epoch: {epoch_time / 60} mins")
 
         max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
         print(f"Maximum GPU memory usage: {max_memory} MB")
@@ -152,13 +159,23 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
         max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
         print(f"Maximum GPU memory reserved: {max_memory_reserved}")
 
+        # Step the scheduler if it exists
+        if scheduler:
+            scheduler.step()
+
+            # Log the current learning rate
+            current_lr = scheduler.get_last_lr()[0]
+            print(f"Learning rate for epoch {epoch}: {current_lr}")
+            wandb.log({"train/learning_rate": current_lr})
+
+
 def train(args):
     args_dict = vars(args)
     project_name = "flare_torch"
     wandb.init(
-        project= project_name,
-        config= args_dict
-            )
+        project=project_name,
+        config=args_dict
+    )
 
     vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
     model = vit_model.model
@@ -176,7 +193,7 @@ def train(args):
         CustomTransform(means, stds),
         v2.RandomHorizontalFlip(p=0.5),
         v2.RandomVerticalFlip(p=0.5)
-        ]))
+    ]))
 
     validation_dataset = aia_euv(json_path, subset='validation', transform=v2.Compose([CustomTransform(means, stds)]))
 
@@ -191,7 +208,7 @@ def train(args):
 
     # Create DataLoader with oversampling
     train_loader = DataLoader(train_dataset, batch_size=32, sampler=get_weighted_sampler(train_dataset))
-    val_loader = DataLoader(validation_dataset, batch_size = args.batch_size, shuffle=True)
+    val_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
 
@@ -206,16 +223,19 @@ def train(args):
 
     train_loop(train_loader, val_loader, model, device, output_dir, args)
 
-if __name__== "__main__":
 
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-json-path", "--json-path")
     parser.add_argument("-stats-file", "--stats-file")
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument("-epochs", "--epochs", type=int, default=5)
     parser.add_argument('-lr', '--lr', type=float, default=0.001)
-    parser.add_argument('--retrain',  action="store_true", help="Flag to resume training from a previous epoch")
-    parser.add_argument('--trained-model-path', help="location of saved model")
+    parser.add_argument('--scheduler', type=str, default=None, choices=["cosine_annealing", "step_lr", None],
+                        help="Learning rate scheduler to use (e.g., cosine_annealing, step_lr)")
+    parser.add_argument('--retrain', action="store_true", help="Flag to resume training from a previous epoch")
+    parser.add_argument('--trained-model-path', help="Location of saved model")
 
     args = parser.parse_args()
+    print(args)
     train(args)
