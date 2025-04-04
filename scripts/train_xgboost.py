@@ -43,17 +43,17 @@ if __name__ == "__main__":
     train_ds = ml_dataset(args.json_path).get_tfds(subset_name="training", do_shuffle=True,
                                                    balanced=True, target_ratios=target_ratios)
 
-    test_ds = ml_dataset(args.json_path).get_tfds(subset_name="validation", do_shuffle=True,
+    val_ds = ml_dataset(args.json_path).get_tfds(subset_name="validation", do_shuffle=True,
                                                    balanced=True, target_ratios=target_ratios)
     train_ds = train_ds.batch(32)
-    test_ds = test_ds.batch(32)
+    val_ds = val_ds.batch(32)
 
     X_train, y_train = extract_features_from_generator(train_ds)
-    X_test, y_test = extract_features_from_generator(test_ds)
+    X_val, y_val = extract_features_from_generator(val_ds)
 
     # Convert the dataset into DMatrix format for XGBoost
     dtrain = xgb.DMatrix(X_train, label=y_train)
-    dtest = xgb.DMatrix(X_test, label=y_test)
+    dval = xgb.DMatrix(X_val, label=y_val)
 
     # Set up the parameters for XGBoost
     params = {
@@ -70,16 +70,16 @@ if __name__ == "__main__":
     num_rounds = 100  # Number of boosting rounds
     bst = xgb.train(params, dtrain, num_rounds)
 
-    # Make predictions on the test set
-    y_pred_prob = bst.predict(dtest)
+    # Make predictions on the val set
+    y_pred_prob = bst.predict(dval)
 
     # Evaluate the model using Binary Cross-Entropy (BCE) loss
-    bce_loss = log_loss(y_test, y_pred_prob)
+    bce_loss = log_loss(y_val, y_pred_prob)
     print(f"Binary Cross-Entropy Loss: {bce_loss}")
 
     # You can also convert probabilities to binary predictions (0 or 1) using a threshold (e.g., 0.5)
     y_pred = (y_pred_prob > 0.5).astype(int)
 
     # Calculate accuracy or other metrics if needed
-    accuracy = np.mean(y_pred == y_test)
+    accuracy = np.mean(y_pred == y_val)
     print(f"Accuracy: {accuracy}")
