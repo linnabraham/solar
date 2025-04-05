@@ -32,6 +32,27 @@ def extract_features_from_generator(dataset):
 
     return np.array(features), np.array(labels)
 
+def extract_percentiles_generator(dataset):
+    features = []
+    labels = []
+    dataset_iter = iter(dataset)
+    for images, label in tqdm(dataset_iter):
+        # Assuming images shape is (batch_size, height, width, channels)
+        # We take the first image in the batch
+        image = images[0]
+
+        # Calculate fixed percentile values for each channel
+        channel_stats = []
+        for channel in range(image.shape[0]):
+            channel_data = image[channel, :, :]
+            channel_stats.extend([np.percentile(channel_data,60), np.percentile(channel_data,80), np.percentile(channel_data,90),
+                                  np.percentile(channel_data,95), np.percentile(channel_data,98), np.percentile(channel_data,99)])
+
+        features.append(channel_stats)
+        labels.append(label[0])  # Assuming label is a single value for the image
+
+    return np.array(features), np.array(labels)
+
 
 if __name__ == "__main__":
     backend.set_image_data_format("channels_first")
@@ -68,7 +89,6 @@ if __name__ == "__main__":
         'seed': 42                      # Random seed for reproducibility
     }
     best_model_path = "best_xgboost_model.json"  # Path to save the best model
-    # Train the model
     num_rounds = 100  # Number of boosting rounds
     bst = xgb.train(
         params,
@@ -77,7 +97,6 @@ if __name__ == "__main__":
         evals=evals,
         evals_result=evals_result,
         early_stopping_rounds=10,
-        #verbose_eval=False  # Suppress verbose output for each round
         verbose_eval=True
     )
     bst.save_model(best_model_path)  # Save the best model
