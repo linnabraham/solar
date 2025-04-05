@@ -54,6 +54,8 @@ if __name__ == "__main__":
     # Convert the dataset into DMatrix format for XGBoost
     dtrain = xgb.DMatrix(X_train, label=y_train)
     dval = xgb.DMatrix(X_val, label=y_val)
+    evals = [(dtrain, 'train'), (dval, 'validation')]  # Specify datasets for evaluation
+    evals_result = {}  # Dictionary to store evaluation results
 
     # Set up the parameters for XGBoost
     params = {
@@ -65,10 +67,24 @@ if __name__ == "__main__":
         'colsample_bytree': 0.8,        # Subsample ratio of columns when constructing each tree
         'seed': 42                      # Random seed for reproducibility
     }
-
+    best_model_path = "best_xgboost_model.json"  # Path to save the best model
     # Train the model
     num_rounds = 100  # Number of boosting rounds
-    bst = xgb.train(params, dtrain, num_rounds)
+    bst = xgb.train(
+        params,
+        dtrain,
+        num_boost_round=num_rounds,
+        evals=evals,
+        evals_result=evals_result,
+        early_stopping_rounds=10,
+        #verbose_eval=False  # Suppress verbose output for each round
+        verbose_eval=True
+    )
+    bst.save_model(best_model_path)  # Save the best model
+    # Log the evaluation results
+    print("Evaluation results:")
+    for key, value in evals_result.items():
+        print(f"{key}: {value}")
 
     # Make predictions on the val set
     y_pred_prob = bst.predict(dval)
