@@ -12,7 +12,7 @@ from tqdm import tqdm
 from aarp_ml.model.training import ml_dataset
 
 # Assuming you have a TensorFlow generator that yields (images, labels)
-def extract_features_from_generator(dataset):
+def extract_simple_stats_generator(dataset):
     features = []
     labels = []
     dataset_iter = iter(dataset)
@@ -69,8 +69,8 @@ if __name__ == "__main__":
     train_ds = train_ds.batch(32)
     val_ds = val_ds.batch(32)
 
-    X_train, y_train = extract_features_from_generator(train_ds)
-    X_val, y_val = extract_features_from_generator(val_ds)
+    X_train, y_train = extract_simple_stats_generator(train_ds)
+    X_val, y_val = extract_simple_stats_generator(val_ds)
 
     # Convert the dataset into DMatrix format for XGBoost
     dtrain = xgb.DMatrix(X_train, label=y_train)
