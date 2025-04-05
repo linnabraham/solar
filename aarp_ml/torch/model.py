@@ -12,7 +12,7 @@ class DeepFlare_ViT(BaseModel):
         if n_passbands is None or height is None or n_classes is None:
             raise ValueError("Number of input passbands (filters) must be given!")
         self.model = ViT(image_size=height,patch_size=16,num_classes=n_classes,
-                         dim=1024,depth=4,heads=16,channels=n_passbands,mlp_dim=9,
+                         dim=1024,depth=4,heads=16,channels=n_passbands,mlp_dim=512,
                          dropout=dropout_prob,emb_dropout=dropout_prob,pool="mean")
 
 class SaveBestModel:
