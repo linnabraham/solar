@@ -129,7 +129,7 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
             loss = training_step(inputs, labels, model, criterion, optimizer)
             running_loss += loss.item() * inputs.size(0)
             metrics = {"train/train_loss": loss,
-                       "train/step": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch,
+                       "train/n_iter": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch,
                        "train/epoch": epoch + 1,
                        }
             if step + 1 < n_steps_per_epoch:
