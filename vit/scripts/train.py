@@ -111,10 +111,11 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
         else:
             raise FileNotFoundError(f"Checkpoint file not found at {args.trained_model_path}")
 
+    example_ct = 0
     for epoch in range(start_epoch, args.epochs):
         model.train()
-        running_loss = 0.0
-
+        epoch_train_loss = 0.0
+        num_batches = 0
         start_time = time.time()
 
         print(f"Epoch:{epoch}")
@@ -127,15 +128,23 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
 
             inputs, labels = inputs.to(device), labels.to(device)
             loss = training_step(inputs, labels, model, criterion, optimizer)
-            running_loss += loss.item() * inputs.size(0)
-            metrics = {"train/train_loss": loss,
-                       "train/n_iter": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch,
-                       "train/epoch": epoch + 1,
+            epoch_train_loss += loss.item()
+            num_batches += 1
+            example_ct += inputs.size(0)
+            
+            metrics = {"train/train_loss_batch": loss,
+                       "train/epoch_float": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch,
+                       "train/example_ct": example_ct,
                        }
+            # Log train metrics to wandb on every step
             if step + 1 < n_steps_per_epoch:
-                # Log train metrics to wandb
                 wandb.log(metrics)
 
+        # Calculate average training loss for the entire epoch
+        avg_epoch_train_loss = epoch_train_loss / num_batches
+        epoch_metrics = {"train/epoch": epoch + 1,
+                        "train/train_loss_epoch": avg_epoch_train_loss}
+        
         # Validation step
         val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion, device)
 
@@ -143,13 +152,12 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
                        "val/val_accuracy": accuracy,
                        "val/precision": precision,
                        "val/recall": recall}
-
-        wandb.log({**metrics, **val_metrics})
+        
+        print(f"Epoch loss: {avg_epoch_train_loss}")
+        print(f"Validation loss: {val_loss}")
+        wandb.log({**metrics, **val_metrics, **epoch_metrics})
 
         save_best_model_callback(val_loss, model, os.path.join(output_dir, "trained_model.pth"))
-
-        epoch_loss = running_loss / len(train_loader.dataset)
-        print(f"Epoch loss: {epoch_loss}")
 
         epoch_time = time.time() - start_time
         print(f"Time taken to run single epoch: {epoch_time / 60} mins")
