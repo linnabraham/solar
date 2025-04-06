@@ -68,10 +68,15 @@ def validate_model(model, val_dl, loss_func, device):
 
     return val_loss / len(val_dl.dataset), (TP+TN) / len(val_dl.dataset), precision, recall
 
-def training_step(inputs, labels, model, criterion, optimizer):
+def training_step(inputs, labels, model, criterion, optimizer, l1_lambda=0.01):
     optimizer.zero_grad()
     outputs = model(inputs)
     loss = criterion(outputs, labels)
+    
+    # L1 regularization
+    l1_norm = sum(p.abs().sum() for p in model.parameters())
+    loss = loss + l1_lambda * l1_norm
+
     loss.backward()
     optimizer.step()
     return loss
@@ -91,7 +96,7 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
     print(f"Steps per epoch:{n_steps_per_epoch}")
 
     save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
-
+    l1_lambda = args.l1_lambda if hasattr(args, 'l1_lambda') else 0.01
     start_epoch = 0
 
     if args.retrain:
@@ -127,7 +132,7 @@ def train_loop(train_loader, val_loader, model, device, output_dir, args):
                 return
 
             inputs, labels = inputs.to(device), labels.to(device)
-            loss = training_step(inputs, labels, model, criterion, optimizer)
+            loss = training_step(inputs, labels, model, criterion, optimizer, l1_lambda)
             epoch_train_loss += loss.item()
             num_batches += 1
             example_ct += inputs.size(0)
@@ -244,7 +249,8 @@ if __name__ == "__main__":
                         help="Learning rate scheduler to use (e.g., cosine_annealing, step_lr)")
     parser.add_argument('--retrain', action="store_true", help="Flag to resume training from a previous epoch")
     parser.add_argument('--trained-model-path', help="Location of saved model")
-
+    parser.add_argument("--l1-lambda", type=float, default=0.01, 
+                       help="L1 regularization strength")
     args = parser.parse_args()
     print(args)
     train(args)
