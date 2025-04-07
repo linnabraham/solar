@@ -1,4 +1,6 @@
 import sys, os
+from dataclasses import dataclass
+from typing import Optional, List
 sys.path.append(os.path.expanduser("~/july/solar/"))
 from aarp_ml.torch.dataset import aia_euv, CustomTransform
 from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
@@ -13,247 +15,295 @@ import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from collections import Counter
 from sklearn.metrics import confusion_matrix
-import torch.optim.lr_scheduler
 
-threshold = 5000  # GPU memory threshold measured in megabytes
+@dataclass
+class TrainingConfig:
+    # Required parameters
+    json_path: str
+    stats_file: str
+    
+    # Optional training parameters
+    batch_size: int = 32
+    epochs: int = 5
+    learning_rate: float = 0.001
+    scheduler_type: Optional[str] = None
+    retrain: bool = False
+    trained_model_path: Optional[str] = None
+    use_l1: bool = False
+    l1_lambda: float = 0.01
+    
+    # Model parameters
+    image_height: int = 512
+    n_classes: int = 2
+    n_channels: int = 7
+    
+    # System parameters
+    device: str = "cuda:0"
+    memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
 
-def get_weighted_sampler(dataset):
-    """
-    Create a WeightedRandomSampler for handling class imbalance.
-
-    Args:
-        dataset: A dataset object with a `labels` attribute containing class labels.
-
-    Returns:
-        WeightedRandomSampler: A sampler that samples based on class distribution.
-    """
-    # Count occurrences of each class in the dataset
+def get_weighted_sampler(dataset) -> WeightedRandomSampler:
+    """Create a sampler that handles class imbalance."""
+    # Count instances of each class
     class_counts = Counter(dataset.labels)
     total_samples = sum(class_counts.values())
-
     # Compute class weights (inverse of frequency)
     class_weights = {cls: total_samples / count for cls, count in class_counts.items()}
-
     # Assign a weight to each sample based on its class
     sample_weights = [class_weights[label] for label in dataset.labels]
-
     return WeightedRandomSampler(weights=sample_weights, num_samples=len(dataset), replacement=True)
 
-def validate_model(model, val_dl, loss_func, device):
+def validate_model(*, model, val_dl, loss_func, device):
+    """Validate model and compute metrics."""
     model.eval()
     val_loss = 0.
     y_true, y_pred = [], []
 
     with torch.inference_mode():
-
-        for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
+        for images, labels in tqdm(val_dl, leave=False):
             images, labels = images.to(device), labels.to(device)
-
-            # Forward pass ➡
             outputs = model(images)
-            val_loss += loss_func(outputs, labels)*labels.size(0)
-            # Compute accuracy and accumulate
+            val_loss += loss_func(outputs, labels) * labels.size(0)
             pred_scores, predicted = torch.max(outputs.data, 1)
-            
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
 
         TN, FP, FN, TP = confusion_matrix(y_true, y_pred).ravel()
         precision = TP/(TP+FP) if (TP+FP) > 0 else 0
         recall = TP/(TP+FN) if (TP+FN) > 0 else 0
-        print("True Positives:", TP)
-        print("False Positives:", FP)
-        print("True Negatives:", TN)
-        print("False Negatives:", FN)
+
+        # Print confusion matrix metrics
+        print(f"\nConfusion Matrix Stats:")
+        print(f"TP: {TP}, FP: {FP}")
+        print(f"FN: {FN}, TN: {TN}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}\n")
 
     return val_loss / len(val_dl.dataset), (TP+TN) / len(val_dl.dataset), precision, recall
 
-def training_step(inputs, labels, model, criterion, optimizer, l1_lambda=0.01, usel1=False):
-    optimizer.zero_grad()
-    outputs = model(inputs)
-    loss = criterion(outputs, labels)
-
-    # L1 regularization
-    if usel1:
-        l1_norm = sum(p.abs().sum() for p in model.parameters())
-        loss = loss + l1_lambda * l1_norm
-
-    loss.backward()
-    optimizer.step()
-    return loss
-
-def train_loop(train_loader, val_loader, model, device, output_dir, args):
-    criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-    # Initialize scheduler based on the argument
-    if args.scheduler == "cosine_annealing":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0)
-    else:
-        scheduler = None  # No scheduler
-
-    print(f"Length of training data", len(train_loader.dataset))
-    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / args.batch_size)
-    print(f"Steps per epoch:{n_steps_per_epoch}")
-
-    save_best_model_callback = SaveBestModel(monitor='val_loss', mode='min')
-
-    start_epoch = 0
-
-    if args.retrain:
-        if args.trained_model_path:
-            print(f"Loading saved model from {args.trained_model_path}")
-            checkpoint = torch.load(args.trained_model_path, map_location=device)
-            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-                model.load_state_dict(checkpoint['model_state_dict'])
-            else:
-                model.load_state_dict(checkpoint)
-            if 'optimizer_state_dict' in checkpoint:
-                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            if 'epoch' in checkpoint:
-                start_epoch = checkpoint['epoch'] + 1
-            else:
-                start_epoch = 0  # Default start epoch
-        else:
-            raise FileNotFoundError(f"Checkpoint file not found at {args.trained_model_path}")
-
+def _run_epoch(*, epoch, model, train_loader, val_loader, criterion, 
+               optimizer, scheduler, config: TrainingConfig, n_steps_per_epoch,
+               save_callback, output_dir):
+    """Run a single training epoch."""
+    model.train()
+    epoch_train_loss = 0.0
+    num_batches = 0
     example_ct = 0
-    for epoch in range(start_epoch, args.epochs):
-        model.train()
-        epoch_train_loss = 0.0
-        num_batches = 0
-        start_time = time.time()
+    start_time = time.time()
 
-        print(f"Epoch:{epoch}")
+    print(f"Epoch: {epoch}")
 
-        for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
-            current_memory = torch.cuda.memory_allocated() / (1024 ** 2)
-            if current_memory > threshold:
-                print(f"GPU memory usage ({current_memory} MB) exceeds threshold. Breaking the script.")
-                return
+    for step, (inputs, labels) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False):
+        # Check memory usage
+        if torch.cuda.memory_allocated() / (1024 ** 2) > config.memory_threshold:
+            print(f"GPU memory usage exceeds {config.memory_threshold}MB threshold. Breaking.")
+            return False
 
-            inputs, labels = inputs.to(device), labels.to(device)
-            loss = training_step(inputs, labels, model, criterion, optimizer, usel1=args.usel1)
-            epoch_train_loss += loss.item()
-            num_batches += 1
-            example_ct += inputs.size(0)
-            
-            metrics = {"train/train_loss_batch": loss,
-                       "train/epoch_float": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch,
-                       "train/example_ct": example_ct,
-                       }
-            # Log train metrics to wandb on every step
-            if step + 1 < n_steps_per_epoch:
-                wandb.log(metrics)
+        # Training step
+        inputs, labels = inputs.to(config.device), labels.to(config.device)
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
 
-        # Calculate average training loss for the entire epoch
-        avg_epoch_train_loss = epoch_train_loss / num_batches
-        epoch_metrics = {"train/epoch": epoch + 1,
-                        "train/train_loss_epoch": avg_epoch_train_loss}
+        if config.use_l1:
+            l1_norm = sum(p.abs().sum() for p in model.parameters())
+            loss = loss + config.l1_lambda * l1_norm
+
+        loss.backward()
+        optimizer.step()
+
+        # Update metrics
+        epoch_train_loss += loss.item()
+        num_batches += 1
+        example_ct += inputs.size(0)
         
-        # Validation step
-        val_loss, accuracy, precision, recall = validate_model(model, val_loader, criterion, device)
+        # Log batch metrics
+        if step + 1 < n_steps_per_epoch:
+            wandb.log({
+                "train/train_loss_batch": loss,
+                "train/epoch_float": (step + 1 + (n_steps_per_epoch * epoch)) / n_steps_per_epoch,
+                "train/example_ct": example_ct,
+            })
 
-        val_metrics = {"val/val_loss": val_loss,
-                       "val/val_accuracy": accuracy,
-                       "val/precision": precision,
-                       "val/recall": recall}
-        
-        print(f"Epoch loss: {avg_epoch_train_loss}")
-        print(f"Validation loss: {val_loss}")
-        wandb.log({**metrics, **val_metrics, **epoch_metrics})
-
-        save_best_model_callback(val_loss, model, os.path.join(output_dir, "trained_model.pth"))
-
-        epoch_time = time.time() - start_time
-        print(f"Time taken to run single epoch: {epoch_time / 60} mins")
-
-        max_memory = torch.cuda.max_memory_allocated() / (1024 ** 2)  # Convert to megabytes
-        print(f"Maximum GPU memory usage: {max_memory} MB")
-
-        max_memory_reserved = torch.cuda.max_memory_reserved() / (1024 ** 2)
-        print(f"Maximum GPU memory reserved: {max_memory_reserved}")
-
-        # Step the scheduler if it exists
-        if scheduler:
-            scheduler.step()
-
-            # Log the current learning rate
-            current_lr = scheduler.get_last_lr()[0]
-            print(f"Learning rate for epoch {epoch}: {current_lr}")
-            wandb.log({"train/learning_rate": current_lr})
-
-
-def train(args):
-    args_dict = vars(args)
-    project_name = "flare_torch"
-    wandb.init(
-        project=project_name,
-        config=args_dict
+    # Validation and metrics
+    val_loss, accuracy, precision, recall = validate_model(
+        model=model, 
+        val_dl=val_loader,
+        loss_func=criterion,
+        device=config.device
     )
 
-    vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
-    model = vit_model.model
+    # Log metrics
+    metrics = {
+        "train/epoch": epoch + 1,
+        "train/train_loss_epoch": epoch_train_loss / num_batches,
+        "val/val_loss": val_loss,
+        "val/val_accuracy": accuracy,
+        "val/precision": precision,
+        "val/recall": recall,
+        "time/epoch_minutes": (time.time() - start_time) / 60
+    }
+    wandb.log(metrics)
+    print(f"Epoch loss: {metrics['train/train_loss_epoch']:.4f}")
+    print(f"Validation loss: {metrics['val/val_loss']:.4f}")
 
-    json_path = args.json_path
-    stats_file = args.stats_file
+    # Save best model
+    save_callback(val_loss, model, os.path.join(output_dir, "trained_model.pth"))
 
-    with open(stats_file, 'rb') as f:
+    # Update learning rate
+    if scheduler:
+        scheduler.step()
+        current_lr = scheduler.get_last_lr()[0]
+        print(f"Learning rate: {current_lr}")
+        wandb.log({"train/learning_rate": current_lr})
+
+    return True
+
+def print_config(config: TrainingConfig):
+    """Print training configuration settings."""
+    print("\nTraining Configuration:")
+    print("----------------------")
+    for field, value in vars(config).items():
+        print(f"{field}: {value}")
+    print("----------------------\n")
+
+def train(config: TrainingConfig):
+    """Main training function."""
+    # Initialize wandb
+    wandb.init(project="flare_torch", config=vars(config))
+    
+    # Print configuration
+    print_config(config)
+    
+    # Setup model
+    model = DeepFlare_ViT(
+        height=config.image_height,
+        n_classes=config.n_classes,
+        n_passbands=config.n_channels
+    ).model
+    
+    # Load statistics
+    with open(config.stats_file, 'rb') as f:
         stats = pickle.load(f)
+    means = [stats['mean'][f'channel_{i}'] for i in range(config.n_channels)]
+    stds = [stats['std'][f'channel_{i}'] for i in range(config.n_channels)]
 
-    means = [stats['mean'][f'channel_{i}'] for i in range(7)]
-    stds = [stats['std'][f'channel_{i}'] for i in range(7)]
+    # Create datasets
+    train_dataset = aia_euv(
+        config.json_path,
+        subset='training',
+        transform=v2.Compose([
+            CustomTransform(means, stds),
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomVerticalFlip(p=0.5)
+        ])
+    )
+    val_dataset = aia_euv(
+        config.json_path,
+        subset='validation',
+        transform=v2.Compose([CustomTransform(means, stds)])
+    )
 
-    train_dataset = aia_euv(json_path, subset='training', transform=v2.Compose([
-        CustomTransform(means, stds),
-        v2.RandomHorizontalFlip(p=0.5),
-        v2.RandomVerticalFlip(p=0.5)
-    ]))
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config.batch_size,
+        sampler=get_weighted_sampler(train_dataset)
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config.batch_size,
+        shuffle=True
+    )
 
-    validation_dataset = aia_euv(json_path, subset='validation', transform=v2.Compose([CustomTransform(means, stds)]))
+    # Setup training
+    device = torch.device(config.device if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    scheduler = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
+        if config.scheduler_type == "cosine_annealing" else None
+    )
 
-    print("Checking data specifications")
-    for i in range(len(train_dataset)):
-        features, label = train_dataset[i]
-        print(features.shape)
-        break
+    # Create output directory
+    output_dir = os.path.join("output", wandb.run.name)
+    os.makedirs(output_dir, exist_ok=True)
 
-    print("train size", len(train_dataset))
-    print("validation size", len(validation_dataset))
+    # Setup model saving
+    save_best_model = SaveBestModel(monitor='val_loss', mode='min')
+    
+    # Load checkpoint if retraining
+    start_epoch = 0
+    if config.retrain and config.trained_model_path:
+        checkpoint = torch.load(config.trained_model_path, map_location=device)
+        if isinstance(checkpoint, dict):
+            model.load_state_dict(checkpoint['model_state_dict'])
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint.get('epoch', -1) + 1
+        else:
+            model.load_state_dict(checkpoint)
 
-    # Create DataLoader with oversampling
-    train_loader = DataLoader(train_dataset, batch_size=32, sampler=get_weighted_sampler(train_dataset))
-    val_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(f"Using device {device}")
-
+    # Training loop
     torch.cuda.reset_peak_memory_stats()
+    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / config.batch_size)
 
-    model.to(device)
+    for epoch in range(start_epoch, config.epochs):
+        success = _run_epoch(
+            epoch=epoch,
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            criterion=criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            config=config,
+            n_steps_per_epoch=n_steps_per_epoch,
+            save_callback=save_best_model,
+            output_dir=output_dir
+        )
+        if not success:
+            break
 
-    wandb_dir = wandb.run.name
-    output_dir = os.path.join("output", wandb_dir)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    train_loop(train_loader, val_loader, model, device, output_dir, args)
-
-
-if __name__ == "__main__":
+def parse_args() -> TrainingConfig:
+    """Parse command line arguments and create config."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("-json-path", "--json-path")
-    parser.add_argument("-stats-file", "--stats-file")
-    parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
-    parser.add_argument("-epochs", "--epochs", type=int, default=5)
-    parser.add_argument('-lr', '--lr', type=float, default=0.001)
-    parser.add_argument('--scheduler', type=str, default=None, choices=["cosine_annealing", "step_lr", None],
-                        help="Learning rate scheduler to use (e.g., cosine_annealing, step_lr)")
-    parser.add_argument('--retrain', action="store_true", help="Flag to resume training from a previous epoch")
-    parser.add_argument('--trained-model-path', help="Location of saved model")
+    parser.add_argument("--json-path", required=True,
+                       help="Path to JSON file containing dataset information")
+    parser.add_argument("--stats-file", required=True,
+                       help="Path to statistics file containing means and stds")
+    parser.add_argument("--batch-size", type=int, default=TrainingConfig.batch_size,
+                       help="Batch size for training")
+    parser.add_argument("--epochs", type=int, default=TrainingConfig.epochs,
+                       help="Number of epochs to train")
+    parser.add_argument("--lr", type=float, default=TrainingConfig.learning_rate,
+                       help="Learning rate")
+    parser.add_argument("--scheduler", type=str, choices=["cosine_annealing", "step_lr", None],
+                       help="Learning rate scheduler type")
+    parser.add_argument("--retrain", action="store_true",
+                       help="Resume training from checkpoint")
+    parser.add_argument("--trained-model-path",
+                       help="Path to pretrained model checkpoint")
     parser.add_argument("--use-l1", action="store_true",
                        help="Enable L1 regularization")
-    parser.add_argument("--l1-lambda", type=float, default=0.01, 
+    parser.add_argument("--l1-lambda", type=float, default=TrainingConfig.l1_lambda,
                        help="L1 regularization strength")
+    
     args = parser.parse_args()
-    print(args)
-    train(args)
+    
+    return TrainingConfig(
+        json_path=args.json_path,
+        stats_file=args.stats_file,
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        learning_rate=args.lr,
+        scheduler_type=args.scheduler,
+        retrain=args.retrain,
+        trained_model_path=args.trained_model_path,
+        use_l1=args.use_l1,
+        l1_lambda=args.l1_lambda
+    )
+
+if __name__ == "__main__":
+    config = parse_args()
+    train(config)
