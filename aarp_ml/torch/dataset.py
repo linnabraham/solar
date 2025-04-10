@@ -13,7 +13,6 @@ class CustomTransform:
         x[x < 0] = 0
         x[x == 0] = 1
         x = torch.log(x)
-        x = (x - self.means.to(x.device)) / self.stds.to(x.device)  # Z-score normalization
         return x
 
 class aia_euv(Dataset):
