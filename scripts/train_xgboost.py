@@ -89,6 +89,7 @@ if __name__ == "__main__":
         'seed': 42                      # Random seed for reproducibility
     }
     best_model_path = "best_xgboost_model.json"  # Path to save the best model
+    # Train the model
     num_rounds = 100  # Number of boosting rounds
     bst = xgb.train(
         params,
@@ -97,6 +98,7 @@ if __name__ == "__main__":
         evals=evals,
         evals_result=evals_result,
         early_stopping_rounds=10,
+        #verbose_eval=False  # Suppress verbose output for each round
         verbose_eval=True
     )
     bst.save_model(best_model_path)  # Save the best model
