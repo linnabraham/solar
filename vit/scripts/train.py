@@ -290,6 +290,10 @@ def parse_args() -> TrainingConfig:
                        help="L1 regularization strength")
     
     args = parser.parse_args()
+
+    # Validate that --retrain is not given without --trained-model-path
+    if args.retrain and not args.trained_model_path:
+        parser.error("--retrain requires --trained-model-path to be specified.")
     
     return TrainingConfig(
         json_path=args.json_path,
