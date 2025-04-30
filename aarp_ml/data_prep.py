@@ -333,7 +333,9 @@ def create_json(pos_dir, neg_dir, filename=None):
     training_full = []
     validation_full = []
     test_full = []
-
+    sizes = {"training": {},
+             "validation": {},
+             "test": {}}
     fixed_bands = [94, 131, 171, 193, 211, 304, 335]
 
     test_val_size = 0.0
@@ -402,7 +404,11 @@ def create_json(pos_dir, neg_dir, filename=None):
                 },
             "training" : training_full,
             "validation" : validation_full,
-            "test" : test
+            "test" : test_full,
+            "size": { "training": len(training_full),
+                     "validation": len(validation_full),
+                     "test": len(test)
+                     }
             }
     pretty = json.dumps(metadata, indent=4)
     if filename is not None:
