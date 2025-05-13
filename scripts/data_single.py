@@ -23,6 +23,22 @@ from aarp_ml.data_prep import (get_clean_df, label_urls, select_urls, random_sel
                                split_urllist, remove_offlimb, pad_with_quiet,
                                read_from_disk, annotate_images, get_fov_limits, create_json)
 
+
+class DatasetPaths:
+    def __init__(self, parent_dir: str):
+        self.parent_dir = parent_dir
+        self.goes_event_list = os.path.join(parent_dir, "data/GOES_event_list.csv")
+        self.aarp_full_urls = os.path.join(parent_dir, "data/aarps_full_urlist.txt")
+        self.harp_to_noaa = os.path.join(parent_dir, "data/all_harps_with_noaa_ars.txt")
+        self.stats_pickle = os.path.join(parent_dir, "stats_E8.pkl")
+        self.json_filename = os.path.join(parent_dir, "solar_dataset_xx.json")
+        self.combined_dl_list = os.path.join(parent_dir, "data/combined_dl_list.csv")
+        # Directory structure
+        self.pos_dir_7h = Path("/data/linn/E8/compressed/pos/")
+        self.neg_dir_7h = Path("/data/linn/E8/compressed/neg/")
+        self.pos_dir_single = "/data/linn/E8/extracted/pos"
+        self.neg_dir_single = "/data/linn/E8/extracted/neg"
+
 def get_download_list(goes_event_list, aarps_full_urls, harp_to_noaa, goes_class="X"):
     goes_df, aarps_clean_df = get_clean_df(goes_event_list, aarps_full_urls, harp_to_noaa)
     goes_df = goes_df[goes_df['goes_class'].apply(lambda x: x[0]) == goes_class]
@@ -35,6 +51,32 @@ def get_download_list(goes_event_list, aarps_full_urls, harp_to_noaa, goes_class
     #return pos_url_selected_df, neg_url_selected_df
     return pos_url_df, neg_url_df
 
+def download_data(pos_urls_df: pd.DataFrame, neg_urls_df: pd.DataFrame, paths: DatasetPaths, args) -> pd.DataFrame:
+    pos_urls = pos_urls_df.urls
+
+    if args.download == True:
+        download_urls_in_parallel(pos_urls, paths.pos_dir_7h, max_workers=10)
+
+    pos_urls_df['fits_fullpath'] = pos_urls_df['urls'].apply(lambda url: os.path.join(paths.pos_dir_7h, os.path.basename(url)))
+    pos_downloaded_df = pos_urls_df[pos_urls_df['fits_fullpath'].apply(os.path.exists)]
+
+    neg_urls_selected_df = random_select_neg_urls(neg_urls_df,
+                                                 pos_downloaded_df.AARP.nunique()*12)
+    download_list_combined = pd.concat([pos_urls_df, neg_urls_selected_df])
+    download_list_combined.to_csv(paths.combined_dl_list, index=False)
+
+    neg_urls = neg_urls_selected_df.urls
+
+    if args.download == True:
+        download_urls_in_parallel(neg_urls, paths.neg_dir_7h, max_workers=10)
+
+    neg_urls_selected_df['fits_fullpath'] = neg_urls_selected_df['urls'].apply(
+        lambda url: os.path.join(paths.neg_dir_7h, os.path.basename(url)))
+    neg_downloaded_df = neg_urls_selected_df[neg_urls_selected_df['fits_fullpath'].apply(os.path.exists)]
+
+    downloaded_df = pd.concat([pos_downloaded_df, neg_downloaded_df])
+    return downloaded_df
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--download', action="store_true")
@@ -44,55 +86,20 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     st = time.time()
-    goes_event_list = os.path.join(parent_dir, "data/GOES_event_list.csv")
-    aarp_full_urls = os.path.join(parent_dir, "data/aarps_full_urlist.txt")
-    harp_to_noaa = os.path.join(parent_dir, "data/all_harps_with_noaa_ars.txt")
+    paths = DatasetPaths(parent_dir)
 
-    pickle_file = os.path.join(parent_dir, "stats_E8.pkl")
-    if args.stats and os.path.exists(pickle_file):
-        raise ValueError(f"File {pickle_file} already exists")
+    if args.stats and os.path.exists(paths.stats_pickle):
+        raise ValueError(f"File {paths.stats_pickle} already exists")
 
-    pos_dir_7h = Path("/data/linn/E8/compressed/pos/")
-    pos_dir_7h.mkdir(exist_ok=True)
-
-    neg_dir_7h = Path("/data/linn/E8/compressed/neg/")
-    neg_dir_7h.mkdir(exist_ok=True)
-
-    pos_dir_single = "/data/linn/E8/extracted/pos"
-    neg_dir_single = "/data/linn/E8/extracted/neg"
-
-    json_filename = os.path.join(parent_dir, "solar_dataset_xx.json")
-
-    if args.json and os.path.exists(json_filename):
-        raise ValueError(f"File {json_filename} already exists")
+    if args.json and os.path.exists(paths.json_filename):
+        raise ValueError(f"File {paths.json_filename} already exists")
 
     pos_urls_df, neg_urls_df = get_download_list(
-            goes_event_list, aarp_full_urls, harp_to_noaa, goes_class="X")
+            paths.goes_event_list, paths.aarp_full_urls, paths.harp_to_noaa, goes_class="X")
+
+    downloaded_df = download_data(pos_urls_df, neg_urls_df, paths, args)
 
 
-    pos_urls = pos_urls_df.urls
-
-    if args.download == True:
-        download_urls_in_parallel(pos_urls, pos_dir_7h, max_workers=10)
-
-    pos_urls_df['fits_fullpath'] = pos_urls_df['urls'].apply(lambda url: os.path.join(pos_dir_7h, os.path.basename(url)))
-    pos_downloaded_df = pos_urls_df[pos_urls_df['fits_fullpath'].apply(os.path.exists)]
-
-    neg_urls_selected_df = random_select_neg_urls(neg_urls_df,
-                                                 pos_downloaded_df.AARP.nunique()*12)
-    download_list_combined = pd.concat([pos_urls_df, neg_urls_selected_df])
-    download_list_combined.to_csv(os.path.join(parent_dir, "data/download_list_combined.csv"), index=False)
-
-    neg_urls = neg_urls_selected_df.urls
-
-    if args.download == True:
-        download_urls_in_parallel(neg_urls, neg_dir_7h, max_workers=10)
-
-    neg_urls_selected_df['fits_fullpath'] = neg_urls_selected_df['urls'].apply(
-        lambda url: os.path.join(neg_dir_7h, os.path.basename(url)))
-    neg_downloaded_df = neg_urls_selected_df[neg_urls_selected_df['fits_fullpath'].apply(os.path.exists)]
-
-    downloaded_df = pd.concat([pos_downloaded_df, neg_downloaded_df])
     combined_df = process_table_on_disk(downloaded_df)
     combined_df.to_csv("combined_df.csv", index=False)
 
@@ -120,8 +127,7 @@ if __name__ == "__main__":
     grouped_df = grouped_df.rename({"img_height":"max_height", "img_width":"max_width"}, axis=1)
 
     selected_7h_df = grouped_df
-    selected_7h_df.to_csv("selected_7h_df.csv", index=False)
-
+    selected_7h_df.to_csv("data/selected_7h.csv", index=False)
     height = selected_7h_df.max_height.max()
     width = selected_7h_df.max_width.max()
     biggest_shape = (height, width)
@@ -137,7 +143,7 @@ if __name__ == "__main__":
         assert len(pd.unique(df.fits_fullpath)) == len(df.fits_fullpath)
 
         print("Extracting 7h FITS observation into individual images")
-        for dest, label in zip((pos_dir_single, neg_dir_single), (1,0)):
+        for dest, label in zip((paths.pos_dir_single, paths.neg_dir_single), (1,0)):
         # for dest, label in [(neg_dir_single, 0)]:
 
             files = df.fits_fullpath[df.Label==label]
@@ -149,13 +155,13 @@ if __name__ == "__main__":
             pad_and_resize_in_parallel(files, padding_func=pad_with_quiet, dest=dest, biggest_shape=(dim, dim), 
                                     targ_shape=(512, 512))
     if args.json == True:
-        create_json(pos_dir_single, neg_dir_single, json_filename)
+        create_json(paths.pos_dir_single, paths.neg_dir_single, paths.json_filename)
 
     if args.stats == True:
-        ds  = aarp_dataset(json_path=json_filename)
+        ds  = aarp_dataset(json_path=paths.json_filename)
         num_channels = 7
-        with open(pickle_file, 'wb') as f:
-            train_ds = ml_dataset(json_path=json_filename).get_tfds(subset_name="training")
+        with open(paths.stats_pickle, 'wb') as f:
+            train_ds = ml_dataset(json_path=paths.json_filename).get_tfds(subset_name="training")
             train_ds = train_ds.batch(256)
 
             data_mean, data_std = compute_mean_and_std(train_ds)
