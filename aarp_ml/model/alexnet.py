@@ -59,13 +59,13 @@ class AlexNet:
 
         # Block #4: first set of FC => RELU layers
         model.add(Flatten())
-        model.add(Dense(8192, kernel_regularizer=l2(reg)))
+        model.add(Dense(5120, kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
         #model.add(BatchNormalization())
         model.add(Dropout(0.5))
 
         # Block #5: second set of FC => RELU layers
-        model.add(Dense(8192, kernel_regularizer=l2(reg)))
+        model.add(Dense(5120, kernel_regularizer=l2(reg)))
         model.add(Activation("relu"))
         #model.add(BatchNormalization())
         model.add(Dropout(0.5))

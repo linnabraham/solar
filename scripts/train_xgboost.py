@@ -82,7 +82,7 @@ if __name__ == "__main__":
     params = {
         'objective': 'binary:logistic',  # Binary classification
         'eval_metric': 'logloss',       # Logarithmic loss (equivalent to BCE)
-        'max_depth': 6,                 # Maximum depth of a tree
+        'max_depth': 1000,                 # Maximum depth of a tree
         'eta': 0.1,                     # Learning rate
         'subsample': 0.8,               # Subsample ratio of the training instances
         'colsample_bytree': 0.8,        # Subsample ratio of columns when constructing each tree

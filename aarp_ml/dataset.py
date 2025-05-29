@@ -7,6 +7,13 @@ from aarp_ml import aarp_sequence
 from astro_utils.aia import plot_aia_image
 from astro_utils.utils import read_fits_single
 
+all_wavelengths = [94,
+    131,
+    171,
+    193,
+    211,
+    304,
+    335]
 
 def get_filepaths_labels(data:dict, subset_name, passband:int):
     """
