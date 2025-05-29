@@ -1,9 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
-from astro_utils.flare import fetch_goes_data
 import datetime
 import json
+from sunpy.time import TimeRange
+from sunkit_instruments import goes_xrs
+import time
+import pandas as pd
+import os
+from collections import Counter
+from astro_utils.flare import fetch_goes_data
 
 def parse_json(json_path):
     with open(json_path) as f:
@@ -103,3 +109,32 @@ def plot_goes_with_aarp_sampling(timestamps, goes_ts_data):
     plt.legend()
     plt.tight_layout()
     plt.title("GOES Timeseries with AARPS sampling")
+
+def sizes_from_json(json_file):
+    sizes = {}
+    with open(json_file, "r") as file:
+        data = json.load(file)
+    for split in ["training", "validation", "test"]:
+        label_counts = Counter(item["label"] for item in data[split])
+        sizes[split] = dict(label_counts)
+    return sizes
+
+def download_GOES_events(t_start="2010-06-01", t_end="2018-12-31", dest=None):
+    """
+    dest: Path to save output for e.g., "data/GOES_event_list.csv"
+    """
+    # Grab all the data from the GOES database
+    time_range = TimeRange(t_start, t_end)
+    # Get only flares of class M1 or above
+    st = time.time()
+    listofresults = goes_xrs.get_goes_event_list(time_range, 'M1')
+    print('Grabbed all the GOES data; there are', len(listofresults), 'events.')
+    print(f'Time taken for download: {time.time()-st:.2f} seconds')
+
+    df = pd.DataFrame(listofresults)
+    if dest is not None:
+        if not os.path.exists(dest):
+            df.to_csv(dest, index=False)
+        else:
+            raise ValueError("File already exists. Not overwriting!")
+    return df
