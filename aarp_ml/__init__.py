@@ -1,1 +1,1 @@
-from .aarp_sequence import aarp_sequence
+from .aarp_sequence_module import aarp_sequence

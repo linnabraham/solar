@@ -1,5 +1,6 @@
 import torch
 from captum.attr import IntegratedGradients
+from aarp_ml.torch.model import DeepFlare_ViT
 
 class trained_model:
     def __init__(self, model_path):

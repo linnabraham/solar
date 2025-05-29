@@ -2,7 +2,7 @@ import sys, os
 from dataclasses import dataclass
 from typing import Optional, List
 sys.path.append(os.path.expanduser("~/july/solar/"))
-from aarp_ml.torch.dataset import aia_euv, CustomTransform
+from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
 import time
 import argparse
@@ -192,7 +192,7 @@ def train(config: TrainingConfig):
         config.json_path,
         subset='training',
         transform=v2.Compose([
-            CustomTransform(means, stds),
+            AIALogTransform(means, stds),
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5)
         ])
@@ -200,7 +200,7 @@ def train(config: TrainingConfig):
     val_dataset = aia_euv(
         config.json_path,
         subset='validation',
-        transform=v2.Compose([CustomTransform(means, stds)])
+        transform=v2.Compose([AIALogTransform(means, stds)])
     )
 
     # Create dataloaders

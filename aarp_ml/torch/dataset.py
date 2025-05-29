@@ -4,7 +4,7 @@ import torch
 import json
 import numpy as np
 
-class CustomTransform:
+class AIALogTransform:
     def __init__(self, means, stds):
         self.means = torch.tensor(means).view(-1, 1, 1)  # Shape (7, 1, 1) for broadcasting
         self.stds = torch.tensor(stds).view(-1, 1, 1)    # Shape (7, 1, 1) for broadcasting

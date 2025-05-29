@@ -3,9 +3,10 @@ from dateutil.parser import isoparse
 import numpy as np
 np.random.seed(42)
 import matplotlib.pyplot as plt
-from .aarp_sequence import aarp_sequence
+from aarp_ml import aarp_sequence
 from astro_utils.aia import plot_aia_image
-from astro_utils.general import read_fits_single
+from astro_utils.utils import read_fits_single
+
 
 def get_filepaths_labels(data:dict, subset_name, passband:int):
     """

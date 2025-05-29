@@ -2,7 +2,7 @@ import os
 from ..config import np, tf
 from tensorflow.keras import backend
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback
-from astro_utils.general import read_fits_single
+from astro_utils.utils import read_fits_single
 import wandb
 from wandb.keras import WandbCallback
 import json
