@@ -23,19 +23,6 @@ Scripts used for data download and processing
 without using any class functions
 """
 
-def select_urls(urldf, goes_df):
-    urldf_copy = urldf.copy()
-    urldf_copy['goes_matched_start'] = None
-    for index, row in tqdm(urldf.iterrows(), total=len(urldf)):
-        aarp_id = row['AARP']
-        obs_start = datetime.strptime(row['Datetime'], "%Y.%m.%d_%H:%M:%S")
-        matching_rows = goes_df[ (goes_df['harpnum'] == aarp_id) & (obs_start + timedelta(hours=6) > goes_df['start_time'][goes_df['harpnum'] == aarp_id])]
-        if any(matching_rows):
-            if not matching_rows.empty:
-                matched_start_time = matching_rows['start_time'].values[0]
-                urldf_copy.at[index, 'goes_matched_start'] = matched_start_time
-    return urldf_copy
-
 def split_onmult(df):
     """
     If there are multiple harpnums matching a single NOAA_ARS number turn those into extra rows
@@ -67,18 +54,6 @@ def label_urls(urldf, goes_df):
             else:
                 raise NotImplementedError
         return urldf
-
-def split_urllist(df, name):
-    """
-    Using regex matching convert the url paths into seperate columns
-    """
-    urldf = pd.DataFrame({'urls': df[name]})
-    urldf[['Datetime', 'AARP', 'Wavelength']] = \
-    df[name].str.extract(r'(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_7h@1h_AARP(\d+)_(\d+)\.fits')
-    urldf['AARP'] = urldf['AARP'].astype(int)
-    urldf['Wavelength'] = urldf['Wavelength'].astype(int)
-
-    return urldf
 
 def random_select_neg_urls(urldf, num_aarps):
     """
@@ -115,21 +90,6 @@ def get_clean_df(goes_event_list, aarp_full_urls, harp_to_noaa):
     goes_df = goes_df[goes_df.harpnum != -1]
     return goes_df, aarps_clean_df
 
-
-def extract_7h(df, padding_func, pos_data, neg_data, biggest_shape, target_shape):
-    # make sure we are not extracting same file again
-    assert len(pd.unique(df.fits_fullpath)) == len(df.fits_fullpath)
-
-    print("Extracting 7h FITS observation into individual images")
-    for dest, label in zip((pos_data, neg_data), (1,0)):
-
-        files = df.fits_fullpath[df.Label==label]
-        print(f"Working on samples with label:{label} first")
-        print("Files to extract", len(files))
-        if not os.path.exists(dest):
-            os.mkdir(dest)
-        print("Saving to ", dest)
-        pad_and_resize_in_parallel(files, padding_func, dest=dest, biggest_shape=biggest_shape, targ_shape=target_shape)
 
 def read_7h_fits(fits_path):
     try:
@@ -243,6 +203,11 @@ def unpack_7h_fits(fits_path):
 
         if data is None:
             print(f"Empty data encountered in hour number {hour_num} in file {fits_path}")
+            unique_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+            error_log_filename = f"error_log_{unique_id}.csv"
+            with open(error_log_filename, "a") as error_log:
+                error_log.write("hour_num,fits_path\n")
+                error_log.write(f"{hour_num},{fits_path}\n")
             continue
 
         header = hdul[hour_num].header
@@ -296,27 +261,13 @@ def simultaneous_multiband(df):
             group_timestamp = group_key[1]
             yield (group_harpnum, group_timestamp, group_df)
 
-def split_filepath(file_path):
-    """
-    Function that reads the name of individual file as a string and extracts AARP id, wavelength, observation
-    start time and the timestamp encoded in the string.
-    """
+def expand_df(df):
+    """Expand DataFrame with filepath information using vectorized operations."""
     pattern = r'(\d+)_(\d+)_(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_TAI_(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
-    match = re.search(pattern, file_path)
-    if match:
-        result = match.groups()
-        return(result)
-    else:
-        print("No match found.")
-        return None
-
-def dir_to_df(dir_path):
-    fits_full_paths = glob(f"{dir_path}/*.fits")
-    df = pd.DataFrame(fits_full_paths, columns=['fits_full_path'])
-    df['fits_path'] = df['fits_full_path'].apply(lambda x: os.path.basename(x))
-    df[['harpnum','wavelength', 'obs_start', 'timestamp']] = df['fits_path'].apply(split_filepath).apply(pd.Series)
-    df['harpnum'] = df['harpnum'].astype(int)
-    df['wavelength'] = df['wavelength'].astype(int) 
+    # Extract all columns at once using str.extract
+    df[['harpnum', 'wavelength', 'obs_start', 'timestamp']] = df['fits_path'].str.extract(pattern)
+    # Convert types efficiently
+    df[['harpnum', 'wavelength']] = df[['harpnum', 'wavelength']].astype(int)
     return df
 
 def split_three_way(unique_harps, test_size=0.2,  val_frac = 0.15/0.65):
@@ -329,7 +280,39 @@ def split_balanced(unique_harps, test_val_size, test_frac):
     aarps_for_val, aarps_for_test = train_test_split(test_data, test_size=test_frac, random_state=42)
     return aarps_for_train, aarps_for_val, aarps_for_test
 
-def create_json(pos_dir, neg_dir, filename=None):
+def get_train_val_test(df, label, aarps_tuple, fixed_bands):
+    aarps_for_train, aarps_for_val, aarps_for_test = aarps_tuple
+    training = []
+    validation = []
+    test = []
+    for group_harpnum, group_timestamp, group_df in simultaneous_multiband(df):
+
+        result =  group_df.loc[group_df['wavelength']==fixed_bands[0]].values[0]
+
+        entry = {
+         "0": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[0]].values[0],
+         "1": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[1]].values[0],
+         "2": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[2]].values[0],
+         "3": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[3]].values[0],
+         "4": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[4]].values[0],
+         "5": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[5]].values[0],
+         "6": group_df['fits_fullpath'].loc[group_df['wavelength']==fixed_bands[6]].values[0],
+         "label": label,
+         "aarp_id": group_harpnum,
+         "timestamp": group_timestamp
+           }
+
+        if group_harpnum in aarps_for_train:
+            training.append(entry)
+        elif group_harpnum in aarps_for_val:
+            validation.append(entry)
+        elif group_harpnum in aarps_for_test:
+            test.append(entry)
+        else:
+            print("Found aarp id not in given list")
+    return training, validation, test
+
+def create_json(pos_dir, neg_dir, combined_downloaded_df, filename=None):
     training_full = []
     validation_full = []
     test_full = []
@@ -342,54 +325,33 @@ def create_json(pos_dir, neg_dir, filename=None):
     test_frac = 0.0
 
     for label, dir_path in zip((1,0), (pos_dir, neg_dir)):
-        df = dir_to_df(dir_path)
+        df = expand_df(combined_downloaded_df)
 
-        training = []
-        validation = []
-        test = []
-
-        unique_harps = pd.unique(df['harpnum'])
         if label == 1:
+            unique_harps = df.query(f'Label == {label}').harpnum.unique()
             aarps_for_train, aarps_for_val, aarps_for_test = split_three_way(unique_harps, test_size=0.2, val_frac=0.15/0.65)
+            print(f"For {label=}, {aarps_for_train=}, {aarps_for_val=}, {aarps_for_test=}")
             len_pos_test = len(aarps_for_test)
             len_pos_val = len(aarps_for_val)
+            print(f"Label 1: {len_pos_test=}, {len_pos_val=}, Using the same for Label 0")
+            print(f"{len(aarps_for_train)=}, {len(aarps_for_val)=}, {len(aarps_for_test)=}")
+            training, validation, test = get_train_val_test(df.query(f"Label == {label}"), label, (aarps_for_train, aarps_for_val, aarps_for_test), fixed_bands)
+            training_full.extend(training)
+            validation_full.extend(validation)
+            test_full.extend(test)
+
         if label == 0:
-            print(f"Using {len_pos_test=}, {len_pos_val=}")
+            unique_harps = df.query(f'Label == {label}').harpnum.unique()
             test_val_size = (len_pos_test+len_pos_val)/len(unique_harps)
             test_frac = len_pos_test/(len_pos_val+len_pos_test)
             aarps_for_train, aarps_for_val, aarps_for_test = split_balanced(unique_harps, test_val_size=test_val_size, test_frac=test_frac)
+            print(f"{len(aarps_for_train)=}, {len(aarps_for_val)=}, {len(aarps_for_test)=}")
+            print(f"For {label=}, {aarps_for_train=}, {aarps_for_val=}, {aarps_for_test=}")
 
-        print(f"{len(aarps_for_train)=}, {len(aarps_for_val)=}, {len(aarps_for_test)=}")
-
-        for group_harpnum, group_timestamp, group_df in simultaneous_multiband(df):
-
-            result =  group_df.loc[group_df['wavelength']==fixed_bands[0]].values[0]
-
-            entry = {
-             "0": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[0]].values[0],
-             "1": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[1]].values[0],
-             "2": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[2]].values[0],
-             "3": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[3]].values[0],
-             "4": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[4]].values[0],
-             "5": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[5]].values[0],
-             "6": group_df['fits_full_path'].loc[group_df['wavelength']==fixed_bands[6]].values[0],
-             "label": label,
-             "aarp_id": group_harpnum,
-             "timestamp": group_timestamp
-               }
-
-            if group_harpnum in aarps_for_train:
-                training.append(entry)
-            elif group_harpnum in aarps_for_val:
-                validation.append(entry)
-            elif group_harpnum in aarps_for_test:
-                test.append(entry)
-            else:
-                print("Found aarp id not in given list")
-
-        training_full.extend(training)
-        validation_full.extend(validation)
-        test_full.extend(test)
+            training, validation, test = get_train_val_test(df.query(f"Label == {label}"), label, (aarps_for_train, aarps_for_val, aarps_for_test), fixed_bands)
+            training_full.extend(training)
+            validation_full.extend(validation)
+            test_full.extend(test)
 
         metadata = { "name" : "Fixed size AARPS",
             "description" : "Active Region patches from AARPS database downscaled or padded to a fixed resolution and unpacked",
@@ -458,17 +420,6 @@ def apply_shape_limits(table_7h_clean, low_dims, high_dims):
     neg_df = neg_df[(neg_df.img_height.between(low_dims[0], high_dims[0]) & neg_df.img_width.between(low_dims[1], high_dims[1]))]
     table_7h_clean = pd.concat([neg_df, pos_df])
     return table_7h_clean
-
-def bias_analysis(table):
-    na_val = table.min_lon.min()
-    df = table[table.min_lon != na_val]
-    numerical_features = ['max_height', 'max_width', 'min_lon', 'max_lon']
-    for feature in numerical_features:
-        if feature in df.columns:
-            plt.figure(figsize=(10, 6))
-            sns.histplot(data=df, x=feature, hue='label', kde=True, palette='Set1', bins=30)
-            plt.title(f'Distribution of {feature} by Label')
-            plt.show()
 
 def pad_and_scale(image, padding_func, target_shape, final_shape=(512,512)):
     image = padding_func(image, target_shape=target_shape)
@@ -557,33 +508,6 @@ def pad_and_resize_in_parallel(files_to_process, padding_func, dest, biggest_sha
 
             executor.map(save_to_fits, pad_and_resized, [harpnum]*77, [wavelength]*77, [obs_start]*77, timestamps, [dest]*77)
 
-def resample_on_shapes(shape_limited_df):
-    positive_class = shape_limited_df[shape_limited_df["Label"] == 1]
-    negative_class = shape_limited_df[shape_limited_df["Label"] == 0]
-    grouped = positive_class.groupby(["Datetime", "AARP"])
-    first_row_values_pos = grouped.first().reset_index()
-    grouped = negative_class.groupby(["Datetime", "AARP"])
-    first_row_values_neg = grouped.first().reset_index()
-    positive_features = first_row_values_pos[['max_height', 'max_width']]
-    kde = KernelDensity(kernel='gaussian', bandwidth=10)  # Adjust bandwidth as needed
-    kde.fit(positive_features)
-
-    negative_features = first_row_values_neg[['max_height', 'max_width']]
-    first_row_values_neg['density_score'] = np.exp(kde.score_samples(negative_features))
-    sampled_negatives = first_row_values_neg.sample(
-        n=len(first_row_values_neg),  # Match the number of positive samples
-        weights='density_score',  # Use density as sampling weight
-        random_state=42          # For reproducibility
-    )
-    concat_sampled = pd.concat([first_row_values_pos, sampled_negatives.drop("density_score", axis=1)])
-    selected_7h_df = pd.merge(
-        shape_limited_df,  # Original dataset
-        concat_sampled[["Datetime", "AARP"]],  # Filtered group identifiers
-        on=["Datetime", "AARP"],  # Columns to match
-        how="inner"  # Keep only matching rows
-    )
-    return selected_7h_df
-
 def process_image_hdu(hdu, hdu_index, fits_fullpath, AARP, wavelength, datetime, label):
     """
     Function to extract metadata and image properties from an HDU
@@ -616,19 +540,7 @@ def process_image_hdu(hdu, hdu_index, fits_fullpath, AARP, wavelength, datetime,
 
     return hdu_rows
 
-def read_from_disk(pos_dir, neg_dir):
-    """
-    Create a table using the FITS files from the positive and negative class directories
-    """
-    rows = []
-    for data_path, label in zip((pos_dir, neg_dir), (1,0)):
-        files = glob(f"{data_path}/*.fits")
-        for file in tqdm(files):
-            rows.append({"fits_fullpath":file, "label":label})
-    table_on_disk = pd.DataFrame(rows)
-    return table_on_disk
-
-@memory.cache
+#@memory.cache
 def process_table_on_disk(table_on_disk):
     """
     Input: DataFrame where each row corresponds to a downloaded FITS file
@@ -638,12 +550,13 @@ def process_table_on_disk(table_on_disk):
     combined_data = []
 
     for _, row in tqdm(table_on_disk.iterrows(), total=len(table_on_disk)):
-        fits_fullpath = row['fits_fullpath']
+        fits_fullpath = row['compressed_fits_fullpath']
         AARP = row['AARP']
         wavelength = row['Wavelength']
         label = row['label']
         datetime = row['Datetime']
         hdu_rows = []
+        skip_outer = False
         try:
             with fits.open(fits_fullpath) as hdulist:
                 assert hdulist is not None
@@ -651,31 +564,25 @@ def process_table_on_disk(table_on_disk):
                     if isinstance(hdu, fits.PrimaryHDU):
                         continue
                     elif isinstance(hdu, fits.ImageHDU):
+                        if hdulist[hdu_index].data is None:
+                            print(f"Encountered None in {hdu_index=}")
+                            skip_outer = True
+                            break
                         try:
                             image_hdu_rows = process_image_hdu(hdu, hdu_index, fits_fullpath, AARP, wavelength, datetime, label)
                         except Exception as e:
                             print(f"Error processing image hdu: {e}")
                         else:
                             hdu_rows.extend(image_hdu_rows)
+                if skip_outer:
+                    print(f"Skipping {fits_fullpath} because of missing data")
+                    continue
         except Exception as e:
             print(f"Error processing file {fits_fullpath}: {e}")
         else:
             combined_data.extend(hdu_rows)
-        combined_df = pd.DataFrame(combined_data)
+    combined_df = pd.DataFrame(combined_data)
     return combined_df
-
-def annotate_images(urldf, goes_df):
-    urldf_copy = urldf.copy()
-    for index_, row_ in tqdm(goes_df.iterrows(), total=len(goes_df)):
-        harpnum = row_['harpnum']
-        goes_df_st = row_['start_time']
-        for index, row in urldf[urldf.AARP==harpnum].iterrows():
-            obs_start = datetime.strptime(row['Datetime'], "%Y-%m-%dT%H:%M:%SZ")
-            if obs_start  > goes_df_st:
-                urldf_copy.at[index, 'goes_matched_start'] = goes_df_st
-            else:
-                 urldf_copy.at[index, 'goes_matched_start'] = None
-    return urldf_copy
 
 class data_prep:
     def __init__(self, goes_event_list, harp_to_noaa_map, aarps_full_urlist):
