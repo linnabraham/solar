@@ -21,7 +21,7 @@ class TrainingConfig:
     # Required parameters
     json_path: str
     stats_file: str
-    
+
     # Optional training parameters
     batch_size: int = 32
     epochs: int = 5
@@ -31,12 +31,12 @@ class TrainingConfig:
     trained_model_path: Optional[str] = None
     use_l1: bool = False
     l1_lambda: float = 0.01
-    
+
     # Model parameters
     image_height: int = 512
     n_classes: int = 2
     n_channels: int = 7
-    
+
     # System parameters
     device: str = "cuda:0"
     memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
@@ -115,7 +115,7 @@ def _run_epoch(*, epoch, model, train_loader, val_loader, criterion,
         epoch_train_loss += loss.item()
         num_batches += 1
         example_ct += inputs.size(0)
-        
+
         # Log batch metrics
         if step + 1 < n_steps_per_epoch:
             wandb.log({
@@ -170,17 +170,17 @@ def train(config: TrainingConfig):
     """Main training function."""
     # Initialize wandb
     wandb.init(project="flare_torch", config=vars(config))
-    
+
     # Print configuration
     print_config(config)
-    
+
     # Setup model
     model = DeepFlare_ViT(
         height=config.image_height,
         n_classes=config.n_classes,
         n_passbands=config.n_channels
     ).model
-    
+
     # Load statistics
     with open(config.stats_file, 'rb') as f:
         stats = pickle.load(f)
@@ -231,13 +231,14 @@ def train(config: TrainingConfig):
 
     # Setup model saving
     save_best_model = SaveBestModel(monitor='val_loss', mode='min')
-    
+
     # Load checkpoint if retraining
     start_epoch = 0
     if config.retrain and config.trained_model_path:
         checkpoint = torch.load(config.trained_model_path, map_location=device)
         if isinstance(checkpoint, dict):
-            model.load_state_dict(checkpoint['model_state_dict'])
+            if 'model_state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['model_state_dict'])
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             start_epoch = checkpoint.get('epoch', -1) + 1
@@ -288,13 +289,13 @@ def parse_args() -> TrainingConfig:
                        help="Enable L1 regularization")
     parser.add_argument("--l1-lambda", type=float, default=TrainingConfig.l1_lambda,
                        help="L1 regularization strength")
-    
+
     args = parser.parse_args()
 
     # Validate that --retrain is not given without --trained-model-path
     if args.retrain and not args.trained_model_path:
         parser.error("--retrain requires --trained-model-path to be specified.")
-    
+
     return TrainingConfig(
         json_path=args.json_path,
         stats_file=args.stats_file,
