@@ -67,18 +67,19 @@ def label_urls(urldf, goes_df):
                 raise NotImplementedError
         return urldf
 
-def random_select_neg_urls(urldf, num_aarps):
+def random_select_neg_urls(urldf, num_aarps, seed=42):
     """
     Inputs:
         urldf: DataFrame with rows corresponding to negative samples
         num_aarps: number of unique aarp ids to sample
     """
-    urldf = urldf.sample(frac=1).reset_index(drop=True)
+    rng = np.random.default_rng(seed)
+    urldf = urldf.sample(frac=1, random_state=seed).reset_index(drop=True)
     neg_aarp_ids = urldf.AARP.unique()[:num_aarps]
     urldf = urldf[urldf.AARP.isin(neg_aarp_ids)]
 
     group_keys = list(urldf.groupby(["Datetime", "AARP"]).groups.keys())
-    np.random.shuffle(group_keys)
+    rng.shuffle(group_keys)
     collected_groups = []
 
     for key in group_keys:
