@@ -4,6 +4,7 @@ channels:
   - nvidia
   - defaults
 dependencies:
+  - python=3.12
   - pytorch
   - torchvision
   - torchaudio
