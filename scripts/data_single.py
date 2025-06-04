@@ -73,7 +73,6 @@ def download_data(pos_urls_df: pd.DataFrame, neg_urls_df: pd.DataFrame, paths: D
         neg_urls = neg_urls_selected_df.urls
         download_urls_in_parallel(pos_urls, paths.pos_dir_7h, max_workers=10)
         download_urls_in_parallel(neg_urls, paths.neg_dir_7h, max_workers=10)
-        sys.exit(0)
 
     return downloaded_list_combined_df
 
