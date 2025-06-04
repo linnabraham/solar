@@ -23,6 +23,18 @@ Scripts used for data download and processing
 without using any class functions
 """
 
+def split_urllist(df, name):
+    """
+    Using regex matching convert the url paths into seperate columns
+    """
+    urldf = pd.DataFrame({'urls': df[name]})
+    urldf[['Datetime', 'AARP', 'Wavelength']] = \
+    df[name].str.extract(r'(\d{4}\.\d{2}\.\d{2}_\d{2}:\d{2}:\d{2})_7h@1h_AARP(\d+)_(\d+)\.fits')
+    urldf['AARP'] = urldf['AARP'].astype(int)
+    urldf['Wavelength'] = urldf['Wavelength'].astype(int)
+
+    return urldf
+
 def split_onmult(df):
     """
     If there are multiple harpnums matching a single NOAA_ARS number turn those into extra rows
