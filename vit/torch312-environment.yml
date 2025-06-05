@@ -5,10 +5,10 @@ channels:
   - defaults
 dependencies:
   - python=3.12
-  - pytorch
-  - torchvision
-  - torchaudio
-  - pytorch-cuda=12.4
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - pytorch::torchaudio
+  - pytorch::pytorch-cuda=12.4
   - pandas
   - wandb
   - lightning
@@ -16,6 +16,7 @@ dependencies:
   - vit-pytorch
   - captum
   - sunpy
+  - scikit-instruments
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
