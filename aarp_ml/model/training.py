@@ -284,7 +284,7 @@ class training:
               tf.keras.metrics.AUC(num_thresholds=100, curve='PR', name='auc_pr'),
         ]
 
-        model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0002)
+        model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0001)
 
         data_mean, data_std = read_stats(self.stats_file)
         model = add_custom_layers(model, data_mean = data_mean, data_std = data_std, input_shape=self.input_shape, num_channels=self.num_channels)
