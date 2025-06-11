@@ -17,6 +17,7 @@ dependencies:
   - captum
   - sunpy
   - scikit-instruments
+  - matplotlib=3.8
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
