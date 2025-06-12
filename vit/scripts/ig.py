@@ -77,9 +77,10 @@ class single_aarp:
                     continue
                 else:
                     img_list.append(data_fits)
-                    img_arr = np.array(img_list)
-            images[ob_idx,::] = img_arr
-        ob_idx +=1
+            if img_list:
+                img_arr = np.array(img_list)
+                images[ob_idx] = img_arr
+                ob_idx +=1
         return images
 
 def do_ig(features, label, ib_size=1):
