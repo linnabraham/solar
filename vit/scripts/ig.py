@@ -13,51 +13,7 @@ from captum.attr._utils.visualization import _normalize_attr
 from aarp_ml.torch.model import DeepFlare_ViT
 from itertools import islice
 import matplotlib.pyplot as plt
-import math
 import sys
-
-def plot_images(images, cols=5, cmap='viridis', gap=0, dpi=100, show=False):
-    """
-    Plots a compact grid of images using fig.add_axes, returning the figure.
-
-    Parameters:
-    - images: np.ndarray of shape [n, H, W]
-    - cols: Number of columns
-    - cmap: Colormap
-    - gap: Space (in pixels) between images
-    - dpi: Dots per inch for sizing
-
-    Returns:
-    - fig: Matplotlib Figure object (not shown by default)
-    """
-    n, H, W = images.shape
-    rows = math.ceil(n / cols)
-
-    # Compute figure size in inches
-    total_width_px = cols * W + (cols - 1) * gap
-    total_height_px = rows * H + (rows - 1) * gap
-    figsize = (total_width_px / dpi, total_height_px / dpi)
-
-    fig = plt.figure(figsize=figsize, dpi=dpi)
-
-    for idx in range(n):
-        row = idx // cols
-        col = idx % cols
-
-        # Position in figure coordinates [0,1]
-        left = (col * (W + gap)) / total_width_px
-        bottom = 1 - ((row + 1) * H + row * gap) / total_height_px
-        width = W / total_width_px
-        height = H / total_height_px
-
-        ax = fig.add_axes([left, bottom, width, height])
-        ax.imshow(images[idx], cmap=cmap)
-        ax.axis('off')
-    if show:
-        plt.show()
-    else:
-        plt.close(fig)
-        return fig
 
 class single_aarp:
     def __init__(self,aarp_id, dataframe):
