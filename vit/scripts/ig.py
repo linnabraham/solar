@@ -83,7 +83,7 @@ class single_aarp:
                 ob_idx +=1
         return images
 
-def do_ig(features, label, ib_size=1):
+def do_ig(features, label, ib_size=1, model=None):
     ig = IntegratedGradients(model)
     baseline_zero = torch.zeros_like(features)
     labels  = torch.tensor(1, dtype=torch.int32)
@@ -91,9 +91,9 @@ def do_ig(features, label, ib_size=1):
                                         return_convergence_delta=True)
     return ig_b0
 
-def make_predictions(dataset):
+def make_predictions(dataset, batch_size=16, model=None, device=None, probabilities=False):
     model.eval()
-    loader = DataLoader(dataset, batch_size=16, shuffle=False)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     results = []
 
@@ -104,29 +104,34 @@ def make_predictions(dataset):
             results.append(output.cpu())
 
     predictions = torch.cat(results, dim=0)
-    print(predictions)
 
-    probs = torch.softmax(predictions, dim=1)
-    predicted_scores, predicted_labels = torch.max(predictions, dim=1)
-    return probs, predicted_scores, predicted_labels
+    if probabilities:
+        return torch.softmax(predictions, dim=1)
+    else:
+        return predictions
 
-def ig_on_aarp_seq(aarp_id, test_df, transform, model, device):
+def ig_on_aarp_seq(aarp_id, test_df, transform, device, model, label, ib_size, n_images=None):
     s_aarp = single_aarp(aarp_id, test_df.query(f'aarp_id == {aarp_id}'))
     s_images = s_aarp.get_images()
-
+    
+    if n_images is None:
+        n_images = s_images.shape[0]
+        print(f"{n_images=}")
+        
     tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
     tensor_data = transform(tensor_images)
     tensor_data = tensor_data.to(device)
     model = model.to(device)
 
     dataset = TensorDataset(tensor_data)
-
+    
+    #TODO: Experiment with a batched implementation of IG
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
     attributions = []
     with torch.no_grad():
-        for (batch,) in islice(loader, 5):  # take only first 5 batches
+        for (batch,) in islice(loader, n_images):
             batch = batch.to(device)
-            ig_b0 = do_ig(batch, label=1, ib_size=1)
+            ig_b0 = do_ig(batch, label=label, ib_size=ib_size, model=model)
             attributions.append(ig_b0[0])
     return s_images, attributions
 
@@ -169,10 +174,21 @@ if __name__ == "__main__":
     aarp_ids = [377,  401, 1449, 4920]
 
     for aarp_id in aarp_ids:
-        s_images, attributions = ig_on_aarp_seq(aarp_id, test_df, transform, model, device)
-        print(s_images.shape)
-        print(attributions[0].min())
-        print(attributions[0].max())
-        print(attributions[1].min())
-        print(attributions[1].max())
+        print(f"{aarp_id=}")
+        t_stamps = test_df.query(f'aarp_id == {aarp_id}').timestamp
+        print(f"{min(t_stamps)=}, {max(t_stamps)=}")
+        s_aarp = single_aarp(aarp_id, test_df.query(f'aarp_id == {aarp_id}'))
+        s_images = s_aarp.get_images()
 
+        tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
+        tensor_data = transform(tensor_images)
+        tensor_data = tensor_data.to(device)
+        model = model.to(device)
+        dataset = TensorDataset(tensor_data)
+
+        predictions = make_predictions(dataset, model=model, device=device, probabilities=True)
+        predicted_scores, predicted_labels = torch.max(predictions, dim=1)
+
+        print(predicted_labels)
+        for pred_label, t_stamp in zip(predicted_labels, t_stamps):
+            print(pred_label, t_stamp)
