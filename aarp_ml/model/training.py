@@ -300,6 +300,16 @@ class training:
     def train(self, epochs, batch_size, output_prefix):
         gpu = tf.config.experimental.list_physical_devices('GPU')[0]
         tf.config.experimental.set_memory_growth(gpu, True)
+
+        try:
+            tf.config.set_logical_device_configuration(
+            gpu,
+            [tf.config.LogicalDeviceConfiguration(memory_limit=1024*30)]  # 30GB
+            )
+
+        except RuntimeError as e:
+            print(e)
+
         os.environ["WANDB_SILENT"] = "true"
 
         model = self.get_compiled_model()
@@ -308,8 +318,7 @@ class training:
                 print("Loading weights from model file", self.trained_model_path)
                 model.load_weights(self.trained_model_path)
 
-        if not os.path.exists(output_prefix):
-            raise FileNotFoundError("Output_prefix directory should already exist")
+        os.makedirs(output_prefix, exist_ok=True)
 
         wandb.init(project="AARP_Train")
         outdir = os.path.join(output_prefix, wandb.run.name)
