@@ -20,6 +20,10 @@ class single_aarp:
         self.aarp_id = aarp_id
         self.dataframe = dataframe
 
+    @property
+    def timestamps(self):
+        return self.dataframe.timestamp
+
     def get_images(self):
         all_filepaths = self.dataframe[all_wavelengths].values.tolist()
         images = np.zeros(shape=(len(all_filepaths), 7, 512, 512))
