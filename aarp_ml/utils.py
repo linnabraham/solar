@@ -39,7 +39,7 @@ def get_aarp_ids(metadata:dict):
         'val': {'pos': val_pos, 'neg': val_neg},
         'test': {'pos': test_pos, 'neg': test_neg}
     }
-    
+
 def make_log_safe(data):
     min_pos_value = np.min(data[data > 0])
     epsilon = min_pos_value * 1e-5
@@ -96,19 +96,26 @@ def run_fetch_goes(start, end):
         goes_data_ts  = fetch_goes_data(start_with_z, end_with_z)
     return goes_data_ts
 
-def plot_goes_with_aarp_sampling(timestamps, goes_ts_data):
+def plot_goes_with_aarp_sampling(goes_ts_data, timestamps, xlim_start=None, xlim_end=None, ax=None, figsize=(15,10), dpi=150, show=True):
     """
     timestamps: AARP timestamps
     """
-    fig, ax = plt.subplots(figsize=(15,10))
-    ax.set_xlim(timestamps.min(), timestamps.max())
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    else:
+        fig = ax.figure
+    if xlim_start and xlim_end:
+        ax.set_xlim(xlim_start, xlim_end)
+    goes_ts_data.plot(columns=['xrsb'])
     for ts in timestamps:
         ax.axvline(ts, color='grey', linestyle='--')
-    goes_ts_data.plot(columns=['xrsb'])
-    plt.xticks(rotation=45)
+
+    ax.tick_params(axis='x', rotation=45)
     plt.legend()
     plt.tight_layout()
     plt.title("GOES Timeseries with AARPS sampling")
+    if not show:
+        return fig, ax
 
 def sizes_from_json(json_file):
     sizes = {}
