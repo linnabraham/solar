@@ -13,7 +13,7 @@ dependencies:
   - scikit-image
   - pip
   - wandb=0.15
-  - conda-forge::tensorflow
+  - conda-forge::tensorflow=2.12
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
     - git+https://github.com/linnabraham/ml-scripts.git
