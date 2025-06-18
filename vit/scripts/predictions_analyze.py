@@ -187,7 +187,6 @@ def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
 
     print(f"Using {aarp_id=}")
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
-    #import pdb;pdb.set_trace()
     s_aarp = single_aarp(aarp_id, aarp_id_df)
     s_images = s_aarp.get_images()
     # plot_image_grid(s_images[3], show=True)
@@ -295,8 +294,8 @@ if __name__=="__main__":
 
     output_home = "pred-output"
     os.makedirs(output_home, exist_ok=True)
-    aarp_ids = test_df.aarp_id.unique().tolist()
-    for aarp_id in aarp_ids: #-3:
+
+    for aarp_id in test_df.aarp_id.unique().tolist():
         create_plots(aarp_id, test_df, transform, model, device, output_home)
-    # for aarp_id in val_df.aarp_id.unique().tolist():
-    #     create_plots(aarp_id, val_df, transform, model, device, output_home)
+    for aarp_id in val_df.aarp_id.unique().tolist():
+        create_plots(aarp_id, val_df, transform, model, device, output_home)
