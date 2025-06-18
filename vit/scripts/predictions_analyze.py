@@ -16,7 +16,7 @@ from vit.scripts.ig import single_aarp
 import matplotlib.dates as mdates
 from sunpy.timeseries import XRSTimeSeries
 import warnings
-
+import gc
 
 def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=150, **kwargs):
 
@@ -201,11 +201,15 @@ def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
     dataset = TensorDataset(tensor_data)
 
     predictions = make_predictions(dataset, model=model, device=device)
-
+    torch.cuda.empty_cache()
+    gc.collect()
+    
     # Create and plot attributions for a single passband and single percentile level
     attributions = run_ig(dataset, model=model, device=device, label=s_aarp.label, ib_size=1, n_images=s_images.shape[0])
     channel = 1
     passband_attributions = [attribution.cpu().numpy()[channel, :, :] for attribution in attributions]
+    torch.cuda.empty_cache()
+    gc.collect()
     flattened_attributions = [passband_attribution.flatten() for passband_attribution in passband_attributions]
     percentile_level = 99
     plt.plot([ np.percentile(flattened_attribution, percentile_level) for flattened_attribution in flattened_attributions])
@@ -254,6 +258,9 @@ def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
                                             flare_start=flare_start, xlimits=xlimits, resample=False, figsize=(6,4), alpha=0.4)
     fig.savefig(f"{output_dir}/goes_with_predictions.png", bbox_inches="tight", dpi=150)
     plt.close(fig)
+    del tensor_images, tensor_data, dataset, predictions, attributions
+    torch.cuda.empty_cache()
+    gc.collect()
 
 if __name__=="__main__":
     # Load Data and Model
