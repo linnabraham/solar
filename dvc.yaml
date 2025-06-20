@@ -2,8 +2,11 @@ stages:
   prediction-plots:
     cmd: python -m vit.scripts.predictions_analyze
     deps:
+    - aarp_ml/
     - output/glad-shape-197/trained_model.pth
     - solar_dataset.json
     - stats.pkl
+    - vit/scripts/ig.py
+    - vit/scripts/predictions_analyze.py
     outs:
     - pred-output/
