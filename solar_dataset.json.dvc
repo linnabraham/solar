@@ -1,5 +1,5 @@
 outs:
-- md5: 279f3afd75385b4cf72bb636211665b3
-  size: 84140912
+- md5: 2d42723b7ee25c2d4f01c8622621a7b6
+  size: 42307662
   hash: md5
   path: solar_dataset.json
