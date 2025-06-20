@@ -1,6 +1,9 @@
 stages:
   prediction-plots:
-    cmd: output/glad-shape-197/trained_model.pth -d solar_dataset.json -d stats.pkl
-      -o pred-output/ python -m vit.scripts.predictions_analyze
+    cmd: python -m vit.scripts.predictions_analyze
     deps:
-    - vit/scripts/predictions_analyze.py
+    - output/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - stats.pkl
+    outs:
+    - pred-output/

@@ -1,3 +1,4 @@
 /stats.pkl
 /solar_dataset.json
 **/__pycache__/**
+/pred-output
