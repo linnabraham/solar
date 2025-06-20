@@ -19,11 +19,23 @@ class single_aarp:
     def __init__(self,aarp_id, dataframe):
         self.aarp_id = aarp_id
         self.dataframe = dataframe
+        self._validate_labels()
+
+    def _validate_labels(self):
+        """Validate that all rows have the same label."""
+        labels = self.dataframe.label.unique()
+        if len(labels) != 1:
+            raise ValueError(f"AARP {self.aarp_id} has inconsistent labels: {labels}")
 
     @property
     def timestamps(self):
         return self.dataframe.timestamp
-
+    
+    @property
+    def label(self):
+        """Return the label (0 or 1) for this AARP instance."""
+        return self.dataframe.label.iloc[0]
+    
     def get_midtime(self):
         return self.timestamps.iloc[len(self.dataframe)//2]
 
