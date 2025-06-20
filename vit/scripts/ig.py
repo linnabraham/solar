@@ -85,9 +85,21 @@ def make_predictions(dataset, batch_size=16, model=None, device=None, probabilit
     else:
         return predictions
 
-def ig_on_aarp_seq(aarp_id, test_df, transform, device, model, label, ib_size, n_images=None):
+def run_ig(dataset, model, device, label, ib_size, n_images):
+    #TODO: Experiment with a batched implementation of IG
+    loader = DataLoader(dataset, batch_size=1, shuffle=False)
+    attributions = []
+    with torch.no_grad():
+        for (batch,) in islice(loader, n_images):
+            batch = batch.to(device)
+            ig_b0 = do_ig(batch, label=label, ib_size=ib_size, model=model)
+            attributions.append(ig_b0[0])
+    return attributions
+
+def ig_on_aarp_seq(aarp_id, test_df, transform, device, model, ib_size, n_images=None):
     s_aarp = single_aarp(aarp_id, test_df.query(f'aarp_id == {aarp_id}'))
     s_images = s_aarp.get_images()
+    label  = s_aarp.label
     
     if n_images is None:
         n_images = s_images.shape[0]
@@ -99,15 +111,8 @@ def ig_on_aarp_seq(aarp_id, test_df, transform, device, model, label, ib_size, n
     model = model.to(device)
 
     dataset = TensorDataset(tensor_data)
-    
-    #TODO: Experiment with a batched implementation of IG
-    loader = DataLoader(dataset, batch_size=1, shuffle=False)
-    attributions = []
-    with torch.no_grad():
-        for (batch,) in islice(loader, n_images):
-            batch = batch.to(device)
-            ig_b0 = do_ig(batch, label=label, ib_size=ib_size, model=model)
-            attributions.append(ig_b0[0])
+    attributions = run_ig(dataset, model=model, device=device, label=label, ib_size=ib_size, n_images=n_images)
+
     return s_images, attributions
 
 if __name__ == "__main__":
