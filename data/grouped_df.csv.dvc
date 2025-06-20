@@ -1,0 +1,5 @@
+outs:
+- md5: b0ecebd5ecbf31c17d74918a48d5efce
+  size: 636768
+  hash: md5
+  path: grouped_df.csv

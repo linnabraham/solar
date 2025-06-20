@@ -1,0 +1,5 @@
+outs:
+- md5: 7b0a0556f40362ff021e044ce957c96d
+  size: 124077895
+  hash: md5
+  path: shape_limited.csv

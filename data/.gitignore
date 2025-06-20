@@ -1,3 +1,11 @@
 /combined_df.csv
 /selected_7h.csv
 /download_list_combined.csv
+/combined_clean.csv
+/combined_dl_list.csv
+/combined_processed_df.csv
+/goes_df_aarp_id.csv
+/grouped_df.csv
+/neg_urls_selected_downloaded.csv
+/pos_urls_selected_downloaded.csv
+/shape_limited.csv
