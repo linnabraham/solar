@@ -1,0 +1,23 @@
+schema: '2.0'
+stages:
+  prediction-plots:
+    cmd: python -m vit.scripts.predictions_analyze
+    deps:
+    - path: output/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 2d42723b7ee25c2d4f01c8622621a7b6
+      size: 42307662
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: pred-output/
+      hash: md5
+      md5: 07a9f279ba486e07db98328885db1b7c.dir
+      size: 3453760
+      nfiles: 56
