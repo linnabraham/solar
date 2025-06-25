@@ -15,6 +15,10 @@ stages:
     - data/intermediate-outs/attributions_neg.pt
     - data/intermediate-outs/attributions_pos.pt
     - solar_dataset.json
+    - vit/scripts/plot_class_wise_distribution.py
+    - vit/scripts/class_wise_distribution.py
+    - vit/scripts/ig.py
+    - vit/scripts/predictions_analyze.py
     outs:
     - plots/class_wise_int_dist_passband_131.png:
         cache: false
