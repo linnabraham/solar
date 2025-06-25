@@ -30,12 +30,12 @@ class single_aarp:
     @property
     def timestamps(self):
         return self.dataframe.timestamp
-    
+
     @property
     def label(self):
         """Return the label (0 or 1) for this AARP instance."""
         return self.dataframe.label.iloc[0]
-    
+
     def get_midtime(self):
         return self.timestamps.iloc[len(self.dataframe)//2]
 
@@ -59,12 +59,14 @@ class single_aarp:
         return images
 
 def do_ig(features, label, ib_size=1, model=None):
+    model.eval()
     ig = IntegratedGradients(model)
     baseline_zero = torch.zeros_like(features)
     labels  = torch.tensor(1, dtype=torch.int32)
     ig_b0, _ = ig.attribute(features, baseline_zero, target=labels, n_steps=100, internal_batch_size=ib_size,
                                         return_convergence_delta=True)
-    return ig_b0
+
+    return ig_b0[0].detach().cpu().numpy()
 
 def make_predictions(dataset, batch_size=16, model=None, device=None, probabilities=False):
     model.eval()
@@ -100,11 +102,11 @@ def ig_on_aarp_seq(aarp_id, test_df, transform, device, model, ib_size, n_images
     s_aarp = single_aarp(aarp_id, test_df.query(f'aarp_id == {aarp_id}'))
     s_images = s_aarp.get_images()
     label  = s_aarp.label
-    
+
     if n_images is None:
         n_images = s_images.shape[0]
         print(f"{n_images=}")
-        
+
     tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
     tensor_data = transform(tensor_images)
     tensor_data = tensor_data.to(device)

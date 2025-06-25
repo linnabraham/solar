@@ -202,7 +202,7 @@ def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
     predictions = make_predictions(dataset, model=model, device=device)
     torch.cuda.empty_cache()
     gc.collect()
-    
+
     # Create and plot attributions for a single passband and single percentile level
     attributions = run_ig(dataset, model=model, device=device, label=s_aarp.label, ib_size=1, n_images=s_images.shape[0])
     channel = 1
