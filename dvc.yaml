@@ -9,3 +9,14 @@ stages:
     - vit/scripts/predictions_analyze.py
     outs:
     - pred-output/
+  plot-class-dist:
+    cmd: python -m vit.scripts.plot_class_wise_distribution
+    deps:
+    - data/intermediate-outs/attributions_neg.pt
+    - data/intermediate-outs/attributions_pos.pt
+    - solar_dataset.json
+    outs:
+    - plots/class_wise_int_dist_passband_131.png:
+        cache: false
+    - plots/class_wise_int_dist_passband_94.png:
+        cache: false

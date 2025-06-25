@@ -29,3 +29,27 @@ stages:
       md5: 07a9f279ba486e07db98328885db1b7c.dir
       size: 3453760
       nfiles: 56
+  plot-class-dist:
+    cmd: python -m vit.scripts.plot_class_wise_distribution
+    deps:
+    - path: data/intermediate-outs/attributions_neg.pt
+      hash: md5
+      md5: 05c230b52a645edee914ff159959e625
+      size: 41285193540
+    - path: data/intermediate-outs/attributions_pos.pt
+      hash: md5
+      md5: 0e62bf477c1772f582bc04d3f7c1212d
+      size: 23752610884
+    - path: solar_dataset.json
+      hash: md5
+      md5: 2d42723b7ee25c2d4f01c8622621a7b6
+      size: 42307662
+    outs:
+    - path: plots/class_wise_int_dist_passband_131.png
+      hash: md5
+      md5: 367f9ab224a837b5dcecad5296f27146
+      size: 39859
+    - path: plots/class_wise_int_dist_passband_94.png
+      hash: md5
+      md5: bf59dc15a0c2c765ba2fab9f05deab14
+      size: 41580
