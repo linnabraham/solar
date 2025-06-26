@@ -62,7 +62,7 @@ def do_ig(features, label, ib_size=1, model=None):
     model.eval()
     ig = IntegratedGradients(model)
     baseline_zero = torch.zeros_like(features)
-    labels  = torch.tensor(1, dtype=torch.int32)
+    labels  = torch.tensor(label, dtype=torch.int32)
     ig_b0, _ = ig.attribute(features, baseline_zero, target=labels, n_steps=100, internal_batch_size=ib_size,
                                         return_convergence_delta=True)
 
