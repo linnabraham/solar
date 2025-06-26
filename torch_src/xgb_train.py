@@ -39,17 +39,17 @@ def extract_simple_stats_generator(dataset):
     dataset_iter = iter(dataset)
     for images, label in tqdm(dataset_iter):
         # Assuming images shape is (batch_size, height, width, channels)
-        # We take the first image in the batch
-        image = images[0].numpy()
+        images, label = images.to(config.device), label.to(config.device)
+        for i in range(images.shape[0]):
+            image = images[i]
+            # Calculate min, max, mean for each channel
+            channel_stats = []
+            for channel in range(image.shape[0]):
+                channel_data = image[channel, :, :]
+                channel_stats.extend([torch.min(channel_data).item(), torch.max(channel_data).item(), torch.mean(channel_data).item()])
 
-        # Calculate min, max, mean for each channel
-        channel_stats = []
-        for channel in range(image.shape[0]):
-            channel_data = image[channel, :, :]
-            channel_stats.extend([np.min(channel_data), np.max(channel_data), np.mean(channel_data)])
-
-        features.append(channel_stats)
-        labels.append(label[0])  # Assuming label is a single value for the image
+            features.append(channel_stats)
+            labels.append(label[0].item())  # Assuming label is a single value for the image
 
     return np.array(features), np.array(labels)
 
