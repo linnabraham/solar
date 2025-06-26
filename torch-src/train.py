@@ -1,5 +1,19 @@
+import sys, os
+import wandb
+from tqdm import tqdm
+from torchvision.transforms import v2
+import json
+import pickle
+import torch
 import torch.nn as nn
 import torchvision.models
+from typing import Optional, List
+from dataclasses import dataclass
+import math
+from torch.utils.data import DataLoader
+from vit.scripts.train import print_config, get_weighted_sampler, _run_epoch
+from aarp_ml.torch.dataset import aia_euv, AIALogTransform
+from aarp_ml.torch.model import SaveBestModel
 
 def modify_alexnet(model):
     """
@@ -29,6 +43,131 @@ def modify_alexnet(model):
 
     return model
 
+@dataclass
+class TrainingConfig:
+    # Required parameters
+    json_path: str
+    stats_file: str
+
+    # Optional training parameters
+    batch_size: int = 32
+    epochs: int = 5
+    learning_rate: float = 0.001
+    scheduler_type: Optional[str] = None
+    retrain: bool = False
+    trained_model_path: Optional[str] = None
+    use_l1: bool = False
+    l1_lambda: float = 0.01
+
+    # Model parameters
+    image_height: int = 512
+    n_classes: int = 2
+    n_channels: int = 7
+
+    # System parameters
+    device: str = "cuda:0"
+    memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+
+def init_data(config):
+    with open(config.json_path, 'r') as json_file:
+        metadata = json.load(json_file)
+
+    with open(config.stats_file, 'rb') as pickle_file:
+        stats_data = pickle.load(pickle_file)
+
+    means = [stats_data.get('mean').get(f'channel_{i}') for i in range(config.n_channels)]
+    stds = [stats_data.get('std').get(f'channel_{i}') for i in range(config.n_channels)]
+
+    transform = AIALogTransform(means=means, stds=stds)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Create datasets
+    train_dataset = aia_euv(
+        config.json_path,
+        subset='training',
+        transform=v2.Compose([
+            AIALogTransform(means, stds),
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomVerticalFlip(p=0.5)
+        ])
+    )
+    val_dataset = aia_euv(
+        config.json_path,
+        subset='validation',
+        transform=v2.Compose([AIALogTransform(means, stds)])
+    )
+
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config.batch_size,
+        sampler=get_weighted_sampler(train_dataset)
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config.batch_size,
+        shuffle=True
+    )
+    return metadata, transform, device, train_loader, val_loader
+
+def train(config: TrainingConfig, model):
+    """Main training function."""
+    # Initialize wandb
+    wandb.init(project="flare_torch", config=vars(config))
+
+    # Print configuration
+    print_config(config)
+    metadata, transform, device, train_loader, val_loader = init_data(config)
+    model = model.to(device)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    scheduler = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
+        if config.scheduler_type == "cosine_annealing" else None
+    )
+
+    # Create output directory
+    output_dir = os.path.join("output", wandb.run.name)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Setup model saving
+    save_best_model = SaveBestModel(monitor='val_loss', mode='min')
+
+    # Load checkpoint if retraining
+    start_epoch = 0
+    if config.retrain and config.trained_model_path:
+        checkpoint = torch.load(config.trained_model_path, map_location=device)
+        if isinstance(checkpoint, dict):
+            if 'model_state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['model_state_dict'])
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint.get('epoch', -1) + 1
+        else:
+            model.load_state_dict(checkpoint)
+
+    # Training loop
+    torch.cuda.reset_peak_memory_stats()
+    n_steps_per_epoch = math.ceil(len(train_loader.dataset) / config.batch_size)
+
+    for epoch in range(start_epoch, config.epochs):
+        success = _run_epoch(
+            epoch=epoch,
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            criterion=criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            config=config,
+            n_steps_per_epoch=n_steps_per_epoch,
+            save_callback=save_best_model,
+            output_dir=output_dir
+        )
+        if not success:
+            break
+
 if __name__=="__main__":
     alexnet = torchvision.models.alexnet()
     model = modify_alexnet(alexnet)
+    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+    train(config, model)
