@@ -7,33 +7,24 @@ def modify_alexnet(model):
     posssible with the architecture that used in tensorflow
     """
 
-    model.features[0].out_channels = 96
-    model.features[0].kernel_size = (5,5)
-    #model.features[0].padding = 'same'
-    model.features[0].stride = (2,2)
+    model.features[0] = nn.Conv2d(
+        in_channels=7,
+        out_channels=96,
+        kernel_size=(5, 5),
+        stride=(2, 2),
+    )
 
-    model.features[3].in_channels = 96
-    model.features[3].out_channels = 256
-    model.features[3].kernel_size = (5,5)
-    model.features[3].padding = 'same'
-    #model.features[3].stride = (2,2)
-
-    model.features[6].in_channels = 256
-    model.features[6].out_channels = 384
-    model.features[6].kernel_size = (3,3)
-    model.features[6].padding = 'same'
-
-    model.features[8].in_channels = 384
-    model.features[8].out_channels = 384
-    model.features[8].padding = 'same'
-
-    model.features[10].in_channels = 384
-    model.features[10].out_channels = 256
-    model.features[10].padding = 'same'
+    model.features[3] = nn.Conv2d(96, 256, kernel_size=(5, 5), stride=(1, 1), padding='same')
+    model.features[6] = nn.Conv2d(256, 384, kernel_size=(3, 3), stride=(1, 1), padding='same')
+    model.features[8] = nn.Conv2d(384, 384, kernel_size=(3, 3), stride=(1, 1), padding='same')
+    model.features[10] = nn.Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding='same')
 
     #TODO: find out why the following code doesn't work
     # model.classifier[6].out_features = 2
-    model.classifier[6] = nn.Linear(in_features=4096, out_features=1)
+
+    model.classifier[6] = nn.Linear(in_features=4096, out_features=2)
+
+    # Append sigmoid to convert logits to probability (e.g., for binary classification)
     model = nn.Sequential(model, nn.Sigmoid())
 
     return model
@@ -41,4 +32,3 @@ def modify_alexnet(model):
 if __name__=="__main__":
     alexnet = torchvision.models.alexnet()
     model = modify_alexnet(alexnet)
-    print(f"Model Architecture: \n {model}")
