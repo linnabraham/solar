@@ -1,15 +1,17 @@
-import sys, os
+import os
 import wandb
 from tqdm import tqdm
 import torch
 from typing import Optional, List
 from dataclasses import dataclass
-import math
 import numpy as np
-from torch.utils.data import DataLoader
 from sklearn.metrics import log_loss
 from vit.scripts.train import print_config
 from torch_src.train import init_data
+import xgboost as xgb
+import numpy as np
+from sklearn.metrics import log_loss
+from tqdm import tqdm
 
 @dataclass
 class TrainingConfig:
