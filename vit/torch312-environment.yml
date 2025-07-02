@@ -17,6 +17,7 @@ dependencies:
   - captum
   - sunpy
   - scikit-instruments
+  - xgboost
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
