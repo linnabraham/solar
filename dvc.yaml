@@ -24,3 +24,13 @@ stages:
         cache: false
     - plots/class_wise_int_dist_passband_94.png:
         cache: false
+  xgb-feat-importance:
+    cmd: python -m scripts.xgb_feat_importance
+    deps:
+    - output/fine-thunder-7/best_xgboost_model.json
+    - output/sage-shape-6/best_xgboost_model.json
+    - scripts/xgb_feat_importance.py
+    outs:
+    - plots/xgb_feat_importance_percentile.png
+    - plots/xgb_feat_importance_percentile_gain.png
+    - plots/xgb_feat_importance_simple.png

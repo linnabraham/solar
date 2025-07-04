@@ -69,3 +69,31 @@ stages:
       hash: md5
       md5: bf59dc15a0c2c765ba2fab9f05deab14
       size: 41580
+  xgb-feat-importance:
+    cmd: python -m scripts.xgb_feat_importance
+    deps:
+    - path: output/fine-thunder-7/best_xgboost_model.json
+      hash: md5
+      md5: 49b5f53336978765cb4423963d5462b5
+      size: 85407
+    - path: output/sage-shape-6/best_xgboost_model.json
+      hash: md5
+      md5: 466784f22ed6dbf0446c80a945d10aec
+      size: 5312519
+    - path: scripts/xgb_feat_importance.py
+      hash: md5
+      md5: 33bcebd44de90d8e82b40f3372b776d4
+      size: 2580
+    outs:
+    - path: plots/xgb_feat_importance_percentile.png
+      hash: md5
+      md5: aa97ca879e4f759e052a96aa2d441384
+      size: 121037
+    - path: plots/xgb_feat_importance_percentile_gain.png
+      hash: md5
+      md5: abc02fe6174dfe510dca0cac5dbf8dc5
+      size: 218230
+    - path: plots/xgb_feat_importance_simple.png
+      hash: md5
+      md5: a6f5d87a9c54accac8c81153093dc629
+      size: 76097
