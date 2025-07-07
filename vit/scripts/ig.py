@@ -48,8 +48,9 @@ class single_aarp:
             for i, pb in zip(filepaths, all_wavelengths) :
                 try:
                     data_fits = read_fits_single(i)
-                except:
-                    continue
+                except Exception as e:
+                    print(f"Error reading {i}: {e}")
+                    raise
                 else:
                     img_list.append(data_fits)
             if img_list:
