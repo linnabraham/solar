@@ -16,7 +16,7 @@ dependencies:
   - vit-pytorch
   - captum
   - sunpy
-  - scikit-instruments
+  - sunkit-instruments
   - xgboost
   - pip
   - pip:
