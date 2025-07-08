@@ -1,20 +1,10 @@
 import xgboost as xgb
 import matplotlib.pyplot as plt
 import os
+from src.torch.xgb_train import get_feature_names, TrainingConfig
 
-def get_feature_names(feature_type, passbands):
-    if feature_type == "simple":
-        stats = ("min", "max", "mean")
-        return [f'pb{pb}_{stat}' for pb in passbands for stat in stats]
-    elif feature_type == "percentile":
-        percentiles = [60, 80, 90, 95, 98, 99]
-        return [f'pb{pb}_p{p}' for pb in passbands for p in percentiles]
-    else:
-        raise ValueError(f"Unknown feature_type: {feature_type}")
-
-def plot_xgb_feature_importance(model_path, feature_type, output_path, importance_type='weight', figsize=(10, 12)):
-    passbands = ['94', '131', '171', '193', '211', '304', '335']
-    feature_names = get_feature_names(feature_type, passbands)
+def plot_xgb_feature_importance(model_path, output_path, config, importance_type='weight', figsize=(10, 12)):
+    feature_names = get_feature_names(config)
 
     # Load model
     model = xgb.Booster()
@@ -23,6 +13,7 @@ def plot_xgb_feature_importance(model_path, feature_type, output_path, importanc
     # Get importance and map to names
     importance_dict = model.get_score(importance_type=importance_type)
     sorted_features = sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
+
     feature_map = {f'f{i}': name for i, name in enumerate(feature_names)}
     sorted_feature_names = [feature_map.get(f, f) for f, _ in sorted_features]
 
@@ -39,29 +30,21 @@ def plot_xgb_feature_importance(model_path, feature_type, output_path, importanc
 if __name__ == "__main__":
     jobs = [
         {
-            "model_path": "output/sage-shape-6/best_xgboost_model.json",
-            "feature_type": "simple",
-            "output_path":  'plots/xgb_feat_importance_simple.png',
-            "importance_type": "weight"
-        },
-        {
-            "model_path": "output/fine-thunder-7/best_xgboost_model.json",
-            "feature_type": "percentile",
-            "output_path": "plots/xgb_feat_importance_percentile.png",
-            "importance_type": "weight"
-        },
-        {
-            "model_path": "output/fine-thunder-7/best_xgboost_model.json",
-            "feature_type": "percentile",
-            "output_path": "plots/xgb_feat_importance_percentile_gain.png",
+            "model_path": "output/deep-spaceship-10/best_xgboost_model.json",
+            "output_path": "plots/xgb_feat_importance_gain.png",
             "importance_type": "gain"
         },
+        {
+            "model_path": "output/deep-spaceship-10/best_xgboost_model.json",
+            "output_path": "plots/xgb_feat_importance_weight.png",
+            "importance_type": "weight"
+        },
     ]
-
+    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
     for job in jobs:
         plot_xgb_feature_importance(
             model_path=job["model_path"],
-            feature_type=job["feature_type"],
             output_path=job["output_path"],
+            config=config,
             importance_type=job.get("importance_type", "weight")
         )
