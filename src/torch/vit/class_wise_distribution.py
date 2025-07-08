@@ -1,3 +1,5 @@
+import os
+import gc
 import json
 from aarp_ml.dataset import all_wavelengths
 import torch
@@ -8,10 +10,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from itertools import islice
 from aarp_ml.torch.model import DeepFlare_ViT
 import matplotlib.pyplot as plt
-import os
-from vit.scripts.ig import single_aarp, make_predictions, do_ig
-from vit.scripts.predictions_analyze import dfs_from_metadata
-import gc
+from src.torch.vit.ig import single_aarp, make_predictions, do_ig
+from src.torch.vit.utils import dfs_from_metadata
 
 def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
@@ -30,7 +30,9 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
     with torch.no_grad():
         for (batch,) in islice(loader, n_images):
             batch = batch.to(device)
-            ig_b0 = do_ig(batch, label=label, ib_size=ib_size, model=model)
+            baseline_zero = transform(torch.zeros_like(batch))
+            baseline_zero = baseline_zero.to(device)
+            ig_b0 = do_ig(batch, baseline_zero, label=label, ib_size=ib_size, model=model)
             attributions.append(ig_b0)
             del batch, ig_b0
             torch.cuda.empty_cache()

@@ -3,10 +3,12 @@ import torch
 import gc
 import numpy as np
 import pickle
-from vit.scripts.train import TrainingConfig
+import pandas as pd
+from aarp_ml.dataset import all_wavelengths
 from aarp_ml.torch.model import DeepFlare_ViT
 from aarp_ml.torch.dataset import AIALogTransform
-from vit.scripts.ig import do_ig
+from src.torch.vit.train import TrainingConfig
+from src.torch.vit.ig import do_ig
 
 def get_metadata(config:TrainingConfig):
     with open(config.json_path, 'r') as json_file:
@@ -55,3 +57,20 @@ def get_model_and_transform(config):
         model.load_state_dict(checkpoint)
 
     return model, transform, device
+
+def get_data_model(config):
+    metadata = get_metadata(config)
+    model, transform, device = get_model_and_transform(config)
+    return metadata, model, transform, device
+
+def dfs_from_metadata(metadata):
+    training_df = pd.DataFrame(metadata['training'])
+    val_df = pd.DataFrame(metadata['validation'])
+    test_df = pd.DataFrame(metadata['test'])
+    training_df['timestamp'] = training_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
+    val_df['timestamp'] = val_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
+    test_df['timestamp'] = test_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
+    training_df = training_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
+    val_df = val_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
+    test_df = test_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
+    return training_df, val_df, test_df

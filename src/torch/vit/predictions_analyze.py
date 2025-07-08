@@ -165,18 +165,6 @@ def viz_predictions_2(goes_ts, s_aarp:single_aarp, predicted_scores, flare_start
     plt.title(f"ViT prediction scores for AARP {s_aarp.aarp_id} overlaid on GOES X-ray timeseries", fontsize=9)
     plt.show()
 
-def dfs_from_metadata(metadata):
-    training_df = pd.DataFrame(metadata['training'])
-    val_df = pd.DataFrame(metadata['validation'])
-    test_df = pd.DataFrame(metadata['test'])
-    training_df['timestamp'] = training_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
-    val_df['timestamp'] = val_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
-    test_df['timestamp'] = test_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
-    training_df = training_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
-    val_df = val_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
-    test_df = test_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
-    return training_df, val_df, test_df
-
 def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
     output_dir = f"{output_home}/{aarp_id}"
     if not os.path.exists(output_dir):
