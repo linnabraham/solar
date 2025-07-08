@@ -11,6 +11,8 @@ dependencies:
   - pytorch::pytorch-cuda=12.4
   - tensorflow
   - wandb=0.15
+  - dvc
+  - dvc-gdrive
   - pandas
   - lightning
   - scikit-learn
