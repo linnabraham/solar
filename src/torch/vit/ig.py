@@ -59,14 +59,12 @@ class single_aarp:
                 ob_idx +=1
         return images
 
-def do_ig(features, label, ib_size=1, model=None):
+def do_ig(features, baseline, label, ib_size=1, model=None):
     model.eval()
-    ig = IntegratedGradients(model)
-    baseline_zero = torch.zeros_like(features)
+    ig = IntegratedGradients(model, multiply_by_inputs=True)
     labels  = torch.tensor(label, dtype=torch.int32)
-    ig_b0, _ = ig.attribute(features, baseline_zero, target=labels, n_steps=100, internal_batch_size=ib_size,
+    ig_b0, _ = ig.attribute(features, baseline, target=labels, n_steps=100, internal_batch_size=ib_size,
                                         return_convergence_delta=True)
-
     return ig_b0[0].detach().cpu().numpy()
 
 def make_predictions(dataset, batch_size=16, model=None, device=None, probabilities=False):
