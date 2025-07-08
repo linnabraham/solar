@@ -9,9 +9,7 @@ import pickle
 import time
 import argparse
 from datetime import datetime, timedelta
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(parent_dir)
-from helpers.fits_parallel_download import download_urls_in_parallel
+from src.fits_parallel_download import download_urls_in_parallel
 from aarp_ml.dataset import aarp_dataset
 from aarp_ml.model.training import ml_dataset, compute_mean_and_std
 from aarp_ml.data_prep import (get_clean_df, label_urls, random_select_neg_urls, apply_shape_limits,
@@ -231,7 +229,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     st = time.time()
-    paths = DatasetPaths(parent_dir)
+    paths = DatasetPaths(parent_dir=os.getcwd())
     check_dataset_paths(paths)
 
     if args.process:
