@@ -9,8 +9,9 @@ dependencies:
   - pytorch::torchvision
   - pytorch::torchaudio
   - pytorch::pytorch-cuda=12.4
+  - tensorflow
+  - wandb=0.15
   - pandas
-  - wandb
   - lightning
   - scikit-learn
   - vit-pytorch
