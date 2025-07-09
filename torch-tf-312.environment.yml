@@ -21,6 +21,7 @@ dependencies:
   - sunpy
   - sunkit-instruments
   - xgboost
+  - gdown
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
