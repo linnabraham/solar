@@ -9,34 +9,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from src.torch.vit.train import TrainingConfig
 from src.torch.vit.utils import get_data_model, dfs_from_metadata
 from src.torch.vit.ig import single_aarp, do_ig
+from src.torch.vit.class_wise_distribution import run_pred_and_ig
 from astro_utils.aia import plot_aia_image
-
-def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
-    aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
-    s_aarp = single_aarp(aarp_id, aarp_id_df)
-    s_images = s_aarp.get_images()
-    # Use the model to make predictions
-    tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
-    tensor_data = transform(tensor_images)
-    tensor_data = tensor_data.to(device)
-    dataset = TensorDataset(tensor_data)
-    loader = DataLoader(dataset, batch_size=1, shuffle=False)
-    attributions = []
-    label = s_aarp.label
-    ib_size = 1
-    n_images = s_images.shape[0]
-    with torch.no_grad():
-        for (batch,) in islice(loader, n_images):
-            batch = batch.to(device)
-            baseline_zero = transform(torch.zeros_like(batch))
-            baseline_zero = baseline_zero.to(device)
-            ig_b0 = do_ig(batch, baseline_zero, label=label, ib_size=ib_size, model=model)
-            attributions.append(ig_b0)
-            del batch, ig_b0
-            torch.cuda.empty_cache()
-            gc.collect()
-    del tensor_images, tensor_data, dataset
-    return s_images, attributions
 
 if __name__=="__main__":
     config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
