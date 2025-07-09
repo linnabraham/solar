@@ -18,10 +18,23 @@ All scripts have to be run with `python -m name-of-script`
 ```
 conda install -c conda-forge mamba # Use `mamba` instead of `conda`
 conda create -n torch-tf-312
-conda env update --file torch-tf-312.environment.yml
+mamba env update --file torch-tf-312.environment.yml
 ```
 
 ### Setup DVC
+If you want to obtain the exact version of the files that are on my machine including the input data config file, trained model, plots etc. and compare with that you obtain locally, 
+pull those from the DVC google drive remote.
+```
+# Setup the google drive remote in DVC
+gdown "1257ELI7CIC3_wobMXoOVw7r2x71obomq" -O .dvc/config.local
+
+# Download all data files tracked with DVC
+dvc pull
+
+# Check which files, stages, pipelines etc. have changed
+dvc status
+```
+
 
 ### Download and Pre-process data
 
