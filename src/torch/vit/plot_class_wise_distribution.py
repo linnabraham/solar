@@ -3,9 +3,9 @@ from aarp_ml.dataset import all_wavelengths
 import torch
 import matplotlib.pyplot as plt
 import os
-from vit.scripts.ig import single_aarp
-from vit.scripts.predictions_analyze import dfs_from_metadata
-from vit.scripts.class_wise_distribution import plot_intensity_distribution
+from src.torch.vit.ig import single_aarp
+from src.torch.vit.utils import dfs_from_metadata
+from src.torch.vit.class_wise_distribution import plot_intensity_distribution
 
 if __name__=="__main__":
     with open('solar_dataset.json', 'r') as json_file:
@@ -34,26 +34,27 @@ if __name__=="__main__":
         s_images = s_aarp.get_images()
         images_list_neg.append(s_images)
 
-    passband = 131
-    percentile_levels = [50, 80, 90, 99]
-    channel = all_wavelengths.index(passband)
+    percentile_levels_list = [
+        [50, 80, 90, 99, 99.9, 99.99],
+        [50, 80, 90, 99],
+        [50, 80, 90, 99],
+        [50, 80, 90, 99],
+        [50, 80, 90, 99],
+        [50, 80, 90, 99],
+        [50, 80, 90, 99],
+        ]
+    x_range_list=[(4,8),(0,6),(0,6),(0,6),(0,6),(0,6),(0,6)]
 
-    fig, ax = plot_intensity_distribution(images=(images_list_neg, images_list_pos),
-                                attributions = (attributions_list_neg, attributions_list_pos),
-                                percentile_levels=percentile_levels, passband=passband, x_range=(0,6),
-                                nbins=30, alpha=0.4, figsize=(24,5), dpi=150)
-    fig.savefig(f"plots/class_wise_int_dist_passband_{passband}.png", bbox_inches="tight")
-    plt.close(fig)
-
-    passband = 94
-    percentile_levels = [50, 80, 90, 99, 99.9]
-    x_range = (4,8)
-    channel = all_wavelengths.index(passband)
-
-    fig, ax = plot_intensity_distribution(images=(images_list_neg, images_list_pos),
-                                attributions = (attributions_list_neg, attributions_list_pos),
-                                percentile_levels=percentile_levels, passband=passband, x_range=x_range,
-                                nbins=30, alpha=0.4, figsize=(24,5), dpi=150)
-
-    fig.savefig(f"plots/class_wise_int_dist_passband_{passband}.png", bbox_inches="tight")
-    plt.close(fig)
+    for passband,percentile_levels,x_range in zip(all_wavelengths, percentile_levels_list,
+                                                  x_range_list):
+        print(f"Plotting intensity distrbiution based on attribution for passband:{passband}")
+        print(f"{percentile_levels=}")
+        print(f"{x_range=}")
+        dest_plot = f"plots/class_wise_int_dist_passband_{passband}.png"
+        print(f"{dest_plot=}")
+        fig, ax = plot_intensity_distribution(images=(images_list_neg, images_list_pos),
+                                    attributions = (attributions_list_neg, attributions_list_pos),
+                                    percentile_levels=percentile_levels, passband=passband, x_range=x_range,
+                                    nbins=30, alpha=0.4, figsize=(24,5), dpi=150)
+        fig.savefig(dest_plot, bbox_inches="tight")
+        plt.close(fig)
