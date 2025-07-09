@@ -1,15 +1,16 @@
+import os
 import math
 import unittest
 import matplotlib.pyplot as plt
 import torch
-from vit.scripts.train import TrainingConfig
-from vit.scripts.ig import single_aarp
-from vit.scripts.predictions_analyze import dfs_from_metadata
-from vit.utils import get_metadata
 from aarp_ml.dataset import all_wavelengths
 from astro_utils.aia import plot_aia_image_grid
 from astro_utils.visualization import plot_image_grid
-from vit.utils import get_attribution_for_image, get_model_and_transform
+from src.torch.vit.train import TrainingConfig
+from src.torch.vit.ig import single_aarp
+from src.torch.vit.utils import (get_attribution_for_image, get_model_and_transform,
+                                get_metadata, dfs_from_metadata)
+
 
 class TestSingleImageBaseline(unittest.TestCase):
     def setUp(self):
@@ -28,6 +29,7 @@ class TestSingleImageBaseline(unittest.TestCase):
         t_idx = 15
         self.image = s_images[t_idx]
         print(f"Using image from the {t_idx} th timestep")
+        os.makedirs("tests_outputs", exist_ok=True)
 
     def test_zero_baseline(self):
         tensor_image = torch.from_numpy(self.image).to(torch.float32)

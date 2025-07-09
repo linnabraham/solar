@@ -1,8 +1,7 @@
 import unittest
-from vit.scripts.train import TrainingConfig
-from vit.scripts.ig import single_aarp
-from vit.scripts.predictions_analyze import dfs_from_metadata
-from vit.utils import get_metadata
+from src.torch.vit.train import TrainingConfig
+from src.torch.vit.ig import single_aarp
+from src.torch.vit.utils import get_metadata, dfs_from_metadata
 
 class TestSingleAARP(unittest.TestCase):
     def read_data(self):
