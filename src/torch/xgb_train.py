@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from sklearn.metrics import log_loss
 from src.torch.vit.train import print_config
-from src.torch.train import init_data
+from src.torch.train_alexnet import init_data
 import xgboost as xgb
 import numpy as np
 from sklearn.metrics import log_loss

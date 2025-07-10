@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from src.torch.vit.train import TrainingConfig
 from src.torch.vit.utils import get_data_model, dfs_from_metadata
 from src.torch.vit.ig import single_aarp, do_ig
-from src.torch.vit.plot_contour_image import run_pred_and_ig
+from src.torch.vit.class_wise_distribution import run_pred_and_ig
 
 def make_attribution_movie(
     images,               # numpy array, shape (T, H, W) or (T, C, H, W)
@@ -52,10 +52,8 @@ def make_attribution_movie(
     ani.save(filename, writer='ffmpeg', fps=fps)
 
 if __name__=="__main__":
-    print(animation.writers.list())
     config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
     config.trained_model_path = "output/glad-shape-197/trained_model.pth"
-    print(config)
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 

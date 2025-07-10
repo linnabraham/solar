@@ -4,9 +4,9 @@ import matplotlib
 import math
 import torch
 from src.torch.vit.ig import single_aarp
-from src.torch.vit.utils import get_data_model, dfs_from_metadata
 from src.torch.vit.train import TrainingConfig
-from src.torch.vit.utils import get_attribution_for_image
+from src.torch.vit.utils import (get_data_model, dfs_from_metadata,
+                                get_attribution_for_image)
 
 def plot_aia_image_grid(
     images,
