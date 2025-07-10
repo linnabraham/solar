@@ -10,27 +10,51 @@ stages:
     outs:
     - pred-output/
   plot-class-dist:
-    cmd: python -m vit.scripts.plot_class_wise_distribution
+    cmd: python -m src.torch.vit.plot_class_wise_distribution
     deps:
     - data/intermediate-outs/attributions_neg.pt
     - data/intermediate-outs/attributions_pos.pt
     - solar_dataset.json
-    - vit/scripts/plot_class_wise_distribution.py
-    - vit/scripts/class_wise_distribution.py
-    - vit/scripts/ig.py
-    - vit/scripts/predictions_analyze.py
+    - src/torch/vit/plot_class_wise_distribution.py
+    - src/torch/vit/class_wise_distribution.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
     outs:
     - plots/class_wise_int_dist_passband_131.png:
         cache: false
     - plots/class_wise_int_dist_passband_94.png:
         cache: false
   xgb-feat-importance:
-    cmd: python -m scripts.xgb_feat_importance
+    cmd: python -m src.torch.xgb_feat_importance
     deps:
-    - output/fine-thunder-7/best_xgboost_model.json
-    - output/sage-shape-6/best_xgboost_model.json
-    - scripts/xgb_feat_importance.py
+    - output/deep-spaceship-10/best_xgboost_model.json
+    - src/torch/xgb_feat_importance.py
     outs:
-    - plots/xgb_feat_importance_percentile.png
-    - plots/xgb_feat_importance_percentile_gain.png
-    - plots/xgb_feat_importance_simple.png
+    - plots/xgb_feat_importance_gain.png
+    - plots/xgb_feat_importance_weight.png
+  plot_contour_image_grid:
+    cmd: python -m src.torch.vit.plot_contour_image_grid
+    deps:
+    - output/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - src/torch/vit/ig.py
+    - src/torch/vit/plot_contour_image_grid.py
+    - src/torch/vit/train.py
+    - src/torch/vit/utils.py
+    - stats.pkl
+    outs:
+    - tests_outputs/attribution_contour_grid.png
+  create_movie:
+    cmd: python -m src.torch.vit.create_movies
+    deps:
+    - output/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - src/torch/vit/create_movies.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/class_wise_distribution.py
+    - src/torch/vit/train.py
+    - src/torch/vit/utils.py
+    - stats.pkl
+    outs:
+    - tests_outputs/movie_131.mp4:
+        cache: false

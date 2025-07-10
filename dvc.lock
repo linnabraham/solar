@@ -30,70 +30,138 @@ stages:
       size: 3453760
       nfiles: 56
   plot-class-dist:
-    cmd: python -m vit.scripts.plot_class_wise_distribution
+    cmd: python -m src.torch.vit.plot_class_wise_distribution
     deps:
     - path: data/intermediate-outs/attributions_neg.pt
       hash: md5
-      md5: 05c230b52a645edee914ff159959e625
-      size: 41285193540
+      md5: fd17ccb95d13cc6b6d375106d2f8b23c
+      size: 43951538052
     - path: data/intermediate-outs/attributions_pos.pt
       hash: md5
-      md5: 0e62bf477c1772f582bc04d3f7c1212d
-      size: 23752610884
+      md5: 4a3ca76ffb3545d29706981fc3588de8
+      size: 22428583812
     - path: solar_dataset.json
       hash: md5
-      md5: 2d42723b7ee25c2d4f01c8622621a7b6
-      size: 42307662
-    - path: vit/scripts/class_wise_distribution.py
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
       hash: md5
-      md5: 54cb689b1c4a5d42fe388e4f5da4c3a8
-      size: 6018
-    - path: vit/scripts/ig.py
+      md5: c51271bbcae27c2f6aaecf0abf7b1ed1
+      size: 6139
+    - path: src/torch/vit/ig.py
       hash: md5
-      md5: 99826f8f549871d515d5dec9d44de4e7
-      size: 6565
-    - path: vit/scripts/plot_class_wise_distribution.py
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/plot_class_wise_distribution.py
       hash: md5
-      md5: cb850c5717d99f7b1d2e26768c67ca1f
-      size: 2465
-    - path: vit/scripts/predictions_analyze.py
+      md5: 0c9769e1a446905d557dc2cc9748edc3
+      size: 2447
+    - path: src/torch/vit/utils.py
       hash: md5
-      md5: dc8ee59bc97aa7bc9694c75433081118
-      size: 13570
+      md5: 8365be090a608fc832bfac63075f9e71
+      size: 3482
     outs:
     - path: plots/class_wise_int_dist_passband_131.png
       hash: md5
-      md5: 367f9ab224a837b5dcecad5296f27146
-      size: 39859
+      md5: e14bddadebf5b0c2dd61298d11c04e3d
+      size: 39781
     - path: plots/class_wise_int_dist_passband_94.png
       hash: md5
-      md5: bf59dc15a0c2c765ba2fab9f05deab14
-      size: 41580
+      md5: 1d69e35141d9644931637c71eff7d692
+      size: 39104
   xgb-feat-importance:
-    cmd: python -m scripts.xgb_feat_importance
+    cmd: python -m src.torch.xgb_feat_importance
     deps:
-    - path: output/fine-thunder-7/best_xgboost_model.json
+    - path: output/deep-spaceship-10/best_xgboost_model.json
       hash: md5
-      md5: 49b5f53336978765cb4423963d5462b5
-      size: 85407
-    - path: output/sage-shape-6/best_xgboost_model.json
+      md5: a77a3df0d6bb8d6e48bbe51781a88960
+      size: 78666
+    - path: src/torch/xgb_feat_importance.py
       hash: md5
-      md5: 466784f22ed6dbf0446c80a945d10aec
-      size: 5312519
-    - path: scripts/xgb_feat_importance.py
-      hash: md5
-      md5: 33bcebd44de90d8e82b40f3372b776d4
-      size: 2580
+      md5: d37dfa620cbc4c2aa7a03ecc7fb00f1e
+      size: 1862
     outs:
-    - path: plots/xgb_feat_importance_percentile.png
+    - path: plots/xgb_feat_importance_gain.png
       hash: md5
-      md5: aa97ca879e4f759e052a96aa2d441384
-      size: 121037
-    - path: plots/xgb_feat_importance_percentile_gain.png
+      md5: f6687b5e130b4308f04d47d6fbaad894
+      size: 286700
+    - path: plots/xgb_feat_importance_weight.png
       hash: md5
-      md5: abc02fe6174dfe510dca0cac5dbf8dc5
-      size: 218230
-    - path: plots/xgb_feat_importance_simple.png
+      md5: 95be34f617dcdeab7ccf3f7492165943
+      size: 140109
+  plot_contour_image_grid:
+    cmd: python -m src.torch.vit.plot_contour_image_grid
+    deps:
+    - path: output/glad-shape-197/trained_model.pth
       hash: md5
-      md5: a6f5d87a9c54accac8c81153093dc629
-      size: 76097
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/plot_contour_image_grid.py
+      hash: md5
+      md5: 8612b3112ff83d4d8306525fd1cf10d4
+      size: 5312
+    - path: src/torch/vit/train.py
+      hash: md5
+      md5: 61c5be4906ceaac5f29ec03ea10ad32b
+      size: 11119
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 8365be090a608fc832bfac63075f9e71
+      size: 3482
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: tests_outputs/attribution_contour_grid.png
+      hash: md5
+      md5: 74b613e19767bd9039035c214d5a5e5a
+      size: 15323617
+  create_movie:
+    cmd: python -m src.torch.vit.create_movies
+    deps:
+    - path: output/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: c51271bbcae27c2f6aaecf0abf7b1ed1
+      size: 6139
+    - path: src/torch/vit/create_movies.py
+      hash: md5
+      md5: 94324608dfcff4355cdbd32bc0f4effa
+      size: 3037
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/train.py
+      hash: md5
+      md5: 61c5be4906ceaac5f29ec03ea10ad32b
+      size: 11119
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 8365be090a608fc832bfac63075f9e71
+      size: 3482
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: tests_outputs/movie_131.mp4
+      hash: md5
+      md5: d11170b4e846689017db1b987133e3e1
+      size: 7227007
