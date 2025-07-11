@@ -9,14 +9,16 @@ from torch.utils.data import TensorDataset
 from aarp_ml.torch.model import DeepFlare_ViT
 import matplotlib.pyplot as plt
 import os
-from vit.scripts.ig import single_aarp, make_predictions, run_ig
+from src.torch.vit.ig import single_aarp, make_predictions
 import aarp_ml
 from astro_utils.utils import get_start_and_end_time
-from vit.scripts.ig import single_aarp
 import matplotlib.dates as mdates
 from sunpy.timeseries import XRSTimeSeries
 import warnings
 import gc
+from src.data_single import DatasetPaths
+from src.torch.vit.utils import get_data_model, dfs_from_metadata
+from src.torch.vit.train import TrainingConfig
 
 def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=150, **kwargs):
 
@@ -165,17 +167,7 @@ def viz_predictions_2(goes_ts, s_aarp:single_aarp, predicted_scores, flare_start
     plt.title(f"ViT prediction scores for AARP {s_aarp.aarp_id} overlaid on GOES X-ray timeseries", fontsize=9)
     plt.show()
 
-def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
-    output_dir = f"{output_home}/{aarp_id}"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    else:
-        print(f"Output directory {output_dir} already exists, skipping {aarp_id}")
-        return None
-
-    print(f"Using {aarp_id=}")
-    aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
-    s_aarp = single_aarp(aarp_id, aarp_id_df)
+def get_aarp_seq_dataset(s_aarp, transform, device):
     s_images = s_aarp.get_images()
     # plot_image_grid(s_images[3], show=True)
     # plt.close()
@@ -184,52 +176,42 @@ def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
     tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
     tensor_data = transform(tensor_images)
     tensor_data = tensor_data.to(device)
-    model = model.to(device)
     dataset = TensorDataset(tensor_data)
+    return dataset
 
+def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home):
+    output_dir = f"{output_home}/{aarp_id}"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    else:
+        print(f"Output directory {output_dir} already exists, skipping {aarp_id}")
+        return None
+
+    print(f"Using {aarp_id=}")
+
+    aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
+    s_aarp = single_aarp(aarp_id, aarp_id_df)
+
+    dataset = get_aarp_seq_dataset(s_aarp, transform, device)
     predictions = make_predictions(dataset, model=model, device=device)
     torch.cuda.empty_cache()
     gc.collect()
-
-    # Create and plot attributions for a single passband and single percentile level
-    attributions = run_ig(dataset, model=model, device=device, label=s_aarp.label, ib_size=1, n_images=s_images.shape[0])
-    channel = 1
-    passband_attributions = [attribution.cpu().numpy()[channel, :, :] for attribution in attributions]
-    torch.cuda.empty_cache()
-    gc.collect()
-    flattened_attributions = [passband_attribution.flatten() for passband_attribution in passband_attributions]
-    percentile_level = 99
-    plt.plot([ np.percentile(flattened_attribution, percentile_level) for flattened_attribution in flattened_attributions])
-    plt.savefig(f"{output_dir}/attributions_percentiles_{percentile_level}.png", bbox_inches="tight", dpi=150)
-    plt.close()
-
-    # Plot boxplot of intensities taken using the thresholded attribution mask for a single threshold and single passband
-    passband_images = s_images[:,channel,::]
-    filtered_image_intensities_list = []
-    for t_idx in range(len(passband_attributions)):
-        saliency = passband_attributions[t_idx]
-        num_levels = 5
-        contour_levels = np.linspace(np.min(saliency), np.max(saliency), num=num_levels+2)[1:-1]
-        filtered_images = np.where(saliency > contour_levels[-1], passband_images[t_idx], 0)
-        filtered_image_intensities_list.append(filtered_images[filtered_images>0])
-    plt.figure(figsize=(12,6))
-    plt.boxplot(filtered_image_intensities_list[::10])
-    plt.savefig(f"{output_dir}/filtered_image_intensities.png", bbox_inches="tight", dpi=150)
-    plt.close()
+    goes_event_list_path = DatasetPaths(parent_dir=".").goes_event_with_aarp
+    print(f"{goes_event_list_path}")
+    goes_event_list = pd.read_csv(goes_event_list_path, parse_dates=["event_date", "start_time", "peak_time","end_time"])
 
     softmax_predictions = torch.softmax(predictions, dim=1)
     predicted_scores, predicted_labels = torch.max(softmax_predictions , dim=1)
 
-    plt.plot(predicted_scores)
-    plt.savefig(f"{output_dir}/predicted_scores.png", bbox_inches="tight", dpi=150)
-    plt.close()
+    # plt.plot(predicted_scores)
+    # plt.savefig(f"{output_dir}/predicted_scores.png", bbox_inches="tight", dpi=150)
+    # plt.close()
 
     # Make plots combining data with predictions
     print("Half width duration of observations", (s_aarp.timestamps.max() - s_aarp.timestamps.min())/2)
     fl_start, fl_end = get_start_and_end_time(s_aarp.get_midtime(), 24*4.5*60)
     goes_ts = aarp_ml.utils.run_fetch_goes(fl_start, fl_end)
 
-    goes_event_list = pd.read_csv("data/goes_df_aarp_id.csv", parse_dates=["event_date", "start_time", "peak_time","end_time"])
     matched_events = goes_event_list.query(f"harpnum == {aarp_id}")
     if not matched_events.empty:
         f_st = matched_events[['start_time', 'peak_time', 'end_time']].values[0][0]
@@ -245,30 +227,16 @@ def create_plots(aarp_id, metadata_df, transform, model, device, output_home):
                                             flare_start=flare_start, xlimits=xlimits, resample=False, figsize=(6,4), alpha=0.4)
     fig.savefig(f"{output_dir}/goes_with_predictions.png", bbox_inches="tight", dpi=150)
     plt.close(fig)
-    del tensor_images, tensor_data, dataset, predictions, attributions
-    torch.cuda.empty_cache()
-    gc.collect()
 
-if __name__=="__main__":
+def main():
     # Load Data and Model
-    trained_model_path = "output/glad-shape-197/trained_model.pth"
-    with open('solar_dataset.json', 'r') as json_file:
-        metadata = json.load(json_file)
-
+    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+    config.trained_model_path = "output/glad-shape-197/trained_model.pth"
+    metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 
-    with open('stats.pkl', 'rb') as pickle_file:
-        stats_data = pickle.load(pickle_file)
-
-    means = [stats_data.get('mean').get(f'channel_{i}') for i in range(7)]
-    stds = [stats_data.get('std').get(f'channel_{i}') for i in range(7)]
-
-    model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7).model
-
-    transform = AIALogTransform(means=means, stds=stds)
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint = torch.load(trained_model_path, map_location=device)
+    checkpoint = torch.load(config.trained_model_path, map_location=device)
     learning_rate = 0.001
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     if isinstance(checkpoint, dict):
@@ -279,11 +247,16 @@ if __name__=="__main__":
         start_epoch = checkpoint.get('epoch', -1) + 1
     else:
         model.load_state_dict(checkpoint)
+    model = model.to(device)
 
     output_home = "pred-output"
     os.makedirs(output_home, exist_ok=True)
 
     for aarp_id in test_df.aarp_id.unique().tolist():
-        create_plots(aarp_id, test_df, transform, model, device, output_home)
+        make_prediction_plot(aarp_id, test_df, transform, model, device, output_home)
     for aarp_id in val_df.aarp_id.unique().tolist():
-        create_plots(aarp_id, val_df, transform, model, device, output_home)
+        make_prediction_plot(aarp_id, val_df, transform, model, device, output_home)
+
+if __name__=="__main__":
+    main()
+
