@@ -1,7 +1,6 @@
-import sys, os
+import os
 from dataclasses import dataclass
 from typing import Optional, List
-sys.path.append(os.path.expanduser("~/july/solar/"))
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
 import time

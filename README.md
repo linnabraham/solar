@@ -12,7 +12,7 @@ Links to AARPS
 + Paper that introduces the dataset can be found here https://doi.org/10.3847/1538-4357/ac9c06
 
 ## Usage
-All scripts have to be run with `python -m name-of-script`
+All scripts have to be run with `python -m name-of-script` from the base of the repo.
 
 In the root directory, the following are the most important directories:
 
