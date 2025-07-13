@@ -24,11 +24,62 @@ stages:
       md5: fe8e2d59c30489c29ec6e44ff8afb493
       size: 500
     outs:
-    - path: pred-output/
+    - path: pred-output/1275/goes_with_predictions.png
       hash: md5
-      md5: 25b8fb0aacfd82ea0d5968f5b88c1368.dir
-      size: 1154879
-      nfiles: 14
+      md5: 5ffdb174a940b2200001029403ffb5cd
+      size: 79243
+    - path: pred-output/1449/goes_with_predictions.png
+      hash: md5
+      md5: daf871d1f96a95dc24a7fb361db02dd5
+      size: 71141
+    - path: pred-output/185/goes_with_predictions.png
+      hash: md5
+      md5: 63611187c9b7408e884e2c6c915a30e3
+      size: 78730
+    - path: pred-output/2026/goes_with_predictions.png
+      hash: md5
+      md5: 574aa5e793b8d7416d4a74886a16aad7
+      size: 70384
+    - path: pred-output/3153/goes_with_predictions.png
+      hash: md5
+      md5: 518d6e8975241dc37e48529e6525be5a
+      size: 71007
+    - path: pred-output/3229/goes_with_predictions.png
+      hash: md5
+      md5: 6b3855a65fa03e1ff02a2ac4b024ca04
+      size: 82674
+    - path: pred-output/3364/goes_with_predictions.png
+      hash: md5
+      md5: fb9577588772fead9e88ff087b5dc026
+      size: 89730
+    - path: pred-output/3563/goes_with_predictions.png
+      hash: md5
+      md5: a55599dc0b990842839b394966b91f11
+      size: 79093
+    - path: pred-output/377/goes_with_predictions.png
+      hash: md5
+      md5: 8cad23c947aab58048b8c08aa5d649b5
+      size: 87542
+    - path: pred-output/401/goes_with_predictions.png
+      hash: md5
+      md5: e551acb4afd0125936e17c916072df76
+      size: 94289
+    - path: pred-output/4296/goes_with_predictions.png
+      hash: md5
+      md5: a1699cffb86ee47f545c6d3ce828a083
+      size: 80957
+    - path: pred-output/4920/goes_with_predictions.png
+      hash: md5
+      md5: d0ec92f73d76c570e7a090a91e487b75
+      size: 88172
+    - path: pred-output/5894/goes_with_predictions.png
+      hash: md5
+      md5: 1f1f9bf41a298e57957027d2b87cfdfc
+      size: 89421
+    - path: pred-output/833/goes_with_predictions.png
+      hash: md5
+      md5: 5f53bce946814281e418b4e72375787d
+      size: 92496
   plot-class-dist:
     cmd: python -m src.torch.vit.plot_class_wise_distribution
     deps:
@@ -110,8 +161,8 @@ stages:
       size: 5312
     - path: src/torch/vit/train.py
       hash: md5
-      md5: 61c5be4906ceaac5f29ec03ea10ad32b
-      size: 11119
+      md5: 35b1d1dd419a7a4903a96c126cf6be91
+      size: 11061
     - path: src/torch/vit/utils.py
       hash: md5
       md5: 8365be090a608fc832bfac63075f9e71
@@ -165,3 +216,143 @@ stages:
       hash: md5
       md5: d11170b4e846689017db1b987133e3e1
       size: 7227007
+  attribution_analyzis:
+    cmd: python -m src.torch.vit.attributions_analyze
+    deps:
+    - path: src/torch/vit/attributions_analyze.py
+      hash: md5
+      md5: f3342e25e9b48e74329101b28e244e8d
+      size: 3797
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: c51271bbcae27c2f6aaecf0abf7b1ed1
+      size: 6139
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/predictions_analyze.py
+      hash: md5
+      md5: b8d37db64a8650eddbf51a989b7fbeea
+      size: 11227
+    - path: src/torch/vit/train.py
+      hash: md5
+      md5: 35b1d1dd419a7a4903a96c126cf6be91
+      size: 11061
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 8365be090a608fc832bfac63075f9e71
+      size: 3482
+    outs:
+    - path: pred-output/1275/attributions_percentiles_99.png
+      hash: md5
+      md5: db1f489c75080fe580cfd91493f5fe8d
+      size: 46039
+    - path: pred-output/1275/filtered_image_intensities.png
+      hash: md5
+      md5: 4dc7fdce35a0a109270e942e90d42c49
+      size: 47879
+    - path: pred-output/1449/attributions_percentiles_99.png
+      hash: md5
+      md5: 376f6c15c9d45b3cba48cd38797c0c60
+      size: 40994
+    - path: pred-output/1449/filtered_image_intensities.png
+      hash: md5
+      md5: 92ecce6731b57d3ef8b127033f3775f0
+      size: 28968
+    - path: pred-output/185/attributions_percentiles_99.png
+      hash: md5
+      md5: d8768da554a5f0d03c45cca4139d16d4
+      size: 46623
+    - path: pred-output/185/filtered_image_intensities.png
+      hash: md5
+      md5: 0778905034920891eb370ff612b53385
+      size: 45810
+    - path: pred-output/2026/attributions_percentiles_99.png
+      hash: md5
+      md5: 4567a828c728e8f3c09fda9bb323b248
+      size: 47965
+    - path: pred-output/2026/filtered_image_intensities.png
+      hash: md5
+      md5: 930472ef6aaa30a07c4084c982fc18b9
+      size: 37324
+    - path: pred-output/3153/attributions_percentiles_99.png
+      hash: md5
+      md5: 0ed010f4a6ab604899ec929e1ee4e240
+      size: 27838
+    - path: pred-output/3153/filtered_image_intensities.png
+      hash: md5
+      md5: c4f513bc9b953db20c9f2bffe18b332e
+      size: 19773
+    - path: pred-output/3229/attributions_percentiles_99.png
+      hash: md5
+      md5: 99f40cec00fdab0b8fc4d513814369f3
+      size: 40653
+    - path: pred-output/3229/filtered_image_intensities.png
+      hash: md5
+      md5: e1b6092d22ee02843019a8a6462b3c61
+      size: 45587
+    - path: pred-output/3364/attributions_percentiles_99.png
+      hash: md5
+      md5: 8e164ccdb6b1145a9125bd38ad3f0244
+      size: 35440
+    - path: pred-output/3364/filtered_image_intensities.png
+      hash: md5
+      md5: c38c4425b66a24ae322e8d497a300c24
+      size: 104446
+    - path: pred-output/3563/attributions_percentiles_99.png
+      hash: md5
+      md5: 100ebb01bc839d1871665c66166c1792
+      size: 40087
+    - path: pred-output/3563/filtered_image_intensities.png
+      hash: md5
+      md5: e295b47a361912fe4447a1d1065f4f4b
+      size: 84232
+    - path: pred-output/377/attributions_percentiles_99.png
+      hash: md5
+      md5: 254e44ba3fbd9cb3f3b817d7aaa88e76
+      size: 44646
+    - path: pred-output/377/filtered_image_intensities.png
+      hash: md5
+      md5: 071a9b51df342bde682f55311a26a2cb
+      size: 46453
+    - path: pred-output/401/attributions_percentiles_99.png
+      hash: md5
+      md5: 21f1f7e0ba6ca9189a758f7b1cff3fda
+      size: 39915
+    - path: pred-output/401/filtered_image_intensities.png
+      hash: md5
+      md5: df8df736e9cb1ac9098fa266fe5b6fd5
+      size: 75233
+    - path: pred-output/4296/attributions_percentiles_99.png
+      hash: md5
+      md5: 2e11ce7607c05e66a3ddc8235881b202
+      size: 43051
+    - path: pred-output/4296/filtered_image_intensities.png
+      hash: md5
+      md5: 93c90f4dec70dcf52b48aafde745403c
+      size: 61122
+    - path: pred-output/4920/attributions_percentiles_99.png
+      hash: md5
+      md5: 245c9a3d1e0a0e94e315934398954e40
+      size: 37188
+    - path: pred-output/4920/filtered_image_intensities.png
+      hash: md5
+      md5: 92d49b09d36aa4101e5217e113d8a6bb
+      size: 75678
+    - path: pred-output/5894/attributions_percentiles_99.png
+      hash: md5
+      md5: d922fc298326954edb224d84a334ea79
+      size: 38195
+    - path: pred-output/5894/filtered_image_intensities.png
+      hash: md5
+      md5: a3922f13eb04dea4ccab68e4bc4b3374
+      size: 64462
+    - path: pred-output/833/attributions_percentiles_99.png
+      hash: md5
+      md5: 6a37b3b3606c282e275455c99b4418db
+      size: 39416
+    - path: pred-output/833/filtered_image_intensities.png
+      hash: md5
+      md5: 5bc9e3577aa11e6e4bced54d42904ed1
+      size: 121267
