@@ -1,65 +1,42 @@
-import sys, os
-sys.path.append(os.path.expanduser("~/july/solar/"))
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import argparse
 import time
-# from torch_train import DeepFlare_ViT, aia_euv, CustomTransform
-from aarp_ml.torch.dataset import aia_euv, CustomTransform
-from aarp_ml.torch.model import DeepFlare_ViT
+from aarp_ml.torch.dataset import aia_euv
 from tqdm import tqdm
-import pickle
 from torchvision.transforms import v2
+from src.torch.vit.train import TrainingConfig
+from src.torch.vit.utils import get_data_model
+from sklearn.metrics import confusion_matrix
 
-def validate_model(model, val_dl, loss_func):
+def main(*, model, val_dl, loss_func, device):
+    """Validate model and compute metrics."""
     model.eval()
     val_loss = 0.
+    y_true, y_pred = [], []
+
     with torch.inference_mode():
-        correct = 0
-        TP = 0
-        FP = 0
-        TN = 0
-        FN = 0
-        for i, (images, labels) in tqdm(enumerate(val_dl), total=len(val_dl), leave=False):
+        for images, labels in tqdm(val_dl, leave=False):
             images, labels = images.to(device), labels.to(device)
-
-            # Forward pass ➡
             outputs = model(images)
-            val_loss += loss_func(outputs, labels)*labels.size(0)
-            # Compute accuracy and accumulate
-            pred_scores, predicted = torch.max(outputs.data, 1)
-            correct += (predicted == labels).sum().item()
+            val_loss += loss_func(outputs, labels) * labels.size(0)
+            _, predicted = torch.max(outputs.data, 1)
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(predicted.cpu().numpy())
 
-            for pred,label in zip(predicted, labels):
-                if pred == 1 and label == 1:
-                    TP += 1
-                elif pred == 1 and label == 0:
-                    FP += 1
-                elif pred == 0 and label == 0:
-                    TN += 1
-                elif pred == 0 and label == 1:
-                    FN += 1
-        print("No. of correct predictions")
-        print(correct)
-        print("Length of validation dataset:", len(val_dl.dataset))
+        cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+        print(f"Confusion Matrix:\n{cm}")
+        TN, FP, FN, TP = cm.ravel()
+        precision = TP/(TP+FP) if (TP+FP) > 0 else 0
+        recall = TP/(TP+FN) if (TP+FN) > 0 else 0
 
-        print("True Positives:", TP)
-        print("False Positives:", FP)
-        print("True Negatives:", TN)
-        print("False Negatives:", FN)
-        try:
-            precision = TP/(TP+FP)
-        except:
-            precision = 0
-
-        try:
-            recall = TP/(TP+FN)
-        except:
-            recall = 0
-
-        print(f"Precision:{precision}, Recall:{recall}")
-
-
+        # Print confusion matrix metrics
+        print(f"\nConfusion Matrix Stats:")
+        print(f"TP: {TP}, FP: {FP}")
+        print(f"FN: {FN}, TN: {TN}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}\n")
+        print(f"Accuracy: {(TP + TN) / len(val_dl.dataset):.4f}")
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
@@ -69,26 +46,18 @@ if __name__=="__main__":
     parser.add_argument("--stats-file")
     parser.add_argument("--json-path")
     args = parser.parse_args()
-    vit_model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7)
-    model = vit_model.model
 
-    subset = args.subset
+    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
+    metadata, model, transform, device = get_data_model(config)
 
-    # read the mean and std computed over the whole data and pickled to disk
-    with open(args.stats_file, 'rb') as f:
-        stats = pickle.load(f)
-
-    means = [stats['mean'][f'channel_{i}'] for i in range(7)]
-    stds = [stats['std'][f'channel_{i}'] for i in range(7)]
-
-    dataset = aia_euv(args.json_path, subset=subset, transform=v2.Compose([CustomTransform(means, stds)]))
+    dataset = aia_euv(config.json_path, subset=args.subset, transform=v2.Compose([transform]))
     data_loader = DataLoader(dataset, batch_size = args.batch_size, shuffle=False)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device {device}")
-    model.load_state_dict(torch.load(args.trained_model))
     model.to(device)
     criterion = torch.nn.CrossEntropyLoss()
     start = time.time()
-    validate_model(model, data_loader, criterion)
+    main(model=model, val_dl=data_loader, loss_func=criterion, device=device)
     print("Time taken in mins:", int((time.time() - start)/60))
