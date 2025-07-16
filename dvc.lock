@@ -3,7 +3,7 @@ stages:
   prediction-plots:
     cmd: python -m src.torch.vit.predictions_analyze
     deps:
-    - path: output/glad-shape-197/trained_model.pth
+    - path: outputs/glad-shape-197/trained_model.pth
       hash: md5
       md5: 7dec6d8379098dbdadb7fb3a49fd350e
       size: 95600921
@@ -123,7 +123,7 @@ stages:
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance
     deps:
-    - path: output/deep-spaceship-10/best_xgboost_model.json
+    - path: outputs/deep-spaceship-10/best_xgboost_model.json
       hash: md5
       md5: a77a3df0d6bb8d6e48bbe51781a88960
       size: 78666
@@ -143,7 +143,7 @@ stages:
   plot_contour_image_grid:
     cmd: python -m src.torch.vit.plot_contour_image_grid
     deps:
-    - path: output/glad-shape-197/trained_model.pth
+    - path: outputs/glad-shape-197/trained_model.pth
       hash: md5
       md5: 7dec6d8379098dbdadb7fb3a49fd350e
       size: 95600921
@@ -179,7 +179,7 @@ stages:
   create_movie:
     cmd: python -m src.torch.vit.create_movies
     deps:
-    - path: output/glad-shape-197/trained_model.pth
+    - path: outputs/glad-shape-197/trained_model.pth
       hash: md5
       md5: 7dec6d8379098dbdadb7fb3a49fd350e
       size: 95600921

@@ -2,7 +2,7 @@ stages:
   prediction-plots:
     cmd: python -m src.torch.vit.predictions_analyze
     deps:
-    - output/glad-shape-197/trained_model.pth
+    - outputs/glad-shape-197/trained_model.pth
     - solar_dataset.json
     - stats.pkl
     - src/torch/vit/ig.py
@@ -40,7 +40,7 @@ stages:
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance
     deps:
-    - output/deep-spaceship-10/best_xgboost_model.json
+    - outputs/deep-spaceship-10/best_xgboost_model.json
     - src/torch/xgb_feat_importance.py
     outs:
     - plots/xgb_feat_importance_gain.png
@@ -48,7 +48,7 @@ stages:
   plot_contour_image_grid:
     cmd: python -m src.torch.vit.plot_contour_image_grid
     deps:
-    - output/glad-shape-197/trained_model.pth
+    - outputs/glad-shape-197/trained_model.pth
     - solar_dataset.json
     - src/torch/vit/ig.py
     - src/torch/vit/plot_contour_image_grid.py
@@ -60,7 +60,7 @@ stages:
   create_movie:
     cmd: python -m src.torch.vit.create_movies
     deps:
-    - output/glad-shape-197/trained_model.pth
+    - outputs/glad-shape-197/trained_model.pth
     - solar_dataset.json
     - src/torch/vit/create_movies.py
     - src/torch/vit/ig.py
