@@ -11,7 +11,7 @@ from typing import Optional, List
 from dataclasses import dataclass
 import math
 from torch.utils.data import DataLoader
-from vit.scripts.train import print_config, get_weighted_sampler, _run_epoch
+from src.torch.vit.train import print_config, get_weighted_sampler, _run_epoch
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import SaveBestModel
 
