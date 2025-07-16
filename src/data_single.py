@@ -15,6 +15,7 @@ from aarp_ml.model.training import ml_dataset, compute_mean_and_std
 from aarp_ml.data_prep import (get_clean_df, label_urls, random_select_neg_urls, apply_shape_limits,
                                pad_and_resize_in_parallel, process_table_on_disk, remove_offlimb,
                                pad_with_quiet, get_fov_limits, create_json)
+from src.simple_padding import downscale_and_pad
 
 class DatasetPaths:
     def __init__(self, parent_dir: str):
@@ -33,10 +34,10 @@ class DatasetPaths:
         self.shape_limited = os.path.join(parent_dir, "data/shape_limited.csv")
         self.grouped_df = os.path.join(parent_dir, "data/grouped_df.csv")
         # Directory structure
-        self.pos_dir_7h = Path("/data/linn/E8/compressed/pos/")
-        self.neg_dir_7h = Path("/data/linn/E8/compressed/neg/")
-        self.pos_dir_single = Path("/data/linn/E8/extracted/pos")
-        self.neg_dir_single = Path("/data/linn/E8/extracted/neg")
+        self.pos_dir_7h = Path("/data/linn/E10/compressed/pos/")
+        self.neg_dir_7h = Path("/data/linn/E10/compressed/neg/")
+        self.pos_dir_single = Path("/data/linn/E10/extracted/pos")
+        self.neg_dir_single = Path("/data/linn/E10/extracted/neg")
 
 
 def get_download_list(goes_event_list, aarps_full_urls, harp_to_noaa, goes_class="X"):
@@ -215,7 +216,7 @@ def extract_df(df, paths, dim):
         if not os.path.exists(dest):
             os.mkdir(dest)
         print("Saving to ", dest)
-        pad_and_resize_in_parallel(files, padding_func=pad_with_quiet, dest=dest, biggest_shape=(dim, dim), 
+        pad_and_resize_in_parallel(files, padding_func=downscale_and_pad, dest=dest, biggest_shape=(dim, dim), 
                                 targ_shape=(512, 512))
 
 if __name__ == "__main__":
