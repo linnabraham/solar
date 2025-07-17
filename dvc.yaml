@@ -118,3 +118,19 @@ stages:
     - stats.pkl
     outs:
     - plots/cm.png
+  data-single:
+    cmd: python -m src.data_single --process --select
+    deps:
+    - data/GOES_event_list.csv
+    - data/aarps_full_urlist.txt
+    - data/all_harps_with_noaa_ars.txt
+    - src/data_single.py
+    outs:
+    - data/combined_clean.csv
+    - data/combined_dl_list.csv
+    - data/combined_processed_df.csv
+    - data/goes_df_aarp_id.csv
+    - data/grouped_df.csv
+    - data/neg_urls_selected_downloaded.csv
+    - data/pos_urls_selected_downloaded.csv
+    - data/shape_limited.csv

@@ -380,3 +380,55 @@ stages:
       hash: md5
       md5: cc35e16abed57155c58148c7579396a6
       size: 10014
+  data-single:
+    cmd: python -m src.data_single --process --select
+    deps:
+    - path: data/GOES_event_list.csv
+      hash: md5
+      md5: 0d9b65982ed410b544785c53d41ce49c
+      size: 82751
+    - path: data/aarps_full_urlist.txt
+      hash: md5
+      md5: 1408237b6152654b548aaa72a6b1da18
+      size: 26430504
+    - path: data/all_harps_with_noaa_ars.txt
+      hash: md5
+      md5: dcb5e46cd87218eb8bab35150603c550
+      size: 13005
+    - path: src/data_single.py
+      hash: md5
+      md5: a67f932c65b4a5258a0f555f31296425
+      size: 13726
+    outs:
+    - path: data/combined_clean.csv
+      hash: md5
+      md5: 605086aa925be881110c91be6758218d
+      size: 293146323
+    - path: data/combined_dl_list.csv
+      hash: md5
+      md5: 2bfb4fa30fb10fff91169e61ea1090e6
+      size: 4614842
+    - path: data/combined_processed_df.csv
+      hash: md5
+      md5: cd0a270031526d26483593686b45c284
+      size: 228865125
+    - path: data/goes_df_aarp_id.csv
+      hash: md5
+      md5: 55fa78ca1661f4b9281be33b411d5f52
+      size: 4391
+    - path: data/grouped_df.csv
+      hash: md5
+      md5: b0ecebd5ecbf31c17d74918a48d5efce
+      size: 636768
+    - path: data/neg_urls_selected_downloaded.csv
+      hash: md5
+      md5: 899963aa1768eac5358732fd35094760
+      size: 4338544
+    - path: data/pos_urls_selected_downloaded.csv
+      hash: md5
+      md5: 82a83503ef966bb95230b099b4f9b2df
+      size: 254673
+    - path: data/shape_limited.csv
+      hash: md5
+      md5: 7b0a0556f40362ff021e044ce957c96d
+      size: 124077895
