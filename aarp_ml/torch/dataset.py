@@ -42,6 +42,6 @@ class aia_euv(Dataset):
         return features, label
 
     def _read_fits_file(self, file_path):
-        with fits.open(file_path) as hdul:
+        with fits.open(file_path,memmap=True) as hdul:
             data = hdul[0].data
         return data

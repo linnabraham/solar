@@ -71,6 +71,13 @@ def read_stats(pickle_path):
     stds = [stats['std'][f'channel_{i}'] for i in range(7)]
     return means, stds
 
+def read_stats_from_json(json_path):
+    with open(json_path, "r") as f:
+        stats = json.load(f)
+    means = [stats['mean'][f'channel_{i}'] for i in range(7)]
+    stds = [stats['std'][f'channel_{i}'] for i in range(7)]
+    return means, stds
+
 def add_custom_layers(model, data_mean:list, data_std:list, input_shape, num_channels):
     """
     Add a normalization layer to standardize the data channel-wise
@@ -286,7 +293,7 @@ class training:
 
         model = AlexNet.build(width=width, height=height, depth=7, classes=1, reg=0.0001)
 
-        data_mean, data_std = read_stats(self.stats_file)
+        data_mean, data_std = read_stats_from_json(self.stats_file)
         model = add_custom_layers(model, data_mean = data_mean, data_std = data_std, input_shape=self.input_shape, num_channels=self.num_channels)
         cosine_annealing_lr = tf.keras.optimizers.schedules.CosineDecay(
             initial_learning_rate=1e-3,  # Start with a high LR
