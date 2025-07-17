@@ -356,3 +356,27 @@ stages:
       hash: md5
       md5: 5bc9e3577aa11e6e4bced54d42904ed1
       size: 121267
+  confusion-matrix-val:
+    cmd: python -m src.torch.vit.test --subset validation
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: 15635bfc6ec87ea8cd8e64295de9758e
+      size: 2999
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/cm.png
+      hash: md5
+      md5: cc35e16abed57155c58148c7579396a6
+      size: 10014

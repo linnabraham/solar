@@ -109,3 +109,12 @@ stages:
     - pred-output/4920/filtered_image_intensities.png
     - pred-output/5894/filtered_image_intensities.png
     - pred-output/833/filtered_image_intensities.png
+  confusion-matrix-val:
+    cmd: python -m src.torch.vit.test --subset validation
+    deps:
+    - outputs/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - src/torch/vit/test.py
+    - stats.pkl
+    outs:
+    - plots/cm.png
