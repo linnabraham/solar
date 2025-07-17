@@ -60,9 +60,16 @@ dvc repro stage-name
 
 ### Training:
 
-- `src.torch.xgb_train` - Train xgboost model
-- `src.torch.train_alexnet` - Train AlexNet model
-- `src.torch.vit.train` - Train ViT model
+- Train xgboost model
+    - `src.torch.xgb_train` 
+- Train AlexNet model
+    - `src.torch.train_alexnet` 
+- Train ViT model
+    - `src.torch.vit.train` 
+- Train tensorflow version of AlexNet
+    - `src.tensorflow.train_alexnet --json-path solar_dataset.json --stats-file stats.pkl ` 
+- Predict on the test set and get the confusion matrix and other metrics.
+    - `src.torch.vit.test --subset test` 
 
 ### Analysis:
 - `src.torch.vit.class_wise_distribution` - Create IG attributions and save the data to disk 
@@ -78,3 +85,4 @@ Run each test using `python -m unittest` format
 ### Misc
 - `src.check_json` - Check the json config file for filepaths that do not exist on disk.
 - `src.clean_json` - Remove any missing file paths from config and write it to a new file.
+- `src.torch.compute_mean_std` - Compute mean and std of the training split data and save to .json file
