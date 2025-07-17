@@ -5,9 +5,11 @@ import time
 from aarp_ml.torch.dataset import aia_euv
 from tqdm import tqdm
 from torchvision.transforms import v2
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
 from src.torch.vit.train import TrainingConfig
 from src.torch.vit.utils import get_data_model
-from sklearn.metrics import confusion_matrix
+from ml_utils.visualization import plot_confusion_matrix
 
 def main(*, model, val_dl, loss_func, device):
     """Validate model and compute metrics."""
@@ -24,25 +26,42 @@ def main(*, model, val_dl, loss_func, device):
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
 
-        cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
-        print(f"Confusion Matrix:\n{cm}")
-        TN, FP, FN, TP = cm.ravel()
-        precision = TP/(TP+FP) if (TP+FP) > 0 else 0
-        recall = TP/(TP+FN) if (TP+FN) > 0 else 0
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    print(f"Confusion Matrix:\n{cm}")
+    TN, FP, FN, TP = cm.ravel()
+    precision = TP/(TP+FP) if (TP+FP) > 0 else 0
+    recall = TP/(TP+FN) if (TP+FN) > 0 else 0
 
-        # Print confusion matrix metrics
-        print(f"\nConfusion Matrix Stats:")
-        print(f"TP: {TP}, FP: {FP}")
-        print(f"FN: {FN}, TN: {TN}")
-        print(f"Precision: {precision:.4f}")
-        print(f"Recall: {recall:.4f}\n")
-        print(f"Accuracy: {(TP + TN) / len(val_dl.dataset):.4f}")
+    # Print confusion matrix metrics
+    print(f"\nConfusion Matrix Stats:")
+    print(f"TP: {TP}, FP: {FP}")
+    print(f"FN: {FN}, TN: {TN}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}\n")
+    print(f"Accuracy: {(TP + TN) / len(val_dl.dataset):.4f}")
+
+    fig, ax = plot_confusion_matrix(
+        cm,
+        hide_spines=False,
+        hide_ticks=False,
+        figsize=None,
+        cmap=None,
+        colorbar=False,
+        show_absolute=True,
+        show_normed=False,
+        norm_colormap=None,
+        class_names=None,
+        figure=None,
+        axis=None,
+        fontcolor_threshold=0.5,
+    )
+    plt.savefig("plots/cm.png")
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-batch-size", "--batch-size", type=int, default=32)
     parser.add_argument('-trained-model', '--trained-model')
-    parser.add_argument("-subset", "--subset")
+    parser.add_argument("-subset", "--subset", required=True)
     parser.add_argument("--stats-file")
     parser.add_argument("--json-path")
     args = parser.parse_args()
