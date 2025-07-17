@@ -1,0 +1,5 @@
+outs:
+- md5: 5882af27d3402f9ec4d36473c584f6c9
+  size: 603
+  hash: md5
+  path: stats.json

@@ -3,3 +3,4 @@
 **/__pycache__/**
 /pred-output
 /plots/cm.png
+/stats.json
