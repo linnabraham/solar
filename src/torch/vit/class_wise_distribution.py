@@ -86,7 +86,7 @@ def plot_intensity_distribution(images:tuple, attributions:tuple, percentile_lev
 
 if __name__=="__main__":
     # Load Data and Model
-    trained_model_path = "output/glad-shape-197/trained_model.pth"
+    trained_model_path = "outputs/glad-shape-197/trained_model.pth"
     with open('solar_dataset.json', 'r') as json_file:
         metadata = json.load(json_file)
 
