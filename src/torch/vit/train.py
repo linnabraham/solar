@@ -1,6 +1,4 @@
 import os
-from dataclasses import dataclass
-from typing import Optional, List
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
 import time
@@ -14,31 +12,7 @@ import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from collections import Counter
 from sklearn.metrics import confusion_matrix
-
-@dataclass
-class TrainingConfig:
-    # Required parameters
-    json_path: str
-    stats_file: str
-
-    # Optional training parameters
-    batch_size: int = 32
-    epochs: int = 5
-    learning_rate: float = 0.001
-    scheduler_type: Optional[str] = None
-    retrain: bool = False
-    trained_model_path: Optional[str] = None
-    use_l1: bool = False
-    l1_lambda: float = 0.01
-
-    # Model parameters
-    image_height: int = 512
-    n_classes: int = 2
-    n_channels: int = 7
-
-    # System parameters
-    device: str = "cuda:0"
-    memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+from src.torch.vit.config import TrainingConfig
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
     """Create a sampler that handles class imbalance."""
