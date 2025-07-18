@@ -111,7 +111,7 @@ def plot_aia_image_grid(
 
 if __name__=="__main__":
     config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
-    config.trained_model_path = "output/glad-shape-197/trained_model.pth"
+    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -143,4 +143,4 @@ if __name__=="__main__":
         vmax_percentile=99.9,
         show=False
     )
-    fig.savefig("tests_outputs/attribution_contour_grid.png", bbox_inches="tight", dpi=300)
+    fig.savefig("plots/attribution_contour_grid.png", bbox_inches="tight", dpi=300)
