@@ -275,19 +275,14 @@ if __name__ == "__main__":
         create_json(paths.pos_dir_single, paths.neg_dir_single, shape_limited_df, paths.json_filename)
 
     if args.stats == True:
-        ds  = aarp_dataset(json_path=paths.json_filename)
-        num_channels = 7
+        data_mean, data_std = compute_mean_and_std(json_path=paths.json_filename,
+                                                    batch_size=32)
         with open(paths.stats_pickle, 'wb') as f:
-            train_ds = ml_dataset(json_path=paths.json_filename).get_tfds(subset_name="training")
-            train_ds = train_ds.batch(256)
-
-            data_mean, data_std = compute_mean_and_std(train_ds)
+            num_channels = 7
             stats = {
                     'mean' : {f'channel_{i}': data_mean.numpy()[i] for i in range(num_channels)},
                     'std' : {f'channel_{i}': data_std.numpy()[i] for i in range(num_channels)}
                     }
-            print(stats)
-
             pickle.dump(stats, f)
-
-        print(f"Script ran for {time.time() - st} seconds")
+        print(stats)
+    print(f"Script ran for {time.time() - st} seconds")

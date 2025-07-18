@@ -9,9 +9,9 @@ import json
 import pickle
 from tensorflow.keras.models import load_model
 from sklearn.utils import shuffle
+from tqdm import tqdm
 from .alexnet import AlexNet
 from aarp_ml.dataset import aarp_dataset
-
 INPUT_SHAPE = (512,512)
 NUM_CHANNELS = 7
 USE_MEMORY_GROWTH = True
@@ -36,14 +36,20 @@ def rescale(image, label):
     image = tf.image.per_image_standardization(image)
     return image, label
 
-def compute_mean_and_std(dataset):
+def compute_mean_and_std(json_path, batch_size=32):
+    ds  = aarp_dataset(json_path=json_path)
+    train_subset = ds.get_subset("training")
+    file_paths = train_subset.file_paths
+    train_ds = ml_dataset(json_path=json_path).get_tfds(subset_name="training")
+    train_ds = train_ds.batch(batch_size)
+
     # Initialize variables to accumulate the sum and sum of squares
     sum_values = tf.zeros(shape=(7,), dtype=tf.float32)
     sum_squared_values = tf.zeros(shape=(7,), dtype=tf.float32)
     count = 0
 
     # Iterate over the dataset
-    for batch in dataset:
+    for batch in tqdm(train_ds, total=len(file_paths)//batch_size, desc="Computing mean/std"):
         # Assuming batch[0] contains the features
         values = batch[0]
         # Move the channel dimension to last
