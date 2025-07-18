@@ -56,7 +56,7 @@ stages:
     - src/torch/vit/utils.py
     - stats.pkl
     outs:
-    - tests_outputs/attribution_contour_grid.png
+    - plots/attribution_contour_grid.png
   create_movie:
     cmd: python -m src.torch.vit.create_movies
     deps:
