@@ -14,6 +14,8 @@ from aarp_ml.dataset import aarp_dataset
 
 INPUT_SHAPE = (512,512)
 NUM_CHANNELS = 7
+USE_MEMORY_GROWTH = True
+MEMORY_LIMIT_MB = 1024*30 #30 GB
 
 def parse_images(img_paths:list):
     images_list = []
@@ -305,17 +307,23 @@ class training:
         return model
 
     def train(self, epochs, batch_size, output_prefix):
-        gpu = tf.config.experimental.list_physical_devices('GPU')[0]
-        tf.config.experimental.set_memory_growth(gpu, True)
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        if gpus:
+            try:
+                if USE_MEMORY_GROWTH:
+                    tf.config.experimental.set_memory_growth(gpus[0], True)
+                    print("Memory growth enabled for GPU...")
+                else:
+                    tf.config.set_logical_device_configuration(
+                    gpus[0],
+                    [tf.config.LogicalDeviceConfiguration(memory_limit=MEMORY_LIMIT_MB)]
+                    )
+                    print(f"Hard memory limit set to {MEMORY_LIMIT_MB} MB on GPU...")
 
-        try:
-            tf.config.set_logical_device_configuration(
-            gpu,
-            [tf.config.LogicalDeviceConfiguration(memory_limit=1024*30)]  # 30GB
-            )
-
-        except RuntimeError as e:
-            print(e)
+            except RuntimeError as e:
+                print(e)
+        else:
+            print("No GPU device found.")
 
         os.environ["WANDB_SILENT"] = "true"
 
