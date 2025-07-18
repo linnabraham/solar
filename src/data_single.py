@@ -47,7 +47,7 @@ def get_download_list(goes_event_list, aarps_full_urls, harp_to_noaa, goes_class
     neg_url_df = aarps_url_labelled_df[ aarps_url_labelled_df.label==0]
     return goes_df, (pos_url_df, neg_url_df)
 
-def download_data(pos_urls_df: pd.DataFrame, neg_urls_df: pd.DataFrame, paths: DatasetPaths, imbalance_factor=12, args=None) -> pd.DataFrame:
+def download_data(goes_df:pd.DataFrame, pos_urls_df: pd.DataFrame, neg_urls_df: pd.DataFrame, paths: DatasetPaths, imbalance_factor=12, args=None) -> pd.DataFrame:
     pos_urls_selected_df = select_pos_urls(pos_urls_df, goes_df)
 
     pos_urls_selected_df['compressed_fits_fullpath'] = pos_urls_selected_df.urls.apply(
@@ -74,7 +74,7 @@ def download_data(pos_urls_df: pd.DataFrame, neg_urls_df: pd.DataFrame, paths: D
     return downloaded_list_combined_df
 
 
-def check_dataset_paths(paths: DatasetPaths) -> None:
+def check_dataset_paths(paths: DatasetPaths, args) -> None:
     """Check existence of all files and directories in DatasetPaths."""
     print("\nChecking dataset files and directories:")
     print("----------------------------------------")
@@ -153,7 +153,7 @@ def select_pos_urls(urldf, goes_df):
     pos_url_selected_df = pos_url_annot_df[pos_url_annot_df.goes_matched_start.isna()]
     return pos_url_selected_df
 
-def select_images(combined_processed_df_org):
+def select_images(combined_processed_df_org, paths):
     """
     Remove images without timestamp information and longitude information
     Remove observations taken at the limb
@@ -230,21 +230,21 @@ if __name__ == "__main__":
 
     st = time.time()
     paths = DatasetPaths(parent_dir=os.getcwd())
-    check_dataset_paths(paths)
+    check_dataset_paths(paths, args)
 
     if args.process:
         goes_df, (pos_urls_df, neg_urls_df) = get_download_list(
                 paths.goes_event_list, paths.aarp_full_urls, paths.harp_to_noaa, goes_class="X")
         goes_df.to_csv(paths.goes_event_with_aarp, index=False)
 
-        downloaded_list_combined_df = download_data(pos_urls_df, neg_urls_df, paths, imbalance_factor=12, args=args)
+        downloaded_list_combined_df = download_data(goes_df, pos_urls_df, neg_urls_df, paths, imbalance_factor=12, args=args)
         downloaded_list_combined_df.to_csv(paths.combined_dl_list, index=False)
         combined_processed_df = process_table_on_disk(downloaded_list_combined_df)
         combined_processed_df.to_csv(paths.combined_processed, index=False)
 
     if args.select:
         combined_processed_df_org = pd.read_csv(paths.combined_processed)
-        combined_clean, shape_limited_df = select_images(combined_processed_df_org)
+        combined_clean, shape_limited_df = select_images(combined_processed_df_org, paths)
         grouped_df = create_grouped_df(shape_limited_df)
 
         # harcode problematic files that do not get actually extracted to disk and hence 
