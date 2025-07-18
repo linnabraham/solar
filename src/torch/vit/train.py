@@ -1,6 +1,4 @@
 import os
-from aarp_ml.torch.dataset import aia_euv, AIALogTransform
-from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
 import time
 import argparse
 import math
@@ -12,6 +10,8 @@ import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from collections import Counter
 from sklearn.metrics import confusion_matrix
+from aarp_ml.torch.dataset import aia_euv, AIALogTransform
+from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
 from src.torch.vit.config import TrainingConfig
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
@@ -199,7 +199,7 @@ def train(config: TrainingConfig):
     )
 
     # Create output directory
-    output_dir = os.path.join("output", wandb.run.name)
+    output_dir = os.path.join("outputs", wandb.run.name)
     os.makedirs(output_dir, exist_ok=True)
 
     # Setup model saving
