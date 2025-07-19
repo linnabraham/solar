@@ -134,3 +134,17 @@ stages:
     - data/neg_urls_selected_downloaded.csv
     - data/pos_urls_selected_downloaded.csv
     - data/shape_limited.csv
+  create-distribution:
+    cmd: python -m src.torch.vit.class_wise_distribution
+    deps:
+    - outputs/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - src/torch/vit/class_wise_distribution.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
+    - stats.pkl
+    outs:
+    - data/intermediate-outs/attributions_neg.pt:
+        cache: false
+    - data/intermediate-outs/attributions_pos.pt:
+        cache: false
