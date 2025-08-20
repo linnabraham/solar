@@ -57,7 +57,7 @@ def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=
     centers = np.logspace(-6.5, -3.5, len(labels))
 
     for value, label in zip(centers, labels):
-        ax.text(1.02, value, label, transform=ax.get_yaxis_transform(), horizontalalignment='center')
+        ax.text(-0.02, value, label, transform=ax.get_yaxis_transform(), horizontalalignment='center')
     ax.yaxis.grid(True, "major")
     ax.xaxis.grid(False, "major")
     ax.legend()
