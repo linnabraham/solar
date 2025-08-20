@@ -178,13 +178,14 @@ def get_aarp_seq_dataset(s_aarp, transform, device):
     dataset = TensorDataset(tensor_data)
     return dataset
 
-def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home):
+def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home, resume=False):
     output_dir = f"{output_home}/{aarp_id}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:
-        print(f"Output directory {output_dir} already exists, skipping {aarp_id}")
-        return None
+        if resume:
+            print(f"Output directory {output_dir} already exists, skipping {aarp_id}")
+            return None
 
     print(f"Using {aarp_id=}")
 
@@ -230,7 +231,7 @@ def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_
 def main():
     # Load Data and Model
     config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
-    config.trained_model_path = "output/glad-shape-197/trained_model.pth"
+    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 
