@@ -44,7 +44,7 @@ def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=
             data.index, data[channel], "-", label=plot_settings[channel][1], color=plot_settings[channel][0], lw=1, **kwargs
         )
     ax.set_yscale("log")
-    ax.set_ylim(1e-9, 1e-2)
+    ax.set_ylim(1e-7, 1e-2)
     ax.set_ylabel("Watts m$^{-2}$")
 
     locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
@@ -53,16 +53,15 @@ def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=
     ax.xaxis.set_major_formatter(formatter)
 
     ax.tick_params(axis='x', rotation=45)
-    labels = ['A', 'B', 'C', 'M', 'X']
-    centers = np.logspace(-7.5, -3.5, len(labels))
-    centers = np.logspace(-7.5, -3.5, len(labels))
+    labels = ['B', 'C', 'M', 'X']
+    centers = np.logspace(-6.5, -3.5, len(labels))
 
     for value, label in zip(centers, labels):
         ax.text(1.02, value, label, transform=ax.get_yaxis_transform(), horizontalalignment='center')
     ax.yaxis.grid(True, "major")
     ax.xaxis.grid(False, "major")
     ax.legend()
-    return fig, ax  
+    return fig, ax
 
 def plot_custom_goes_with_aarp_sampling(goes_ts, timestamps, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=150, **kwargs):
     if ax is None:
