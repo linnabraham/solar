@@ -55,6 +55,7 @@ def extract_stats_generator(dataset, config:TrainingConfig):
             channel_data = torch.from_numpy(channel_data)
             channel_stats.extend([torch.min(channel_data).item(), torch.max(channel_data).item(), torch.mean(channel_data).item()])
             channel_stats.extend(percentile_feats)
+            channel_stats.extend([torch_skew(channel_data).item(), torch_kurtosis(channel_data).item()])
 
         features.append(channel_stats)
         labels.append(label[0])  # Assuming label is a single value for the image
@@ -65,8 +66,23 @@ def get_feature_names(config:TrainingConfig):
     stat_names = list(config.simple_stats)
     percentile_names = [f'p{percentile}' for percentile in config.percentiles]
     stat_names.extend(percentile_names)
+    stat_names.extend(["skew","kurt"])
     feat_names = [f'{pb}_{stat_name}' for pb in config.passbands for stat_name in stat_names]
     return feat_names
+
+def torch_skew(x, dim=None, unbiased=True):
+    mean = x.mean(dim, keepdim=True)
+    std = x.std(dim, unbiased=unbiased, keepdim=True)
+    skew = ((x - mean) ** 3).mean(dim) / (std.squeeze() ** 3)
+    return skew
+
+def torch_kurtosis(x, dim=None, unbiased=True, excess=True):
+    mean = x.mean(dim, keepdim=True)
+    std = x.std(dim, unbiased=unbiased, keepdim=True)
+    kurt = ((x - mean) ** 4).mean(dim) / (std.squeeze() ** 4)
+    if excess:
+        kurt -= 3
+    return kurt
 
 def train_and_eval(config: TrainingConfig):
     """Main training function."""
