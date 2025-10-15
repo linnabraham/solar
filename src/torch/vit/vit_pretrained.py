@@ -1,57 +1,35 @@
+import pytorch_lightning as pl
 import torchvision
-from torchvision.transforms import v2
-from aarp_ml.torch.model import BaseModel
-import torch.nn as nn
+import torch
 
-class VIT_Pretrained(BaseModel):
+def make_model():
+    model = torchvision.models.vit_l_16(weights="IMAGENET1K_V1")
 
-    def __init__(self, d_input, d_output, eve_norm, root_dir, lr_linear = 1e-2, cnn_dp = 0.75, cnn_lambda = 0.5,
-                 lambda_mom0 = 0.1, lambda_mom1 = 0.1, lambda_mom2 = 0.1,  scale_learn = True, bias = False,loss_func = nn.HuberLoss(),
-                 lr_cnn=0.0001, ln_params=None,  dropout_prob = 0.3, height = 512, patch_size = 32, linear_learn = False,
-                 wavelength_array_path = "wavelength_grid.npz", ion_data_path = "ion_data.csv"):
+    old_conv = model.conv_proj
 
-        super(VIT_Pretrained, self).__init__(d_input, d_output,root_dir, loss_func, lr_linear, lr_cnn, cnn_dp, ln_params, cnn_lambda,
-                 lambda_mom0, lambda_mom1, lambda_mom2, dropout_prob, height, patch_size, wavelength_array_path, ion_data_path)
-        self.eve_norm = eve_norm
-        self.n_channels = d_input
-        self.outSize = d_output
-        self.ln_params = ln_params
-        self.lr_cnn = lr_cnn
-        self.lambda_mom0 = lambda_mom0
-        self.lambda_mom1 = lambda_mom1
-        self.lambda_mom2 = lambda_mom2
-        self.root_dir = root_dir
-        self.resize = torchvision.transforms.Resize(224)
-        self.model = torchvision.models.vit_l_16(weights='IMAGENET1K_V1')
-        conv1_out = self.model.conv_proj.out_channels
-        self.model.conv_proj = nn.Conv2d(
-            d_input,
-            conv1_out,
-            kernel_size=(16, 16),
-            stride=(16, 16)
-        )
+    # Create a new one with 7 input channels instead of 3
+    new_conv = torch.nn.Conv2d(
+        in_channels=7,
+        out_channels=old_conv.out_channels,
+        kernel_size=old_conv.kernel_size,
+        stride=old_conv.stride,
+        padding=old_conv.padding,
+        bias=old_conv.bias is not None
+    )
 
-        lin_in = self.model.heads.head.in_features
-        regression = nn.Sequential(
-            nn.Dropout(p=dropout_prob, inplace=True),
-            nn.Linear(in_features=lin_in, out_features=d_output, bias=True)
-        )
-        self.model.heads = regression
+    model.conv_proj = new_conv
 
-        for m in self.model.modules():
-            if m.__class__.__name__.startswith('Dropout'):
-                m.p = dropout_prob
+    # Random initialization for new input channel weights
+    torch.nn.init.kaiming_normal_(new_conv.weight, mode="fan_out", nonlinearity="relu")
+    if new_conv.bias is not None:
+        torch.nn.init.zeros_(new_conv.bias)
 
-        for m in self.model.modules():
-            if m.__class__.__name__.startswith('Dropout'):
-                m.p = dropout_prob
-
-        self.transforms = v2.Compose([v2.RandomHorizontalFlip(p = 0.7),
-                                     v2.RandomVerticalFlip(p = 0.7)])
-
-    def forward(self, x):
-        return self.model(self.resize(self.transforms(x)))  #aiadata.permute(0,3,1,2)
+    # Replace the classification head (1000 → 2 classes)
+    model.heads.head = torch.nn.Linear(model.heads.head.in_features, 2)
+    return model
 
 if __name__=="__main__":
-    model = VIT_Pretrained(d_input=7, d_output=2, root_dir=".", eve_norm=True).model
-    print(model)
+    model = modify_model(model)
+    x = torch.randn(1, 7, 224, 224)
+    out = model(x)
+    print(out.shape)

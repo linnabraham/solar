@@ -13,6 +13,7 @@ from sklearn.metrics import confusion_matrix
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
 from src.torch.vit.config import TrainingConfig
+from src.torch.vit.vit_pretrained import make_model
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
     """Create a sampler that handles class imbalance."""
@@ -147,12 +148,7 @@ def train(config: TrainingConfig):
     # Print configuration
     print_config(config)
 
-    # Setup model
-    model = DeepFlare_ViT(
-        height=config.image_height,
-        n_classes=config.n_classes,
-        n_passbands=config.n_channels
-    ).model
+    model = make_model()
 
     # Load statistics
     with open(config.stats_file, 'rb') as f:
@@ -166,14 +162,18 @@ def train(config: TrainingConfig):
         subset='training',
         transform=v2.Compose([
             AIALogTransform(means, stds),
+            v2.Resize((224, 224)),
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5)
         ])
     )
+
     val_dataset = aia_euv(
         config.json_path,
         subset='validation',
-        transform=v2.Compose([AIALogTransform(means, stds)])
+        transform=v2.Compose([AIALogTransform(means, stds),
+        v2.Resize((224, 224))
+        ])
     )
 
     # Create dataloaders
@@ -182,6 +182,7 @@ def train(config: TrainingConfig):
         batch_size=config.batch_size,
         sampler=get_weighted_sampler(train_dataset)
     )
+
     val_loader = DataLoader(
         val_dataset,
         batch_size=config.batch_size,
@@ -284,4 +285,5 @@ def parse_args() -> TrainingConfig:
 
 if __name__ == "__main__":
     config = parse_args()
+    print_config(config)
     train(config)
