@@ -9,7 +9,7 @@ class TrainingConfig:
 
     # Optional training parameters
     batch_size: int = 32
-    epochs: int = 5
+    epochs: int = 50
     learning_rate: float = 0.001
     scheduler_type: Optional[str] = None
     retrain: bool = False
