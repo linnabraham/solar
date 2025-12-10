@@ -24,4 +24,4 @@ class TrainingConfig:
 
     # System parameters
     device: str = "cuda:0"
-    memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+    memory_threshold: int = 8000  # GPU memory threshold measured in megabytes
