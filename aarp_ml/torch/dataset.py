@@ -16,6 +16,31 @@ class AIALogTransform:
         x = (x - self.means.to(x.device)) / self.stds.to(x.device)  # Z-score normalization
         return x
 
+# Un-normalize and inverse log-transform function
+def inverse_transform(image_tensor, means, stds):
+    """
+    Inverts the transformation: (ln(x) - mean) / std.
+    The inverse is: exp((x_norm * std) + mean).
+    """
+    # image_tensor shape: [1, C, H, W]
+
+    # 1. Move to CPU and remove the batch dimension
+    image_numpy = image_tensor.squeeze(0).cpu().numpy() # Shape: [C, H, W]
+
+    # 2. Reshape means and stds to [C, 1, 1] for broadcasting
+    # Note: means and stds here are for the natural log-space.
+    means_np = np.array(means)[:, None, None]
+    stds_np = np.array(stds)[:, None, None]
+
+    # Step 1: Inverse standardization (un-normalize)
+    # x_log = (x_norm * std) + mean (This is now the natural log of the intensity)
+    x_log = (image_numpy * stds_np) + means_np
+
+    # Step 2: Inverse natural log transformation: exp(x_log)
+    original_intensity = np.exp(x_log)
+
+    return original_intensity # Shape: [C, H, W]
+
 class aia_euv(Dataset):
     def __init__(self, json_path, subset, transform=None):
         self.data = self._load_data(json_path, subset)
