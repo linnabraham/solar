@@ -13,6 +13,7 @@ from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from torchvision.transforms import v2
 import matplotlib.pyplot as plt
 import numpy as np
+from src.torch.vit.utils import save_multi_channel_tensor_as_figure
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
     """Create a sampler that handles class imbalance."""
@@ -34,6 +35,7 @@ class Config:
     n_passbands = 7
     n_classes = 2
     height = 512
+    aia_channels = [94, 131, 171, 193, 211, 304, 335]
 
 config = Config()
 config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
@@ -96,6 +98,30 @@ def wrapped_forward_fun(image):
 print(wrapped_forward_fun(image).shape)
 transform = AIALogTransform(means, stds)
 baseline_zero = transform(torch.zeros_like(image))
+
+save_multi_channel_tensor_as_figure(
+    image_tensor=image,
+    filename='input_image_normalized.png',
+    title='Model Input Image (Normalized)',
+    channel_labels=config.aia_channels,
+)
+
+save_multi_channel_tensor_as_figure(
+    image_tensor=image,
+    filename='input_image_original_intensity.png',
+    title='Input Image',
+    channel_labels=config.aia_channels,
+    is_transformed=True, # Set this to True
+    means=means,
+    stds=stds
+)
+
+save_multi_channel_tensor_as_figure(
+    image_tensor=baseline_zero,
+    filename='baseline_image.png',
+    title='KernelSHAP Baseline (Zero Input)',
+    channel_labels=config.aia_channels,
+)
 
 C = config.n_passbands
 # Group all pixels of each channel as ONE feature via a feature_mask
