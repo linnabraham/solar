@@ -37,130 +37,152 @@ class Config:
     height = 512
     aia_channels = [94, 131, 171, 193, 211, 304, 335]
 
-config = Config()
-config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def get_model(config:Config, device:torch.device):
 
-model = DeepFlare_ViT(
-  height=config.height,
-  n_classes=config.n_classes,
-  n_passbands=config.n_passbands
-).model
+    model = DeepFlare_ViT(
+      height=config.height,
+      n_classes=config.n_classes,
+      n_passbands=config.n_passbands
+    ).model
 
+    checkpoint = torch.load(config.trained_model_path, map_location=device)
+    learning_rate = 0.001
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    if isinstance(checkpoint, dict):
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint.get('epoch', -1) + 1
+    else:
+        model.load_state_dict(checkpoint)
 
-# Load statistics
-with open(config.stats_file, 'rb') as f:
-    stats = pickle.load(f)
-    means = [stats['mean'][f'channel_{i}'] for i in range(config.n_passbands)]
-    stds = [stats['std'][f'channel_{i}'] for i in range(config.n_passbands)]
+    model = model.to(device)
+    model.eval()
+    return model
 
-train_dataset = aia_euv(
-    config.json_path,
-    subset='training',
-    transform=v2.Compose([
-        AIALogTransform(means, stds),
-        #v2.Resize((224, 224)),          # <--- add this line
-        v2.RandomHorizontalFlip(p=0.5),
-        v2.RandomVerticalFlip(p=0.5)
-    ])
-)
+def get_data_loader(config:Config, means, stds):
 
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=config.batch_size,
-    sampler=get_weighted_sampler(train_dataset)
-)
+    train_dataset = aia_euv(
+        config.json_path,
+        subset='training',
+        transform=v2.Compose([
+            AIALogTransform(means, stds),
+            #v2.Resize((224, 224)),          # <--- add this line
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomVerticalFlip(p=0.5)
+        ])
+    )
 
-train_iter = iter(train_loader)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config.batch_size,
+        sampler=get_weighted_sampler(train_dataset)
+    )
 
-checkpoint = torch.load(config.trained_model_path, map_location=device)
-learning_rate = 0.001
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-if isinstance(checkpoint, dict):
-    if 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    if 'optimizer_state_dict' in checkpoint:
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    start_epoch = checkpoint.get('epoch', -1) + 1
-else:
-    model.load_state_dict(checkpoint)
+    return train_loader
 
-model = model.to(device)
-model.eval()
-x, y = next(train_iter)
+def save_images(image, baseline_zero, means, stds, config):
 
-image = x[0].unsqueeze(0)
-image = image.to(device)
+    save_multi_channel_tensor_as_figure(
+        image_tensor=image,
+        filename='input_image_normalized.png',
+        title='Model Input Image (Normalized)',
+        channel_labels=config.aia_channels,
+    )
 
-def wrapped_forward_fun(image):
-    return model(image)
+    save_multi_channel_tensor_as_figure(
+        image_tensor=image,
+        filename='input_image_original_intensity.png',
+        title='Input Image',
+        channel_labels=config.aia_channels,
+        is_transformed=True, # Set this to True
+        means=means,
+        stds=stds
+    )
 
-print(wrapped_forward_fun(image).shape)
-transform = AIALogTransform(means, stds)
-baseline_zero = transform(torch.zeros_like(image))
+    save_multi_channel_tensor_as_figure(
+        image_tensor=baseline_zero,
+        filename='baseline_image.png',
+        title='KernelSHAP Baseline (Zero Input)',
+        channel_labels=config.aia_channels,
+    )
 
-save_multi_channel_tensor_as_figure(
-    image_tensor=image,
-    filename='input_image_normalized.png',
-    title='Model Input Image (Normalized)',
-    channel_labels=config.aia_channels,
-)
+def do_kernel_shap(config, image, baseline_zero, model):
 
-save_multi_channel_tensor_as_figure(
-    image_tensor=image,
-    filename='input_image_original_intensity.png',
-    title='Input Image',
-    channel_labels=config.aia_channels,
-    is_transformed=True, # Set this to True
-    means=means,
-    stds=stds
-)
+    def wrapped_forward_fun(image):
+        return model(image)
 
-save_multi_channel_tensor_as_figure(
-    image_tensor=baseline_zero,
-    filename='baseline_image.png',
-    title='KernelSHAP Baseline (Zero Input)',
-    channel_labels=config.aia_channels,
-)
+    print(wrapped_forward_fun(image).shape)
 
-C = config.n_passbands
-# Group all pixels of each channel as ONE feature via a feature_mask
-    # feature_mask must be same shape as x, with integer IDs for groups.
-    # We'll label each channel with a distinct ID 0..C-1.
-feature_mask = torch.zeros_like(image, dtype=torch.long)
-for c in range(C):
-    feature_mask[:, c, :, :] = c
-if image.shape[0] != 1:
-    feature_mask = feature_mask[0][None,...]
-
-explainer = KernelShap(wrapped_forward_fun)
-n_samples = 500
-attrs = explainer.attribute(
-        image,
-        baselines=baseline_zero,
-        feature_mask=feature_mask,
-        n_samples=n_samples,
-        target=1,
-        show_progress=True
-        )
-
-# Aggregate to per-channel Shapley:
-# Captum returns per-element attributions; sum or mean over H,W (and batch).
-# Shapley is additive; sum is a natural aggregation. Mean gives scale-less scores.
-# We'll use mean over spatial & batch for comparability across image sizes.
-channel_scores_mean = {}
-channel_scores_se = {}
-with torch.no_grad():
-    # reduce over B,H,W
-    # You can also use .abs() if you want magnitude-only importance.
-    per_c = attrs.mean(dim=(0, 2, 3))  # (C,)
-    shp = attrs.shape
-    per_c_se = attrs.std(dim=(0, 2, 3)) /  math.sqrt(shp[0]*shp[2]*shp[3])# (C,)
+    C = config.n_passbands
+    # Group all pixels of each channel as ONE feature via a feature_mask
+        # feature_mask must be same shape as x, with integer IDs for groups.
+        # We'll label each channel with a distinct ID 0..C-1.
+    feature_mask = torch.zeros_like(image, dtype=torch.long)
     for c in range(C):
-        channel_scores_mean[c] = float(per_c[c].item())
-        channel_scores_se[c] = float(per_c_se[c].item())
+        feature_mask[:, c, :, :] = c
+    if image.shape[0] != 1:
+        feature_mask = feature_mask[0][None,...]
 
-print(channel_scores_mean, channel_scores_se)
+    explainer = KernelShap(wrapped_forward_fun)
+    n_samples = 500
+    attrs = explainer.attribute(
+            image,
+            baselines=baseline_zero,
+            feature_mask=feature_mask,
+            n_samples=n_samples,
+            target=1,
+            show_progress=True
+            )
 
-#print(image.shape)
-#import sys; sys.exit(0)
+    # Aggregate to per-channel Shapley:
+    # Captum returns per-element attributions; sum or mean over H,W (and batch).
+    # Shapley is additive; sum is a natural aggregation. Mean gives scale-less scores.
+    # We'll use mean over spatial & batch for comparability across image sizes.
+    channel_scores_mean = {}
+    channel_scores_se = {}
+    with torch.no_grad():
+        # reduce over B,H,W
+        # You can also use .abs() if you want magnitude-only importance.
+        per_c = attrs.mean(dim=(0, 2, 3))  # (C,)
+        shp = attrs.shape
+        per_c_se = attrs.std(dim=(0, 2, 3)) /  math.sqrt(shp[0]*shp[2]*shp[3])# (C,)
+        for c in range(C):
+            channel_scores_mean[c] = float(per_c[c].item())
+            channel_scores_se[c] = float(per_c_se[c].item())
+
+    return channel_scores_mean, channel_scores_se
+
+def main():
+    config = Config()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
+
+    # Load statistics
+    with open(config.stats_file, 'rb') as f:
+        stats = pickle.load(f)
+        means = [stats['mean'][f'channel_{i}'] for i in range(config.n_passbands)]
+        stds = [stats['std'][f'channel_{i}'] for i in range(config.n_passbands)]
+
+    train_loader = get_data_loader(config, means, stds)
+
+    model = get_model(config, device)
+
+    train_iter = iter(train_loader)
+
+    x, y = next(train_iter)
+
+    image = x[0].unsqueeze(0)
+    image = image.to(device)
+
+    transform = AIALogTransform(means, stds)
+    baseline_zero = transform(torch.zeros_like(image))
+
+    save_images(image, baseline_zero, means, stds, config)
+
+    channel_scores_mean, channel_scores_se = do_kernel_shap(config, image, baseline_zero, model)
+    print(channel_scores_mean, channel_scores_se)
+
+if __name__=="__main__":
+    main()
