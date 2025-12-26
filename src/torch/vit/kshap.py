@@ -13,6 +13,7 @@ from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from torchvision.transforms import v2
 import matplotlib.pyplot as plt
 import numpy as np
+import json
 from src.torch.vit.utils import save_multi_channel_tensor_as_figure
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
@@ -36,6 +37,7 @@ class Config:
     n_classes = 2
     height = 512
     aia_channels = [94, 131, 171, 193, 211, 304, 335]
+    output_dir = "."
 
 def get_model(config:Config, device:torch.device):
 
@@ -82,18 +84,18 @@ def get_data_loader(config:Config, means, stds):
 
     return train_loader
 
-def save_images(image, baseline_zero, means, stds, config):
+def save_images(image, baseline_zero, means, stds, filename_prefix, config):
 
     save_multi_channel_tensor_as_figure(
         image_tensor=image,
-        filename='input_image_normalized.png',
+        filename=f'{filename_prefix}_normalized.png',
         title='Model Input Image (Normalized)',
         channel_labels=config.aia_channels,
     )
 
     save_multi_channel_tensor_as_figure(
         image_tensor=image,
-        filename='input_image_original_intensity.png',
+        filename=f'{filename_prefix}_original.png',
         title='Input Image',
         channel_labels=config.aia_channels,
         is_transformed=True, # Set this to True
@@ -103,12 +105,12 @@ def save_images(image, baseline_zero, means, stds, config):
 
     save_multi_channel_tensor_as_figure(
         image_tensor=baseline_zero,
-        filename='baseline_image.png',
+        filename=f'{filename_prefix}_baseline.png',
         title='KernelSHAP Baseline (Zero Input)',
         channel_labels=config.aia_channels,
     )
 
-def do_kernel_shap(config, image, baseline_zero, model):
+def do_kernel_shap(config, image, baseline_zero, true_label, model):
 
     def wrapped_forward_fun(image):
         return model(image)
@@ -132,7 +134,7 @@ def do_kernel_shap(config, image, baseline_zero, model):
             baselines=baseline_zero,
             feature_mask=feature_mask,
             n_samples=n_samples,
-            target=1,
+            target=true_label,
             show_progress=True
             )
 
@@ -169,20 +171,51 @@ def main():
 
     model = get_model(config, device)
 
-    train_iter = iter(train_loader)
+    #train_iter = iter(train_loader)
 
-    x, y = next(train_iter)
-
-    image = x[0].unsqueeze(0)
-    image = image.to(device)
+    #x, y = next(train_iter)
 
     transform = AIALogTransform(means, stds)
-    baseline_zero = transform(torch.zeros_like(image))
 
-    save_images(image, baseline_zero, means, stds, config)
+    all_results = []
 
-    channel_scores_mean, channel_scores_se = do_kernel_shap(config, image, baseline_zero, model)
-    print(channel_scores_mean, channel_scores_se)
+    for i, (x, y) in enumerate(train_loader):
 
+        if i >= 50:
+            break
+
+        image = x[0].unsqueeze(0)
+        image = image.to(device)
+        baseline_zero = transform(torch.zeros_like(image))
+        save_images(image, baseline_zero, means, stds, f"image_{i}", config)
+
+        true_label = y[0].unsqueeze(0).item()
+        mean_scores, se_scores = do_kernel_shap(config, image, baseline_zero, true_label, model)
+        print(channel_scores_mean, channel_scores_se)
+
+        # Create a record for this round
+        # Map indices (0-6) to actual AIA channel names (94, 131...)
+        record = {
+            "round": i,
+            "label": true_label,
+            "importance": {
+                f"AIA_{config.aia_channels[c]}": score 
+                for c, score in mean_scores.items()
+            },
+            "std_error": {
+                f"AIA_{config.aia_channels[c]}": se 
+                for c, se in se_scores.items()
+            }
+        }
+
+        all_results.append(record)
+
+    # Save everything at the end
+    #json_path = os.path.join(config.output_dir, "shap_stats.json")
+    json_path = "shap_stats.json"
+    with open(json_path, 'w') as f:
+        json.dump(all_results, f, indent=4)
+
+    print(f"Stats saved to {json_path}")
 if __name__=="__main__":
     main()
