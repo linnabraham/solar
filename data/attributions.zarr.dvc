@@ -1,0 +1,6 @@
+outs:
+- md5: 56084e6e3dbfd4a517b5b4c6da2436f9.dir
+  size: 39850730574
+  nfiles: 2926
+  hash: md5
+  path: attributions.zarr
