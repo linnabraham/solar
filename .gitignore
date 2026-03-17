@@ -3,3 +3,10 @@
 **/__pycache__/**
 /pred-output
 /plots/cm.png
+/archive
+/astro-utils
+/wandb
+/outputs
+/notebook
+/data
+.ipynb_checkpoints
