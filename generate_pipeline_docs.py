@@ -40,7 +40,7 @@ def generate_markdown(stages: dict) -> str:
     # My section
     lines.append("## Stages\n")
     for name, info in stages.items():
-        lines.append(f"- {name}\n")
+        lines.append(f"- [{name}](stages/{name}.md)\n")
     # ── Summary table ────────────────────────────────────────
     lines.append("## Stages\n")
     lines.append("| Stage | Command | Outputs |")
@@ -92,6 +92,38 @@ def generate_markdown(stages: dict) -> str:
 
     return "\n".join(lines)
 
+def generate_stage_page(name: str, info: dict) -> str:
+    lines = []
+    lines.append(f"# `{name}`\n")
+    lines.append("**Command**")
+    lines.append(f"```bash\n{info.get('cmd', '')}\n```\n")
+    
+    # auto-filled from dvc.yaml
+    deps = info.get("deps", [])
+    if deps:
+        lines.append("**Dependencies**")
+        for d in deps:
+            lines.append(f"- `{d}`")
+        lines.append("")
+
+    outs = info.get("outs", [])
+    if outs:
+        lines.append("**Outputs**")
+        for o in outs:
+            if isinstance(o, str):
+                lines.append(f"- `{o}`")
+            elif isinstance(o, dict):
+                for path, meta in o.items():
+                    cached = meta.get("cache", True) if meta else True
+                    note = "" if cached else " _(not cached)_"
+                    lines.append(f"- `{path}`{note}")
+        lines.append("")
+
+    # manual section — you fill this in, script never overwrites it
+    lines.append("## Notes\n")
+    lines.append("_Add your notes about this stage here._\n")
+
+    return "\n".join(lines)
 
 if __name__ == "__main__":
     data   = load_dvc(DVC_YAML)
@@ -101,3 +133,15 @@ if __name__ == "__main__":
     OUTPUT_MD.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_MD.write_text(md)
     print(f"Written to {OUTPUT_MD}  ({len(stages)} stages)")
+
+    # write per-stage pages — but only if they don't exist yet
+    stage_dir = Path("docs/stages")
+    stage_dir.mkdir(parents=True, exist_ok=True)
+
+    for name, info in stages.items():
+        page = stage_dir / f"{name}.md"
+        if not page.exists():                   # ← key line
+            page.write_text(generate_stage_page(name, info))
+            print(f"  Created {page}")
+        else:
+            print(f"  Skipped {page} (already exists)")
