@@ -1,0 +1,7 @@
+site_name: Solar Flare
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - Pipeline: pipeline.md
