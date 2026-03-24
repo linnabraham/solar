@@ -37,6 +37,10 @@ def generate_markdown(stages: dict) -> str:
     lines.append("Run the full pipeline with:\n")
     lines.append("```bash\ndvc repro\n```\n")
 
+    # My section
+    lines.append("## Stages\n")
+    for name, info in stages.items():
+        lines.append(f"- {name}\n")
     # ── Summary table ────────────────────────────────────────
     lines.append("## Stages\n")
     lines.append("| Stage | Command | Outputs |")
