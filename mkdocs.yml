@@ -5,3 +5,4 @@ theme:
 nav:
   - Home: index.md
   - Pipeline: pipeline.md
+  - Pipeline Summary: pipeline_details.md
