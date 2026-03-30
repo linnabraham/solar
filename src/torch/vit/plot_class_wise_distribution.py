@@ -126,6 +126,4 @@ if __name__=="__main__":
     images = (images_list_neg, images_list_pos)
     attributions = (attributions_list_neg, attributions_list_pos)
 
-    plots = plot_all_passbands(test_df, images, attributions, passbands=all_wavelengths, save_dir="img_dir")
-
-
+    plots = plot_all_passbands(test_df, images, attributions, passbands=all_wavelengths, save_dir="plots/distribution")
