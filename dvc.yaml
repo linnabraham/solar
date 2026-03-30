@@ -33,10 +33,14 @@ stages:
     - src/torch/vit/ig.py
     - src/torch/vit/utils.py
     outs:
-    - plots/class_wise_int_dist_passband_131.png:
-        cache: false
-    - plots/class_wise_int_dist_passband_94.png:
-        cache: false
+    - plots/distribution/131.pdf
+    - plots/distribution/171.pdf
+    - plots/distribution/193.pdf
+    - plots/distribution/211.pdf
+    - plots/distribution/304.pdf
+    - plots/distribution/335.pdf
+    - plots/distribution/94.pdf
+
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance
     deps:
