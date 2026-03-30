@@ -15,6 +15,11 @@ def get_metadata(config:TrainingConfig):
         metadata = json.load(json_file)
     return metadata
 
+def get_metadata_from_json(json_path):
+    with open(json_path, 'r') as json_file:
+        metadata = json.load(json_file)
+    return metadata
+
 def get_attribution_for_image(images:np.array, label, transform, device, model, ib_size=1):
     """ Get Integrated Gradients attribution for a single image."""
     if images.ndim != 3:

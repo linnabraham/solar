@@ -13,6 +13,11 @@ import matplotlib.pyplot as plt
 from src.torch.vit.ig import single_aarp, make_predictions, do_ig
 from src.torch.vit.utils import dfs_from_metadata
 
+__all__ = [
+    "plot_intensity_distribution",
+    "get_intensities_using_attributions",
+        ]
+
 def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
@@ -77,7 +82,8 @@ def plot_intensity_distribution(images:tuple, attributions:tuple, percentile_lev
             ax.hist(np.log(class_intensities[class_intensities >= 1]), bins=nbins, range=x_range,
                 density=True, label=("Flared" if class_idx == 1 else "Non-Flared"), alpha=alpha)
 
-        ax.set_title(fr"${percentile_level}^{{\mathrm{{th}}}}$ percentile Passband {passband}")
+        ax.set_title(fr"${percentile_level}^{{\mathrm{{th}}}}$ percentile")
+        fig.text(0.02, 0.5, f"Passband {passband}", rotation=90, va="center")
         if idx == 0:
             ax.set_ylabel("Density")
         ax.set_xlabel("log(Intensity)")
