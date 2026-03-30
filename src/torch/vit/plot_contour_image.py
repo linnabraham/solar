@@ -14,7 +14,7 @@ from astro_utils.aia import plot_aia_image
 
 if __name__=="__main__":
     config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
-    config.trained_model_path = "output/glad-shape-197/trained_model.pth"
+    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -30,4 +30,4 @@ if __name__=="__main__":
     contour_levels = np.linspace(np.min(saliency), np.max(saliency), num=num_levels+2)[1:-1]
     plot_aia_image(s_images[t_idx,channel,:,:], passband=131, vmax_percentile=99.9)
     plt.contour(saliency, levels=contour_levels[-1:], colors='red', linewidths=1.5)
-    plt.savefig("tests_outputs/contour_grid.png", bbox_inches="tight")
+    plt.savefig("plots/contour_grid.png", bbox_inches="tight")
