@@ -97,29 +97,49 @@ stages:
       size: 42253014
     - path: src/torch/vit/class_wise_distribution.py
       hash: md5
-      md5: 810d6aa3c434cf56bde15220b9c82e2c
-      size: 6140
+      md5: a59405bb235fbcd6a01f03127ebadfb1
+      size: 6298
     - path: src/torch/vit/ig.py
       hash: md5
       md5: 532398a7e7b04d9ec76de859f3b29386
       size: 6640
     - path: src/torch/vit/plot_class_wise_distribution.py
       hash: md5
-      md5: 0c9769e1a446905d557dc2cc9748edc3
-      size: 2447
+      md5: 38f50d8607fb5d0cda070cf742999ed3
+      size: 4040
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: 8365be090a608fc832bfac63075f9e71
-      size: 3482
+      md5: 5342d2ce21eefb9aded347a15770f430
+      size: 3626
     outs:
-    - path: plots/class_wise_int_dist_passband_131.png
+    - path: plots/distribution/131.pdf
       hash: md5
-      md5: e14bddadebf5b0c2dd61298d11c04e3d
-      size: 39781
-    - path: plots/class_wise_int_dist_passband_94.png
+      md5: 3d8e915c93b4d9bf274f8841da243cc0
+      size: 25495
+    - path: plots/distribution/171.pdf
       hash: md5
-      md5: 1d69e35141d9644931637c71eff7d692
-      size: 39104
+      md5: e8cb4630e2933145956b661510f92a2d
+      size: 25391
+    - path: plots/distribution/193.pdf
+      hash: md5
+      md5: 883e186e7bb26a4b1db656e9b6fac111
+      size: 26376
+    - path: plots/distribution/211.pdf
+      hash: md5
+      md5: 170d736ec977cf67c67d70c23c4b691e
+      size: 26036
+    - path: plots/distribution/304.pdf
+      hash: md5
+      md5: 14de1560f109a303c0c27a7eb6b65764
+      size: 25931
+    - path: plots/distribution/335.pdf
+      hash: md5
+      md5: 2efcdb0600f262917cddcf00ceb9e583
+      size: 25696
+    - path: plots/distribution/94.pdf
+      hash: md5
+      md5: 849a31630810152120c0025521d669c5
+      size: 25194
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance
     deps:
