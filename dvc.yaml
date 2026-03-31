@@ -153,7 +153,15 @@ stages:
     - data/intermediate-outs/attributions_pos.pt:
         cache: false
   kshap-stats:
-    cmd: aarp_ml/torch/dataset.py src/torch/vit/utils.py solar_dataset.json 
-      stats.pkl outputs/glad-shape-197/trained_model.pth -o shap_stats.json
+    cmd: python -m src.torch.vit.kshap
     deps:
+    - aarp_ml/torch/dataset.py
     - aarp_ml/torch/model.py
+    - outputs/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - src/torch/vit/utils.py
+    - stats.pkl
+    outs:
+    - shap_stats.json
+    - plots/kshap/images:
+        cache: false
