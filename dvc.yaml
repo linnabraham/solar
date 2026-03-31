@@ -165,3 +165,9 @@ stages:
     - shap_stats.json
     - plots/kshap/images:
         cache: false
+  kshap-analyze:
+    cmd: python -m src.torch.vit.analyze_shap
+    deps:
+    - shap_stats.json
+    outs:
+    - plots/kshap/results

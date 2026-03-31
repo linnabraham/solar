@@ -525,3 +525,16 @@ stages:
       hash: md5
       md5: ca58d3c03ead1225623411386fb42b0c
       size: 30973
+  kshap-analyze:
+    cmd: python -m src.torch.vit.analyze_shap
+    deps:
+    - path: shap_stats.json
+      hash: md5
+      md5: ca58d3c03ead1225623411386fb42b0c
+      size: 30973
+    outs:
+    - path: plots/kshap/results
+      hash: md5
+      md5: d6a1784873a12121563076a5640c6bd2.dir
+      size: 203866
+      nfiles: 1
