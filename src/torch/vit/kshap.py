@@ -191,8 +191,6 @@ def main():
 
         true_label = y[0].unsqueeze(0).item()
         mean_scores, se_scores = do_kernel_shap(config, image, baseline_zero, true_label, model)
-        print(channel_scores_mean, channel_scores_se)
-
         # Create a record for this round
         # Map indices (0-6) to actual AIA channel names (94, 131...)
         record = {
