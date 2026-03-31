@@ -488,3 +488,40 @@ stages:
       hash: md5
       md5: 4a3ca76ffb3545d29706981fc3588de8
       size: 22428583812
+  kshap-stats:
+    cmd: python -m src.torch.vit.kshap
+    deps:
+    - path: aarp_ml/torch/dataset.py
+      hash: md5
+      md5: 54cf5c2affbdc14174398d254d6231d0
+      size: 2579
+    - path: aarp_ml/torch/model.py
+      hash: md5
+      md5: d650942d2c5ce13b17d6b4ffbed9fa81
+      size: 1945
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: c679c59a94316f08671764e0d07a0ac6
+      size: 7670
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/kshap/images
+      hash: md5
+      md5: c65e20a7e6af1432776285d0aff21601.dir
+      size: 421481672
+      nfiles: 150
+    - path: shap_stats.json
+      hash: md5
+      md5: ca58d3c03ead1225623411386fb42b0c
+      size: 30973
