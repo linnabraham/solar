@@ -389,8 +389,8 @@ stages:
       size: 42253014
     - path: src/torch/vit/test.py
       hash: md5
-      md5: 15635bfc6ec87ea8cd8e64295de9758e
-      size: 2999
+      md5: acd68e634a583792677108c401097bfe
+      size: 9591
     - path: stats.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -398,8 +398,8 @@ stages:
     outs:
     - path: plots/cm.png
       hash: md5
-      md5: cc35e16abed57155c58148c7579396a6
-      size: 10014
+      md5: f8e68834c0d016f870a727a83b2fe88f
+      size: 15502
   data-single:
     cmd: python -m src.data_single --process --select
     deps:
