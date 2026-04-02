@@ -155,6 +155,7 @@ stages:
   kshap-stats:
     cmd: python -m src.torch.vit.kshap
     deps:
+    - src/torch/vit/kshap.py
     - aarp_ml/torch/dataset.py
     - aarp_ml/torch/model.py
     - outputs/glad-shape-197/trained_model.pth
@@ -168,6 +169,7 @@ stages:
   kshap-analyze:
     cmd: python -m src.torch.vit.analyze_shap
     deps:
+    - src/torch/vit/analyze_shap.py
     - shap_stats.json
     outs:
     - plots/kshap/results

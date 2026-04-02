@@ -507,6 +507,10 @@ stages:
       hash: md5
       md5: 4529d184ced5a18d8303bdad72af79b7
       size: 42253014
+    - path: src/torch/vit/kshap.py
+      hash: md5
+      md5: e090bf663354bb12af565c4faf223e75
+      size: 7299
     - path: src/torch/vit/utils.py
       hash: md5
       md5: c679c59a94316f08671764e0d07a0ac6
@@ -532,6 +536,10 @@ stages:
       hash: md5
       md5: ca58d3c03ead1225623411386fb42b0c
       size: 30973
+    - path: src/torch/vit/analyze_shap.py
+      hash: md5
+      md5: 77ed2aada773f63cae306c71fe33bdaa
+      size: 2974
     outs:
     - path: plots/kshap/results
       hash: md5
