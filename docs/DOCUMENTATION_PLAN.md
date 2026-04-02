@@ -12,7 +12,7 @@ This plan documents a phased approach to adding docstrings to plot/output genera
 
 ### Plot/Output Stages in DVC Pipeline
 
-Based on `dvc.yaml`, **7 stages** generate plots, confusion matrices, and movie outputs:
+Based on `dvc.yaml`, **9 stages** generate plots, confusion matrices, SHAP analysis, and movie outputs:
 
 | Stage | Module | Dependencies Count | Complexity | Purpose |
 |-------|--------|-------------------|-----------|---------|
@@ -23,6 +23,8 @@ Based on `dvc.yaml`, **7 stages** generate plots, confusion matrices, and movie 
 | `create_movie` | `src/torch/vit/create_movies.py` | 7 | High | Generate MP4 movie from sequence data |
 | `attribution_analyzis` | `src/torch/vit/attributions_analyze.py` | 7 | High | Multi-output attribution analysis and filtering |
 | `confusion-matrix-val` | `src/torch/vit/test.py` | 4 | Medium | Compute & visualize confusion matrix on validation set |
+| `kshap-stats` | `src/torch/vit/kshap.py` | 6 | High | Compute KernelSHAP attributions and save statistics |
+| `kshap-analyze` | `src/torch/vit/analyze_shap.py` | 1 | Low-Medium | Statistical analysis & visualization of pre-computed SHAP stats |
 
 ### Shared Dependencies
 
@@ -124,17 +126,18 @@ def function_name(param1, param2):
 
 | Phase | Checkpoint | Status |
 |-------|-----------|--------|
-| Phase 0 | Refactoring analysis & proposals ready | In progress |
-| Phase 1 | ✓ Template & review workflow established | Pending refactoring |
-| Phase 2 | Foundation modules documented | Not started |
-| Phase 3 | All plot scripts documented | Not started |
+| Phase 0 | Refactoring analysis complete + 2 SHAP scripts added | ✅ Complete |
+| Phase 0 Implementation | 4 of 12 scripts refactored (xgb_feat_importance, plot_contour_image_grid, test, plot_class_wise_distribution) | In progress |
+| Phase 1 | Foundation modules documented (ig.py, class_wise_distribution.py, utils.py) | Not started |
+| Phase 2 | Remaining plot scripts documented | Not started |
+| Phase 3 | SHAP scripts documented | Not started |
 | **Complete** | All improvements & docstrings merged to main | Not started |
 
 ## Next Steps
 
-1. **Phase 0**: Review refactoring proposals below, approve/reject/modify
-2. **Phase 0 Implementation**: Apply approved changes to all 9 modules
-3. **Phase 1 Draft**: Resume with quality baseline established
+1. **Phase 0 (continued)**: Continue refactoring remaining 8 modules
+2. **Recommended order**: ig.py → create_movies.py → analyze_shap.py → kshap.py → predictions_analyze.py → attributions_analyze.py
+3. **Phase 1 (after refactoring)**: Resume with quality baseline established
 
 ---
 
@@ -445,7 +448,182 @@ def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
 
 ---
 
-### 8. `src/torch/vit/ig.py` (Shared Dependency)
+### 8. `src/torch/vit/kshap.py` (KernelSHAP Attribution Computation)
+
+**Current State**
+- Computes KernelSHAP attributions for model explanability
+- Saves SHAP statistics to JSON for downstream analysis
+- Generates visualization images of inputs and attributions
+- 170+ lines, significant computational load
+
+**Issues**
+- **Hardcoded paths**: `"solar_dataset.json"`, `"stats.pkl"`, `"outputs/glad-shape-197/trained_model.pth"`, `"shap_stats.json"`
+- **Magic numbers**: `batch_size=32`, `n_samples=500`, hardcoded loop limit `if i >= 50: break`
+- **Config dataclass incomplete**: `batch_size = 32` missing type annotation (should be `batch_size: int = 32`)
+- **No docstrings**: Functions `get_model()`, `get_data_loader()`, `save_images()`, `do_kernel_shap()`, `main()` all lack documentation
+- **No type hints**: Return types and parameter types missing throughout
+- **No error handling in main()**: Silent failures if files don't exist
+- **Code duplication**: Model loading pattern same as in other scripts
+
+**Proposed Changes**
+| # | Change | Rationale |
+|---|--------|-----------|
+| 1 | Create `KShapConfig` dataclass with validation (inherit best practices from test.py refactor) | Type safety, validation, centralized config |
+| 2 | Extract magic numbers to module constants: `DEFAULT_BATCH_SIZE`, `DEFAULT_N_SAMPLES`, `DEFAULT_NUM_ROUNDS` | DRY, easier to tune |
+| 3 | Fix Config dataclass syntax (use proper type annotations) | Python best practices |
+| 4 | Add comprehensive docstrings to all functions | Documentation |
+| 5 | Add type hints throughout (especially for torch.Tensor return types) | Type clarity |
+| 6 | Replace hardcoded paths with config object parameters | Testability, reusability |
+| 7 | Add try/except error handling in `main()` | Graceful failure |
+| 8 | Extract model loading to shared utility (or call from utils.py) | Eliminate duplication |
+
+**Code Example**
+```python
+from dataclasses import dataclass
+from typing import Dict, Tuple, Optional
+from pathlib import Path
+
+# Module constants
+DEFAULT_BATCH_SIZE = 32
+DEFAULT_N_SAMPLES = 500
+DEFAULT_NUM_ROUNDS = 50
+DEFAULT_HEIGHT = 512
+DEFAULT_N_PASSBANDS = 7
+DEFAULT_N_CLASSES = 2
+AIA_CHANNELS = [94, 131, 171, 193, 211, 304, 335]
+
+@dataclass
+class KShapConfig:
+    """Configuration for KernelSHAP attribution computation."""
+    trained_model_path: str
+    json_path: str = "solar_dataset.json"
+    stats_file: str = "stats.pkl"
+    output_json: str = "shap_stats.json"
+    output_dir: str = "."
+    batch_size: int = DEFAULT_BATCH_SIZE
+    n_samples: int = DEFAULT_N_SAMPLES
+    num_rounds: int = DEFAULT_NUM_ROUNDS
+    height: int = DEFAULT_HEIGHT
+    n_passbands: int = DEFAULT_N_PASSBANDS
+    n_classes: int = DEFAULT_N_CLASSES
+    aia_channels: list = None
+    
+    def __post_init__(self):
+        if self.aia_channels is None:
+            self.aia_channels = AIA_CHANNELS
+        if self.num_rounds <= 0:
+            raise ValueError("num_rounds must be positive")
+        # Validate paths exist
+        from pathlib import Path
+        if not Path(self.trained_model_path).exists():
+            raise FileNotFoundError(f"Model not found at {self.trained_model_path}")
+
+def do_kernel_shap(
+    config: KShapConfig,
+    image: torch.Tensor,
+    baseline_zero: torch.Tensor,
+    true_label: int,
+    model: torch.nn.Module
+) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """Compute KernelSHAP attributions for a single image.
+    
+    Args:
+        config: KShapConfig with model parameters
+        image: Input tensor of shape [1, C, H, W]
+        baseline_zero: Zero baseline tensor
+        true_label: True class label for attribution target
+        model: Trained model in eval mode
+        
+    Returns:
+        Tuple of (channel_scores_mean, channel_scores_se) dicts
+    """
+```
+
+**Effort**: ~30 minutes (includes model loading extraction)
+
+---
+
+### 9. `src/torch/vit/analyze_shap.py` (SHAP Statistical Analysis)
+
+**Current State**
+- Loads pre-computed SHAP statistics from JSON
+- Performs statistical significance testing
+- Generates visualization plots
+- Clean structure, relatively short (~70 lines)
+- Depends on kshap-stats output
+
+**Issues**
+- **Hardcoded paths**: `"shap_stats.json"` (input), `"plots/kshap/results"` (output)
+- **Magic numbers**: `dpi=300`, `figsize=(12, 7)`, `alpha=0.3`, `size=4`, `linewidth=1.5`
+- **No docstrings**: `load_and_process()`, `run_statistics()`, `plot_results()` lack documentation
+- **No type hints**: Return types and parameter types missing
+- **No input validation**: Assumes JSON structure is correct
+- **Code duplication**: `channels = [col for col in df.columns if col.startswith('AIA_')]` repeated in 2 places
+- **Hardcoded strings**: Plots directory path, error messages
+- **Limited error handling**: Only checks file existence in `__main__`
+
+**Proposed Changes**
+| # | Change | Rationale |
+|---|--------|-----------|
+| 1 | Create `SHAPAnalysisConfig` dataclass | Configuration management |
+| 2 | Extract magic numbers to constants: `DEFAULT_FIGSIZE`, `DEFAULT_DPI`, `ALPHA`, `POINT_SIZE`, `LINE_WIDTH` | DRY, easier to tune |
+| 3 | Add docstrings to all functions | Documentation |
+| 4 | Add type hints throughout | Type clarity |
+| 5 | Extract repeated column filtering to helper function | DRY principle |
+| 6 | Add validation for JSON structure (check for required fields) | Robustness |
+| 7 | Add try/except with detailed error messages in `main()` | Better error reporting |
+
+**Code Example**
+```python
+from dataclasses import dataclass
+from typing import List, Dict
+from pathlib import Path
+import pandas as pd
+
+# Module constants
+DEFAULT_FIGSIZE = (12, 7)
+DEFAULT_DPI = 300
+DEFAULT_ALPHA = 0.3
+DEFAULT_POINT_SIZE = 4
+DEFAULT_LINE_WIDTH = 1.5
+AIA_CHANNEL_PREFIX = 'AIA_'
+SIGNIFICANCE_THRESHOLD = 0.05
+
+@dataclass
+class SHAPAnalysisConfig:
+    """Configuration for SHAP statistical analysis."""
+    input_json: str = "shap_stats.json"
+    output_dir: str = "plots/kshap/results"
+    figsize: tuple = DEFAULT_FIGSIZE
+    dpi: int = DEFAULT_DPI
+    alpha: float = DEFAULT_ALPHA
+    point_size: int = DEFAULT_POINT_SIZE
+    line_width: float = DEFAULT_LINE_WIDTH
+    
+    def __post_init__(self):
+        if not Path(self.input_json).exists():
+            raise FileNotFoundError(f"Input JSON not found: {self.input_json}")
+
+def get_aia_channels(df: pd.DataFrame) -> List[str]:
+    """Extract AIA channel columns from DataFrame.
+    
+    Args:
+        df: DataFrame with column names starting with 'AIA_'
+        
+    Returns:
+        List of AIA channel column names
+    """
+    return [col for col in df.columns if col.startswith(AIA_CHANNEL_PREFIX)]
+
+def load_and_process(json_path: str) -> pd.DataFrame:
+    """Load and process KernelSHAP statistics from JSON file...."""
+```
+
+**Effort**: ~20 minutes
+
+---
+
+### 10. `src/torch/vit/ig.py` (Shared Dependency)
 
 **Current State**
 - Core class `single_aarp` is good
@@ -469,7 +647,7 @@ def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
 
 ---
 
-### 8. `src/torch/vit/class_wise_distribution.py` (Shared Dependency)
+### 11. `src/torch/vit/class_wise_distribution.py` (Shared Dependency)
 
 **Current State**
 - Generally well-structured
@@ -493,7 +671,7 @@ def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
 
 ---
 
-### 9. `src/torch/vit/utils.py` (Shared Dependency)
+### 12. `src/torch/vit/utils.py` (Shared Dependency)
 
 **Current State**
 - Already well-documented in some places
@@ -519,19 +697,21 @@ def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
 
 ## Refactoring Summary Table
 
-| Module | # Issues | Complexity | Estimated Effort |
-|--------|----------|-----------|-----------------|
-| `xgb_feat_importance.py` | 3 | Low | 10 min |
-| `predictions_analyze.py` | 5 | **Critical** | 45 min |
-| `plot_class_wise_distribution.py` | 3 | Medium | 20 min |
-| `plot_contour_image_grid.py` | 3 | Medium | 15 min |
-| `create_movies.py` | 2 | Low | 10 min |
-| `attributions_analyze.py` | 4 | Medium | 20 min |
-| `test.py` | 4 | Medium | 20 min |
-| `ig.py` | 2 | Low | 15 min |
-| `class_wise_distribution.py` | 2 | Low | 12 min |
-| `utils.py` | 2 | Medium | 20 min |
-| **TOTAL** | **30** | **Medium** | **~3 hours** |
+| Module | # Issues | Complexity | Estimated Effort | Status |
+|--------|----------|-----------|-----------------|--------|
+| `xgb_feat_importance.py` | 3 | Low | 10 min | ✅ DONE |
+| `predictions_analyze.py` | 5 | **Critical** | 45 min | Pending |
+| `plot_class_wise_distribution.py` | 3 | Medium | 20 min | ✅ DONE |
+| `plot_contour_image_grid.py` | 3 | Medium | 15 min | ✅ DONE |
+| `create_movies.py` | 2 | Low | 10 min | Pending |
+| `attributions_analyze.py` | 4 | Medium | 20 min | Pending |
+| `test.py` | 4 | Medium | 20 min | ✅ DONE |
+| `kshap.py` | 7 | High | 30 min | Pending |
+| `analyze_shap.py` | 6 | Medium | 20 min | Pending |
+| `ig.py` | 2 | Low | 15 min | Pending |
+| `class_wise_distribution.py` | 2 | Low | 12 min | Pending |
+| `utils.py` | 2 | Medium | 20 min | Pending |
+| **TOTAL** | **43** | **Medium** | **~3.5 hours** | **4 of 12 done** |
 
 ---
 
@@ -541,11 +721,13 @@ def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
 1. **ig.py** & **class_wise_distribution.py** & **utils.py** — Core utilities (they don't depend on plot scripts)
 2. **xgb_feat_importance.py** — Simplest plot script ✅ DONE
 3. **plot_contour_image_grid.py** — Uses shared utilities ✅ DONE
-4. **create_movies.py** — Short, independent
-5. **test.py** — Medium complexity, generates confusion matrix
-6. **plot_class_wise_distribution.py** — Uses shared utilities
-7. **predictions_analyze.py** — Most complex; benefits from all utilities being clean
-8. **attributions_analyze.py** — Also high complexity; benefits from preliminary work
+4. **test.py** — Medium complexity ✅ DONE
+5. **create_movies.py** — Short, independent
+6. **plot_class_wise_distribution.py** — Uses shared utilities ✅ DONE
+7. **analyze_shap.py** — Lightweight statistical analysis
+8. **kshap.py** — High complexity, expensive computation
+9. **predictions_analyze.py** — Most complex; benefits from all utilities being clean
+10. **attributions_analyze.py** — Also high complexity; benefits from preliminary work
 
 **For Each Module**:
 1. Show this analysis + proposed changes
