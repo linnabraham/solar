@@ -12,7 +12,7 @@ This plan documents a phased approach to adding docstrings to plot/output genera
 
 ### Plot/Output Stages in DVC Pipeline
 
-Based on `dvc.yaml`, 6 stages generate plots and movie outputs:
+Based on `dvc.yaml`, **7 stages** generate plots, confusion matrices, and movie outputs:
 
 | Stage | Module | Dependencies Count | Complexity | Purpose |
 |-------|--------|-------------------|-----------|---------|
@@ -22,6 +22,7 @@ Based on `dvc.yaml`, 6 stages generate plots and movie outputs:
 | `plot_contour_image_grid` | `src/torch/vit/plot_contour_image_grid.py` | 7 | Medium-High | Contour grid visualization of attributions |
 | `create_movie` | `src/torch/vit/create_movies.py` | 7 | High | Generate MP4 movie from sequence data |
 | `attribution_analyzis` | `src/torch/vit/attributions_analyze.py` | 7 | High | Multi-output attribution analysis and filtering |
+| `confusion-matrix-val` | `src/torch/vit/test.py` | 4 | Medium | Compute & visualize confusion matrix on validation set |
 
 ### Shared Dependencies
 
@@ -378,7 +379,73 @@ ATTRIBUTION_CONFIG = {
 
 ---
 
-### 7. `src/torch/vit/ig.py` (Shared Dependency)
+### 7. `src/torch/vit/test.py` (Confusion Matrix Generation)
+
+**Current State**
+- Computes confusion matrix & key metrics on validation/test set
+- Calls external `ml_utils.visualization.plot_confusion_matrix()` for visualization
+- Hardcoded configuration values scattered throughout
+- Missing comprehensive documentation
+
+**Issues**
+- **Hardcoded paths**: `"solar_dataset.json"`, `"stats.pkl"`, `"outputs/glad-shape-197/trained_model.pth"`, `"plots/cm.png"`
+- **Hardcoded parameters**: `batch_size=32`, `labels=[0, 1]` hardcoded
+- **Missing docstrings**: `main()` function has no docstring, unclear input/output
+- **No type hints**: Function signature and variables lack type information
+- **Metrics calculation inlined**: TP, FP, FN, TN calculation & precision/recall could be extracted
+- **No error handling in main block**: If paths don't exist, failures occur late
+- **Hardcoded device**: Uses conditional but doesn't handle gracefully
+
+**Proposed Changes**
+| # | Change | Rationale |
+|---|--------|-----------|
+| 1 | Extract `DEFAULT_BATCH_SIZE`, `CONFUSION_MATRIX_CLASSES`, `OUTPUT_PATH` constants | Eliminate magic values |
+| 2 | Create `ConfusionMatrixConfig` dataclass for reusability | Configuration management, type safety |
+| 3 | Extract metrics calculation into `compute_metrics()` function | Reusable, testable |
+| 4 | Add comprehensive docstring to `main()` | Documentation |
+| 5 | Add type hints to function signatures | Type clarity |
+| 6 | Add try/except error handling in `__main__` | Better error messages |
+| 7 | Add validation for subset argument | Input validation |
+
+**Code Example**
+```python
+from dataclasses import dataclass
+from typing import Tuple, Dict
+
+DEFAULT_BATCH_SIZE = 32
+CONFUSION_MATRIX_CLASSES = [0, 1]
+OUTPUT_PATH = "plots/cm.png"
+
+@dataclass
+class ConfusionMatrixConfig:
+    """Configuration for confusion matrix computation."""
+    batch_size: int = DEFAULT_BATCH_SIZE
+    output_path: str = OUTPUT_PATH
+    subset: str = "validation"
+
+def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
+    """Extract metrics from confusion matrix.
+    
+    Args:
+        cm: 2D confusion matrix array
+        
+    Returns:
+        Dict with TP, FP, FN, TN, precision, recall, accuracy
+    """
+    TN, FP, FN, TP = cm.ravel()
+    precision = TP / (TP + FP) if (TP + FP) > 0 else 0.0
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0.0
+    return {
+        'TP': TP, 'FP': FP, 'FN': FN, 'TN': TN,
+        'precision': precision, 'recall': recall
+    }
+```
+
+**Effort**: ~20 minutes
+
+---
+
+### 8. `src/torch/vit/ig.py` (Shared Dependency)
 
 **Current State**
 - Core class `single_aarp` is good
@@ -460,10 +527,11 @@ ATTRIBUTION_CONFIG = {
 | `plot_contour_image_grid.py` | 3 | Medium | 15 min |
 | `create_movies.py` | 2 | Low | 10 min |
 | `attributions_analyze.py` | 4 | Medium | 20 min |
+| `test.py` | 4 | Medium | 20 min |
 | `ig.py` | 2 | Low | 15 min |
 | `class_wise_distribution.py` | 2 | Low | 12 min |
 | `utils.py` | 2 | Medium | 20 min |
-| **TOTAL** | **26** | **Medium** | **~2.5 hours** |
+| **TOTAL** | **30** | **Medium** | **~3 hours** |
 
 ---
 
@@ -471,12 +539,13 @@ ATTRIBUTION_CONFIG = {
 
 **Order of Implementation** (respects dependencies):
 1. **ig.py** & **class_wise_distribution.py** & **utils.py** — Core utilities (they don't depend on plot scripts)
-2. **xgb_feat_importance.py** — Simplest plot script
-3. **create_movies.py** — Short, independent
-4. **plot_contour_image_grid.py** — Uses shared utilities
-5. **plot_class_wise_distribution.py** — Uses shared utilities
-6. **predictions_analyze.py** — Most complex; benefits from all utilities being clean
-7. **attributions_analyze.py** — Also high complexity; benefits from preliminary work
+2. **xgb_feat_importance.py** — Simplest plot script ✅ DONE
+3. **plot_contour_image_grid.py** — Uses shared utilities ✅ DONE
+4. **create_movies.py** — Short, independent
+5. **test.py** — Medium complexity, generates confusion matrix
+6. **plot_class_wise_distribution.py** — Uses shared utilities
+7. **predictions_analyze.py** — Most complex; benefits from all utilities being clean
+8. **attributions_analyze.py** — Also high complexity; benefits from preliminary work
 
 **For Each Module**:
 1. Show this analysis + proposed changes
