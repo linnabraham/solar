@@ -519,7 +519,11 @@ def main() -> None:
     
     # Load model and data
     metadata, model, transform, _ = get_data_model(
-        TrainingConfig(json_path=config.json_path, stats_file=config.stats_file)
+        TrainingConfig(
+            json_path=config.json_path,
+            stats_file=config.stats_file,
+            trained_model_path=config.trained_model_path
+        )
     )
     training_df, val_df, test_df = dfs_from_metadata(metadata)
     
