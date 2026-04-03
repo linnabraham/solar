@@ -44,6 +44,7 @@ DEFAULT_AIA_CHANNELS: List[int] = [94, 131, 171, 193, 211, 304, 335]
 DEFAULT_JSON_PATH: str = "solar_dataset.json"
 DEFAULT_STATS_FILE: str = "stats.pkl"
 DEFAULT_OUTPUT_DIR: str = "."
+DEFAULT_IMAGES_DIR: str = "plots/kshap/images"
 DEFAULT_TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
 DEFAULT_OUTPUT_JSON: str = "shap_stats.json"
 
@@ -67,7 +68,8 @@ class KShapConfig:
         batch_size: Number of samples per batch.
         json_path: Path to solar dataset JSON file (must exist).
         stats_file: Path to pickled normalization statistics (must exist).
-        output_dir: Directory for saving output files.
+        output_dir: Directory for saving output files (JSON).
+        images_dir: Directory for saving image outputs (created if missing).
         n_passbands: Number of AIA channels/passbands.
         n_classes: Number of output classes (binary classification).
         height: Input image height in pixels.
@@ -85,6 +87,7 @@ class KShapConfig:
     json_path: str = DEFAULT_JSON_PATH
     stats_file: str = DEFAULT_STATS_FILE
     output_dir: str = DEFAULT_OUTPUT_DIR
+    images_dir: str = DEFAULT_IMAGES_DIR
     n_passbands: int = DEFAULT_N_PASSBANDS
     n_classes: int = DEFAULT_N_CLASSES
     height: int = DEFAULT_HEIGHT
@@ -110,6 +113,9 @@ class KShapConfig:
                 f"aia_channels length ({len(self.aia_channels)}) "
                 f"must match n_passbands ({self.n_passbands})"
             )
+        
+        # Create images directory if it doesn't exist
+        os.makedirs(self.images_dir, exist_ok=True)
 
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
@@ -247,6 +253,7 @@ def save_images(
     
     Creates three PNG visualizations: normalized model input, original (denormalized),
     and zero baseline. Each image shows all AIA channels using save_multi_channel_tensor_as_figure.
+    Images are saved to config.images_dir subdirectory.
     
     Args:
         image: Input tensor of shape (B, C, H, W) or (C, H, W).
@@ -254,21 +261,27 @@ def save_images(
         means: Per-channel normalization means.
         stds: Per-channel normalization standard deviations.
         filename_prefix: Prefix for output filenames (e.g., 'image_0').
-        config: KShapConfig instance with aia_channels.
+        config: KShapConfig instance with aia_channels and images_dir.
     
     Raises:
         RuntimeError: If save_multi_channel_tensor_as_figure fails.
     """
+    import os
+    
+    # Build full file paths in images_dir
+    def get_filepath(suffix: str) -> str:
+        return os.path.join(config.images_dir, f'{filename_prefix}_{suffix}.png')
+    
     save_multi_channel_tensor_as_figure(
         image_tensor=image,
-        filename=f'{filename_prefix}_normalized.png',
+        filename=get_filepath('normalized'),
         title='Model Input Image (Normalized)',
         channel_labels=config.aia_channels,
     )
     
     save_multi_channel_tensor_as_figure(
         image_tensor=image,
-        filename=f'{filename_prefix}_original.png',
+        filename=get_filepath('original'),
         title='Input Image (Denormalized)',
         channel_labels=config.aia_channels,
         is_transformed=True,
@@ -278,7 +291,7 @@ def save_images(
     
     save_multi_channel_tensor_as_figure(
         image_tensor=baseline_zero,
-        filename=f'{filename_prefix}_baseline.png',
+        filename=get_filepath('baseline'),
         title='KernelSHAP Baseline (Zero Input)',
         channel_labels=config.aia_channels,
     )
@@ -360,7 +373,8 @@ def main() -> None:
     
     Loads model, iterates over training batches with class balancing, computes
     per-channel KernelSHAP attributions for each sample, and saves aggregated
-    statistics to shap_stats.json for downstream analysis.
+    statistics to shap_stats.json for downstream analysis. Images are saved to
+    config.images_dir.
     
     Raises:
         FileNotFoundError: If required files (model, dataset, stats) not found.
@@ -370,7 +384,9 @@ def main() -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"Device: {device}")
+    print(f"Images directory: {config.images_dir}")
     print(f"Config: {config}")
+    
     
     # Load normalization statistics
     try:
