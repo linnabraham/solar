@@ -393,9 +393,8 @@ def get_aarp_sequence_dataset(
         RuntimeError: If image loading or transformation fails.
     """
     s_images = s_aarp.get_images()  # Shape: [N, 7, 512, 512]
-    tensor_images = torch.from_numpy(s_images).to(torch.float32)
+    tensor_images = torch.from_numpy(s_images).to(torch.float32).to(device)
     tensor_data = transform(tensor_images)
-    tensor_data = tensor_data.to(device)
     dataset = TensorDataset(tensor_data)
     return dataset
 
