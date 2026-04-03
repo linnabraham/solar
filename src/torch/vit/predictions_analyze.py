@@ -499,47 +499,6 @@ def make_prediction_plot(
     return aarp_output_dir
 
 
-def load_model_from_checkpoint(
-    config: PredictionConfig,
-    device: torch.device
-) -> torch.nn.Module:
-    """Load trained ViT model from checkpoint.
-    
-    Restores model state from checkpoint dict. Handles both checkpoint dict
-    format (with model_state_dict) and legacy direct state dict format.
-    
-    Args:
-        config: PredictionConfig with trained_model_path.
-        device: torch.device for model placement.
-    
-    Returns:
-        torch.nn.Module in eval mode on specified device.
-    
-    Raises:
-        FileNotFoundError: If checkpoint file not found.
-        RuntimeError: If model loading fails (state dict mismatch).
-    """
-    try:
-        checkpoint = torch.load(config.trained_model_path, map_location=device)
-        
-        if isinstance(checkpoint, dict):
-            if 'model_state_dict' in checkpoint:
-                # Checkpoint dict format
-                model.load_state_dict(checkpoint['model_state_dict'])
-            else:
-                raise KeyError("Checkpoint dict missing 'model_state_dict'")
-        else:
-            # Legacy direct state dict format
-            model.load_state_dict(checkpoint)
-        
-        model = model.to(device)
-        model.eval()
-        return model
-    
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"Model checkpoint not found: {config.trained_model_path}") from e
-
-
 def main() -> None:
     """Main execution: generate prediction plots for test/validation samples.
     
@@ -563,9 +522,6 @@ def main() -> None:
         TrainingConfig(json_path=config.json_path, stats_file=config.stats_file)
     )
     training_df, val_df, test_df = dfs_from_metadata(metadata)
-    
-    # Load model from checkpoint
-    model = load_model_from_checkpoint(config, device)
     
     # Process test samples
     print("\nProcessing test samples:")
