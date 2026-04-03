@@ -512,19 +512,18 @@ def main() -> None:
     """
     # Load configuration and initialize
     config = PredictionConfig()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    print(f"Device: {device}")
     print(f"Output directory: {config.output_dir}")
     
-    # Load model and data
-    metadata, model, transform, _ = get_data_model(
+    # Load model and data (returns device from get_data_model)
+    metadata, model, transform, device = get_data_model(
         TrainingConfig(
             json_path=config.json_path,
             stats_file=config.stats_file,
             trained_model_path=config.trained_model_path
         )
     )
+    print(f"Device: {device}")
     training_df, val_df, test_df = dfs_from_metadata(metadata)
     
     # Process test samples
