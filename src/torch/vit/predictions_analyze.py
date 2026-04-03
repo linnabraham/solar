@@ -1,3 +1,12 @@
+"""Prediction analysis and visualization for solar flare ViT model.
+
+Generates GOES X-ray timeseries plots overlaid with model prediction scores
+for test/validation AARP samples. Includes optional flare start time markers.
+
+Typical usage:
+    python -m src.torch.vit.predictions_analyze
+"""
+
 import json
 import pandas as pd
 from aarp_ml.dataset import all_wavelengths
@@ -20,31 +29,97 @@ from src.data_single import DatasetPaths
 from src.torch.vit.utils import get_data_model, dfs_from_metadata
 from src.torch.vit.train import TrainingConfig
 
-def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=150, **kwargs):
+# ==================== MODULE-LEVEL CONSTANTS ====================
 
+# GOES plotting configuration
+DEFAULT_FIGSIZE: tuple = (10, 6)
+DEFAULT_DPI: int = 150
+OUTPUT_FIGSIZE: tuple = (6, 4)
+OUTPUT_DPI: int = 150
+
+# GOES channels and flux limits
+GOES_FLUX_MIN: float = 1e-7
+GOES_FLUX_MAX: float = 1e-2
+FLARE_CLASS_LABELS: list = ['B', 'C', 'M', 'X']
+FLARE_CLASS_LOG_RANGE: tuple = (-6.5, -3.5)
+
+# Output paths and filenames
+DEFAULT_OUTPUT_HOME: str = "plots/predictions"
+PREDICTION_OUTPUT_FILENAME: str = "goes_with_predictions.png"
+
+# Training parameters
+DEFAULT_LEARNING_RATE: float = 0.001
+
+# Prediction visualization
+DEFAULT_PREDICTION_ALPHA: float = 0.4
+
+# Annotation and visualization parameters
+ANNOTATION_FONTSIZE: int = 10
+ANNOTATION_FONTWEIGHT: str = 'bold'
+ANNOTATION_COLOR: str = 'blue'
+ANNOTATION_ROTATION: int = 90
+ANNOTATION_Y_LEVELS: int = 4
+ANNOTATION_Y_BASE_OFFSET: float = 0.35
+ANNOTATION_ALPHA: float = 0.7
+ANNOTATION_Y_OFFSET: int = 2
+
+# GOES observation window
+FLARE_TIME_WINDOW_HOURS: float = 24 * 4.5
+
+
+def plot_goes(
+    goes_ts: XRSTimeSeries,
+    columns: list = None,
+    xlimits: tuple = None,
+    ax = None,
+    figsize: tuple = DEFAULT_FIGSIZE,
+    dpi: int = DEFAULT_DPI,
+    **kwargs
+):
+    """Plot GOES X-ray timeseries data.
+    
+    Custom implementation with enhanced control over formatting, axis limits,
+    and label positioning.
+    
+    Args:
+        goes_ts: sunpy.timeseries.XRSTimeSeries object.
+        columns: List of channel names to plot (default: ["xrsa", "xrsb"]).
+        xlimits: Tuple of (start, end) timestamps to truncate data.
+        ax: Existing Axes object (creates new figure if None).
+        figsize: Figure size (width, height) in inches.
+        dpi: Dots per inch for figure.
+        **kwargs: Passed to ax.plot().
+    
+    Returns:
+        Tuple of (matplotlib Figure, Axes).
     """
-    My custom function to plot GOES data instead of using the XRSTimeseries class.
-    """
+    plot_settings = {
+        "xrsa": ["blue", r"0.5$-$4.0 $\mathrm{\AA}$"],
+        "xrsb": ["red", r"1.0$-$8.0 $\mathrm{\AA}$"]
+    }
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
     else:
         fig = ax.figure
-    plot_settings = {"xrsa": ["blue", r"0.5$-$4.0 $\mathrm{\AA}$"], "xrsb": ["red", r"1.0$-$8.0 $\mathrm{\AA}$"]}
+    
     if columns is None:
         columns = ["xrsa", "xrsb"]
+    
     if xlimits:
-        # Convert both ends of xlimits to timezone-aware timestamps
-        # xlimits = [pd.Timestamp(t).tz_localize('UTC') if pd.Timestamp(t).tzinfo is None else pd.Timestamp(t).tz_convert('UTC') for t in xlimits]
         a, b = xlimits
-        data = goes_ts.truncate(a,b).data
+        data = goes_ts.truncate(a, b).data
     else:
         data = goes_ts.data
+    
     for channel in columns:
         ax.plot(
-            data.index, data[channel], "-", label=plot_settings[channel][1], color=plot_settings[channel][0], lw=1, **kwargs
+            data.index, data[channel], "-", 
+            label=plot_settings[channel][1],
+            color=plot_settings[channel][0], lw=1, **kwargs
         )
+    
     ax.set_yscale("log")
-    ax.set_ylim(1e-7, 1e-2)
+    ax.set_ylim(GOES_FLUX_MIN, GOES_FLUX_MAX)
     ax.set_ylabel("Watts m$^{-2}$")
 
     locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
@@ -53,17 +128,46 @@ def plot_goes(goes_ts, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=
     ax.xaxis.set_major_formatter(formatter)
 
     ax.tick_params(axis='x', rotation=45)
-    labels = ['B', 'C', 'M', 'X']
-    centers = np.logspace(-6.5, -3.5, len(labels))
+    centers = np.logspace(*FLARE_CLASS_LOG_RANGE, len(FLARE_CLASS_LABELS))
 
-    for value, label in zip(centers, labels):
+    for value, label in zip(centers, FLARE_CLASS_LABELS):
         ax.text(-0.02, value, label, transform=ax.get_yaxis_transform(), horizontalalignment='center')
+    
     ax.yaxis.grid(True, "major")
     ax.xaxis.grid(False, "major")
     ax.legend()
     return fig, ax
 
-def plot_custom_goes_with_aarp_sampling(goes_ts, timestamps, columns=None, xlimits=None, ax=None, figsize=(10,6), dpi=150, **kwargs):
+
+
+def plot_custom_goes_with_aarp_sampling(
+    goes_ts: XRSTimeSeries,
+    timestamps,
+    columns: list = None,
+    xlimits: tuple = None,
+    ax = None,
+    figsize: tuple = DEFAULT_FIGSIZE,
+    dpi: int = DEFAULT_DPI,
+    **kwargs
+):
+    """Plot GOES data with AARP sampling timestamps marked.
+    
+    Overlays vertical lines for each sample timestamp on the GOES plot,
+    allowing visualization of when the model was observing data.
+    
+    Args:
+        goes_ts: sunpy.timeseries.XRSTimeSeries object.
+        timestamps: DatetimeIndex of sampling times to mark.
+        columns: List of channel names to plot.
+        xlimits: Tuple of (start, end) timestamps.
+        ax: Existing Axes object (creates new if None).
+        figsize: Figure size (width, height) in inches.
+        dpi: Dots per inch for figure.
+        **kwargs: Passed to plot_goes().
+    
+    Returns:
+        Tuple of (matplotlib Figure, Axes).
+    """
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
     else:
@@ -78,16 +182,56 @@ def plot_custom_goes_with_aarp_sampling(goes_ts, timestamps, columns=None, xlimi
         ax.axvline(ts, color='grey', linestyle='--')
     return fig, ax
 
-def vizualize_goes_ts_predictions(goes_ts, s_aarp:single_aarp, predicted_scores, goes_event_list_df=None,
-    flare_start=False, columns=["xrsb"], xlimits=None, resample=False, figsize=(10,6), dpi=150, **kwargs):
-
+def vizualize_goes_ts_predictions(
+    goes_ts: XRSTimeSeries,
+    s_aarp,
+    predicted_scores,
+    goes_event_list_df = None,
+    flare_start: bool = False,
+    columns: list = None,
+    xlimits: tuple = None,
+    resample: bool = False,
+    figsize: tuple = DEFAULT_FIGSIZE,
+    dpi: int = DEFAULT_DPI,
+    **kwargs
+):
+    """Overlay model prediction scores on GOES timeseries.
+    
+    Creates dual-axis plot with GOES X-ray flux (primary y-axis)
+    and model prediction scores (secondary y-axis). Optionally marks
+    flare start time.
+    
+    Args:
+        goes_ts: sunpy.timeseries.XRSTimeSeries object.
+        s_aarp: single_aarp instance with timestamps and aarp_id.
+        predicted_scores: 1D tensor/array of prediction scores (0-1).
+        goes_event_list_df: DataFrame with flare event metadata.
+        flare_start: Mark flare start time if True.
+        columns: List of channel names to plot (default: ["xrsb"]).
+        xlimits: Tuple of (start, end) timestamps.
+        resample: Resample GOES to match AARP timestamps if True.
+        figsize: Figure size (width, height) in inches.
+        dpi: Dots per inch for figure.
+        **kwargs: Passed to plot_goes() (e.g., alpha).
+    
+    Returns:
+        Tuple of (matplotlib Figure, Axes).
+    
+    Raises:
+        ValueError: If flare_start=True but goes_event_list_df is None.
     """
-    Function to visualize the model predictions on top of the GOES timeseries.
-    Optionally also mark the start time of the flare in the GOES timeseries.
-    """
-
+    if columns is None:
+        columns = ["xrsb"]
+    
     if resample:
-        goes_ts = XRSTimeSeries(data=goes_ts.data.reindex(pd.DatetimeIndex(s_aarp.timestamps), method="nearest", tolerance=pd.Timedelta(seconds=2)), meta=goes_ts.meta)
+        goes_ts = XRSTimeSeries(
+            data=goes_ts.data.reindex(
+                pd.DatetimeIndex(s_aarp.timestamps),
+                method="nearest",
+                tolerance=pd.Timedelta(seconds=2)
+            ),
+            meta=goes_ts.meta
+        )
 
     fig, ax = plot_goes(goes_ts, columns=['xrsb'], xlimits=xlimits, **kwargs)
 
@@ -115,70 +259,47 @@ def vizualize_goes_ts_predictions(goes_ts, s_aarp:single_aarp, predicted_scores,
     ax2.scatter(filtered_ts, sliced_scores, color='blue', linestyle='-', linewidth=1, s=1, label='Predicted Scores')
     ax2.tick_params(axis='y', pad=15)  
     ax2.set_ylim(-0.1, 1.1)
-    # ax.plot(filtered_ts, sliced_scores)
     ax2.legend()
     plt.title(f"ViT prediction scores for AARP {s_aarp.aarp_id} overlaid on GOES X-ray timeseries", fontsize=9)
     return fig, ax
 
-def viz_predictions_2(goes_ts, s_aarp:single_aarp, predicted_scores, flare_start=None, columns=["xrsb"],
-    xlimits=None,figsize=(10,6), dpi=150):
-    """
-    Another way to visualize the same as above
-    """
-    t_stamps = s_aarp.timestamps.tolist()
-
-    fig, ax = plot_custom_goes_with_aarp_sampling(goes_ts, t_stamps, columns=["xrsb"], xlimits=xlimits, figsize=(10,6))
-
-    if flare_start:
-        ax.axvline(flare_start, color='black', linestyle='--', label='flare start')
-
-    xlim_start = pd.Timestamp(xlimits[0], tz="UTC")
-    xlim_end = pd.Timestamp(xlimits[1], tz="UTC")
-    mask = s_aarp.timestamps.between(xlim_start, xlim_end)
-
-    # If predicted_scores is a NumPy array:
-    sliced_scores = predicted_scores[mask.to_numpy()]
-    filtered_ts = s_aarp.timestamps[s_aarp.timestamps.between(xlim_start, xlim_end)]
-
-    visible_indices = [i for i, ts in enumerate(filtered_ts) if xlim_start <= ts <= xlim_end]
-    for i in visible_indices:
-        ts = filtered_ts.iloc[i]
-        pred_score = predicted_scores[i]
-
-        if xlim_start <= ts <= xlim_end:
-            y_base = ax.get_ylim()[1]
-            y_offset_factor = (i % 4) * 0.05  # 4 levels
-            y_pos = y_base * (0.35 - y_offset_factor)
-            ax.annotate(f"{pred_score:.2f}",
-                        xy=(ts, y_pos),
-                        xytext=(0, 2),  # small offset in points
-                        textcoords='offset points',
-                        fontsize=10,
-                        fontweight='bold',
-                        rotation=90,
-                        color='blue',
-                        ha='center',
-                        # va='bottom',
-                        annotation_clip=True,
-                        bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0.5))
-
-    ax.legend()
-    plt.title(f"ViT prediction scores for AARP {s_aarp.aarp_id} overlaid on GOES X-ray timeseries", fontsize=9)
-    plt.show()
 
 def get_aarp_seq_dataset(s_aarp, transform, device):
-    s_images = s_aarp.get_images()
-    # plot_image_grid(s_images[3], show=True)
-    # plt.close()
-
-    # Use the model to make predictions
-    tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
+    """Load AARP image sequence and return as TensorDataset.
+    
+    Args:
+        s_aarp: single_aarp instance with image loading methods.
+        transform: AIALogTransform normalization transform.
+        device: torch.device (cuda or cpu).
+    
+    Returns:
+        torch.utils.data.TensorDataset with normalized images.
+    """
+    s_images = s_aarp.get_images()  # Shape: [N, 7, 512, 512]
+    tensor_images = torch.from_numpy(s_images).to(torch.float32).to(device)
     tensor_data = transform(tensor_images)
-    tensor_data = tensor_data.to(device)
     dataset = TensorDataset(tensor_data)
     return dataset
 
 def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home, resume=False):
+    """Generate and save prediction plot for a single AARP sample.
+    
+    Loads AARP image sequence, generates model predictions, fetches GOES
+    timeseries data, and creates output plot with predictions overlaid.
+    Optionally marks flare start time.
+    
+    Args:
+        aarp_id: AARP region identifier.
+        metadata_df: DataFrame with sample metadata.
+        transform: AIALogTransform normalization.
+        model: Trained ViT model.
+        device: torch.device (cuda or cpu).
+        output_home: Root directory for output plots.
+        resume: Skip if output exists (default: False).
+    
+    Returns:
+        None
+    """
     output_dir = f"{output_home}/{aarp_id}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -209,7 +330,7 @@ def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_
 
     # Make plots combining data with predictions
     print("Half width duration of observations", (s_aarp.timestamps.max() - s_aarp.timestamps.min())/2)
-    fl_start, fl_end = get_start_and_end_time(s_aarp.get_midtime(), 24*4.5*60)
+    fl_start, fl_end = get_start_and_end_time(s_aarp.get_midtime(), FLARE_TIME_WINDOW_HOURS * 60)
     goes_ts = aarp_ml.utils.run_fetch_goes(fl_start, fl_end)
 
     matched_events = goes_event_list.query(f"harpnum == {aarp_id}")
@@ -220,16 +341,24 @@ def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_
     else:
         flare_start = False
 
-    # Plot the GOES data with predictions overlaid on top using a separate y-axis
-    # Also mark the flare start time
     xlimits = (s_aarp.timestamps.min(), s_aarp.timestamps.max())
-    fig, ax = vizualize_goes_ts_predictions(goes_ts, s_aarp, predicted_scores, goes_event_list_df=goes_event_list,
-                                            flare_start=flare_start, xlimits=xlimits, resample=False, figsize=(6,4), alpha=0.4)
-    fig.savefig(f"{output_dir}/goes_with_predictions.png", bbox_inches="tight", dpi=150)
+    fig, ax = vizualize_goes_ts_predictions(
+        goes_ts, s_aarp, predicted_scores, 
+        goes_event_list_df=goes_event_list,
+        flare_start=flare_start, xlimits=xlimits,
+        resample=False, figsize=OUTPUT_FIGSIZE, dpi=OUTPUT_DPI,
+        alpha=DEFAULT_PREDICTION_ALPHA
+    )
+    fig.savefig(f"{output_dir}/{PREDICTION_OUTPUT_FILENAME}", bbox_inches="tight", dpi=OUTPUT_DPI)
     plt.close(fig)
 
+
 def main():
-    # Load Data and Model
+    """Main execution: generate prediction plots for test/validation samples.
+    
+    Loads model and data, processes each sample in test/validation split,
+    generates GOES plots with overlaid predictions, and saves output.
+    """
     config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
     config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
     metadata, model, transform, device = get_data_model(config)
@@ -237,8 +366,7 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     checkpoint = torch.load(config.trained_model_path, map_location=device)
-    learning_rate = 0.001
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=DEFAULT_LEARNING_RATE)
     if isinstance(checkpoint, dict):
         if 'model_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['model_state_dict'])
@@ -249,7 +377,7 @@ def main():
         model.load_state_dict(checkpoint)
     model = model.to(device)
 
-    output_home = "pred-output"
+    output_home = DEFAULT_OUTPUT_HOME
     os.makedirs(output_home, exist_ok=True)
 
     for aarp_id in test_df.aarp_id.unique().tolist():
@@ -257,6 +385,6 @@ def main():
     for aarp_id in val_df.aarp_id.unique().tolist():
         make_prediction_plot(aarp_id, val_df, transform, model, device, output_home)
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
 
