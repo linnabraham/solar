@@ -79,7 +79,7 @@ AARP_SAMPLING_LINESTYLE: str = '--'
 AARP_SAMPLING_COLOR: str = 'grey'
 
 # Output configuration
-DEFAULT_OUTPUT_HOME: str = "pred-output"
+DEFAULT_OUTPUT_DIR: str = "plots/predictions"
 DEFAULT_RESUME: bool = False
 PREDICTION_OUTPUT_FILENAME: str = "goes_with_predictions.png"
 
@@ -96,7 +96,7 @@ class PredictionConfig:
         json_path: Path to solar dataset JSON file.
         stats_file: Path to pickled statistics.
         trained_model_path: Path to trained ViT checkpoint.
-        output_home: Root directory for prediction output.
+        output_dir: Root directory for prediction output (plots/predictions).
         resume: Skip existing output directories if True.
         figsize: Figure size for output plots.
         dpi: DPI for output plots.
@@ -110,7 +110,7 @@ class PredictionConfig:
     json_path: str = "solar_dataset.json"
     stats_file: str = "stats.pkl"
     trained_model_path: str = "outputs/glad-shape-197/trained_model.pth"
-    output_home: str = DEFAULT_OUTPUT_HOME
+    output_dir: str = DEFAULT_OUTPUT_DIR
     resume: bool = DEFAULT_RESUME
     figsize: Tuple[float, float] = DEFAULT_OUTPUT_FIGSIZE
     dpi: int = DEFAULT_OUTPUT_DPI
@@ -127,7 +127,7 @@ class PredictionConfig:
             raise ValueError(f"Invalid figsize: {self.figsize}")
         if self.dpi < 50:
             raise ValueError(f"DPI must be >= 50, got {self.dpi}")
-        os.makedirs(self.output_home, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
 
 
 def plot_goes(
@@ -406,7 +406,7 @@ def make_prediction_plot(
     transform: AIALogTransform,
     model: torch.nn.Module,
     device: torch.device,
-    output_home: str,
+    output_dir: str,
     resume: bool = False
 ) -> Optional[str]:
     """Generate and save prediction plot for a single AARP sample.
@@ -421,7 +421,7 @@ def make_prediction_plot(
         transform: AIALogTransform normalization.
         model: Trained ViT model in eval mode.
         device: torch.device for inference.
-        output_home: Root directory for saving output plots.
+        output_dir: Root directory for saving output plots (plots/predictions).
         resume: Skip AARP if output directory exists (default: False).
     
     Returns:
@@ -432,16 +432,16 @@ def make_prediction_plot(
         RuntimeError: If model inference or GOES fetch fails.
         IOError: If file write fails.
     """
-    output_dir = f"{output_home}/{aarp_id}"
+    aarp_output_dir = f"{output_dir}/{aarp_id}"
     
     # Check resume mode
-    if os.path.exists(output_dir):
+    if os.path.exists(aarp_output_dir):
         if resume:
             print(f"✓ Skipping {aarp_id} (output exists)")
             return None
         # If not resuming, remove existing directory to regenerate
     
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(aarp_output_dir, exist_ok=True)
     print(f"Processing AARP {aarp_id}")
     
     # Load AARP data and make predictions
@@ -491,12 +491,12 @@ def make_prediction_plot(
         dpi=DEFAULT_OUTPUT_DPI
     )
     
-    output_path = f"{output_dir}/{PREDICTION_OUTPUT_FILENAME}"
+    output_path = f"{aarp_output_dir}/{PREDICTION_OUTPUT_FILENAME}"
     fig.savefig(output_path, bbox_inches="tight", dpi=DEFAULT_OUTPUT_DPI)
     plt.close(fig)
     print(f"  ✓ Saved: {output_path}")
     
-    return output_dir
+    return aarp_output_dir
 
 
 def load_model_from_checkpoint(
@@ -544,7 +544,7 @@ def main() -> None:
     """Main execution: generate prediction plots for test/validation samples.
     
     Loads model and data, processes each sample in test/validation split,
-    generates GOES plots with overlaid predictions, and saves to pred-output/
+    generates GOES plots with overlaid predictions, and saves to plots/predictions/
     directory. Optionally uses cached GOES data (resample=False).
     
     Raises:
@@ -556,7 +556,7 @@ def main() -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"Device: {device}")
-    print(f"Output directory: {config.output_home}")
+    print(f"Output directory: {config.output_dir}")
     
     # Load model and data
     metadata, model, transform, _ = get_data_model(
@@ -574,7 +574,7 @@ def main() -> None:
         try:
             make_prediction_plot(
                 aarp_id, test_df, transform, model, device,
-                config.output_home, resume=config.resume
+                config.output_dir, resume=config.resume
             )
         except Exception as e:
             print(f"  ✗ Error processing AARP {aarp_id}: {e}")
@@ -587,13 +587,13 @@ def main() -> None:
         try:
             make_prediction_plot(
                 aarp_id, val_df, transform, model, device,
-                config.output_home, resume=config.resume
+                config.output_dir, resume=config.resume
             )
         except Exception as e:
             print(f"  ✗ Error processing AARP {aarp_id}: {e}")
             continue
     
-    print(f"\n✓ Prediction plots complete. Results saved to {config.output_home}/")
+    print(f"\n✓ Prediction plots complete. Results saved to {config.output_dir}/")
 
 
 if __name__ == "__main__":
