@@ -241,8 +241,8 @@ stages:
     deps:
     - path: src/torch/vit/attributions_analyze.py
       hash: md5
-      md5: f3342e25e9b48e74329101b28e244e8d
-      size: 3797
+      md5: 0692d03f0dbe0ce9328e18f2f6f8eb2e
+      size: 6408
     - path: src/torch/vit/class_wise_distribution.py
       hash: md5
       md5: a59405bb235fbcd6a01f03127ebadfb1
@@ -253,126 +253,126 @@ stages:
       size: 6640
     - path: src/torch/vit/predictions_analyze.py
       hash: md5
-      md5: 710bdcb89fa5aa8f54331d8a892a5569
-      size: 11212
+      md5: 6e08c9dd75d787921bf6f530b66d8455
+      size: 13983
     - path: src/torch/vit/train.py
       hash: md5
       md5: ee241813666d738ad6f527d17166403b
       size: 10434
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: 5342d2ce21eefb9aded347a15770f430
-      size: 3626
+      md5: c679c59a94316f08671764e0d07a0ac6
+      size: 7670
     outs:
-    - path: pred-output/1275/attributions_percentiles_99.png
+    - path: plots/predictions/1275/attributions_percentiles_99.png
       hash: md5
       md5: db1f489c75080fe580cfd91493f5fe8d
       size: 46039
-    - path: pred-output/1275/filtered_image_intensities.png
+    - path: plots/predictions/1275/filtered_image_intensities.png
       hash: md5
       md5: 4dc7fdce35a0a109270e942e90d42c49
       size: 47879
-    - path: pred-output/1449/attributions_percentiles_99.png
+    - path: plots/predictions/1449/attributions_percentiles_99.png
       hash: md5
       md5: 376f6c15c9d45b3cba48cd38797c0c60
       size: 40994
-    - path: pred-output/1449/filtered_image_intensities.png
+    - path: plots/predictions/1449/filtered_image_intensities.png
       hash: md5
       md5: 92ecce6731b57d3ef8b127033f3775f0
       size: 28968
-    - path: pred-output/185/attributions_percentiles_99.png
+    - path: plots/predictions/185/attributions_percentiles_99.png
       hash: md5
       md5: d8768da554a5f0d03c45cca4139d16d4
       size: 46623
-    - path: pred-output/185/filtered_image_intensities.png
+    - path: plots/predictions/185/filtered_image_intensities.png
       hash: md5
       md5: 0778905034920891eb370ff612b53385
       size: 45810
-    - path: pred-output/2026/attributions_percentiles_99.png
+    - path: plots/predictions/2026/attributions_percentiles_99.png
       hash: md5
       md5: 4567a828c728e8f3c09fda9bb323b248
       size: 47965
-    - path: pred-output/2026/filtered_image_intensities.png
+    - path: plots/predictions/2026/filtered_image_intensities.png
       hash: md5
       md5: 930472ef6aaa30a07c4084c982fc18b9
       size: 37324
-    - path: pred-output/3153/attributions_percentiles_99.png
+    - path: plots/predictions/3153/attributions_percentiles_99.png
       hash: md5
       md5: 0ed010f4a6ab604899ec929e1ee4e240
       size: 27838
-    - path: pred-output/3153/filtered_image_intensities.png
+    - path: plots/predictions/3153/filtered_image_intensities.png
       hash: md5
       md5: c4f513bc9b953db20c9f2bffe18b332e
       size: 19773
-    - path: pred-output/3229/attributions_percentiles_99.png
+    - path: plots/predictions/3229/attributions_percentiles_99.png
       hash: md5
       md5: 99f40cec00fdab0b8fc4d513814369f3
       size: 40653
-    - path: pred-output/3229/filtered_image_intensities.png
+    - path: plots/predictions/3229/filtered_image_intensities.png
       hash: md5
       md5: e1b6092d22ee02843019a8a6462b3c61
       size: 45587
-    - path: pred-output/3364/attributions_percentiles_99.png
+    - path: plots/predictions/3364/attributions_percentiles_99.png
       hash: md5
       md5: 8e164ccdb6b1145a9125bd38ad3f0244
       size: 35440
-    - path: pred-output/3364/filtered_image_intensities.png
+    - path: plots/predictions/3364/filtered_image_intensities.png
       hash: md5
       md5: c38c4425b66a24ae322e8d497a300c24
       size: 104446
-    - path: pred-output/3563/attributions_percentiles_99.png
+    - path: plots/predictions/3563/attributions_percentiles_99.png
       hash: md5
       md5: 100ebb01bc839d1871665c66166c1792
       size: 40087
-    - path: pred-output/3563/filtered_image_intensities.png
+    - path: plots/predictions/3563/filtered_image_intensities.png
       hash: md5
       md5: e295b47a361912fe4447a1d1065f4f4b
       size: 84232
-    - path: pred-output/377/attributions_percentiles_99.png
+    - path: plots/predictions/377/attributions_percentiles_99.png
       hash: md5
       md5: 254e44ba3fbd9cb3f3b817d7aaa88e76
       size: 44646
-    - path: pred-output/377/filtered_image_intensities.png
+    - path: plots/predictions/377/filtered_image_intensities.png
       hash: md5
       md5: 071a9b51df342bde682f55311a26a2cb
       size: 46453
-    - path: pred-output/401/attributions_percentiles_99.png
+    - path: plots/predictions/401/attributions_percentiles_99.png
       hash: md5
       md5: 21f1f7e0ba6ca9189a758f7b1cff3fda
       size: 39915
-    - path: pred-output/401/filtered_image_intensities.png
+    - path: plots/predictions/401/filtered_image_intensities.png
       hash: md5
       md5: df8df736e9cb1ac9098fa266fe5b6fd5
       size: 75233
-    - path: pred-output/4296/attributions_percentiles_99.png
+    - path: plots/predictions/4296/attributions_percentiles_99.png
       hash: md5
       md5: 2e11ce7607c05e66a3ddc8235881b202
       size: 43051
-    - path: pred-output/4296/filtered_image_intensities.png
+    - path: plots/predictions/4296/filtered_image_intensities.png
       hash: md5
       md5: 93c90f4dec70dcf52b48aafde745403c
       size: 61122
-    - path: pred-output/4920/attributions_percentiles_99.png
+    - path: plots/predictions/4920/attributions_percentiles_99.png
       hash: md5
       md5: 245c9a3d1e0a0e94e315934398954e40
       size: 37188
-    - path: pred-output/4920/filtered_image_intensities.png
+    - path: plots/predictions/4920/filtered_image_intensities.png
       hash: md5
       md5: 92d49b09d36aa4101e5217e113d8a6bb
       size: 75678
-    - path: pred-output/5894/attributions_percentiles_99.png
+    - path: plots/predictions/5894/attributions_percentiles_99.png
       hash: md5
       md5: d922fc298326954edb224d84a334ea79
       size: 38195
-    - path: pred-output/5894/filtered_image_intensities.png
+    - path: plots/predictions/5894/filtered_image_intensities.png
       hash: md5
       md5: a3922f13eb04dea4ccab68e4bc4b3374
       size: 64462
-    - path: pred-output/833/attributions_percentiles_99.png
+    - path: plots/predictions/833/attributions_percentiles_99.png
       hash: md5
       md5: 6a37b3b3606c282e275455c99b4418db
       size: 39416
-    - path: pred-output/833/filtered_image_intensities.png
+    - path: plots/predictions/833/filtered_image_intensities.png
       hash: md5
       md5: 5bc9e3577aa11e6e4bced54d42904ed1
       size: 121267
