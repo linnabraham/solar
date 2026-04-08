@@ -1,8 +1,56 @@
-site_name: Solar Flare
+site_name: Solar Flare Documentation
 theme:
   name: material
+  palette:
+    scheme: default
+    primary: blue
+    accent: orange
+  features:
+    - navigation.instant
+    - navigation.expand
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_source: true
 
 nav:
   - Home: index.md
-  - Pipeline: pipeline.md
-  - Pipeline Summary: pipeline_details.md
+  
+  - Pipeline Stages:
+    - data-single: stages/data-single.md
+    - create-distribution: stages/create-distribution.md
+    - confusion-matrix-val: stages/confusion-matrix-val.md
+    - prediction-plots: stages/prediction-plots.md
+    - plot-class-dist: stages/plot-class-dist.md
+    - plot_contour_image_grid: stages/plot_contour_image_grid.md
+    - attribution_analyzis: stages/attribution_analyzis.md
+    - create_movie: stages/create_movie.md
+    - xgb-feat-importance: stages/xgb-feat-importance.md
+    - kshap-stats: stages/kshap-stats.md
+    - kshap-analyze: stages/kshap-analyze.md
+  
+  - Code Documentation:
+    - Stage Scripts:
+      - predictions_analyze: code/predictions_analyze.md
+      - plot_class_wise_distribution: code/plot_class_wise_distribution.md
+      - plot_contour_image_grid: code/plot_contour_image_grid.md
+      - create_movies: code/create_movies.md
+      - attributions_analyze: code/attributions_analyze.md
+      - test: code/test.md
+      - class_wise_distribution: code/class_wise_distribution.md
+      - kshap: code/kshap.md
+      - analyze_shap: code/analyze_shap.md
+      - data_single: code/data_single.md
+      - xgb_feat_importance: code/xgb_feat_importance.md
+    - Shared Utilities:
+      - ig: code/ig.md
+      - utils: code/utils.md
+      - train: code/train.md
+  
+  - Pipeline Details: pipeline_details.md
