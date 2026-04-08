@@ -18,14 +18,13 @@ python -m src.torch.vit.plot_class_wise_distribution
 - `src/torch/vit/utils.py`
 
 **Outputs**
-- `plots/class_wise_int_dist_passband_131.png` _(not cached)_
-- `plots/class_wise_int_dist_passband_94.png` _(not cached)_
-
-## Output
-
-### Class-wise Intensity Distribution Per Passband
-![94](../assets/plots/class_wise_int_dist_passband_94.png)
-![131](../assets/plots/class_wise_int_dist_passband_131.png)
+- `plots/distribution/131.pdf`
+- `plots/distribution/171.pdf`
+- `plots/distribution/193.pdf`
+- `plots/distribution/211.pdf`
+- `plots/distribution/304.pdf`
+- `plots/distribution/335.pdf`
+- `plots/distribution/94.pdf`
 
 ## Notes
 
