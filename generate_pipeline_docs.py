@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 generate_pipeline_docs.py
 

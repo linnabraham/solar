@@ -27,3 +27,7 @@ dvc repro
 - [data-single](stages/data-single.md)
 
 - [create-distribution](stages/create-distribution.md)
+
+- [kshap-stats](stages/kshap-stats.md)
+
+- [kshap-analyze](stages/kshap-analyze.md)
