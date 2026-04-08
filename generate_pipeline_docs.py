@@ -3,24 +3,168 @@
 generate_pipeline_docs.py
 
 Reads dvc.yaml and writes docs/pipeline.md automatically.
+ENHANCED: Also creates bi-directional links between stage pages and code documentation.
+
 Run this whenever dvc.yaml changes:
 
     python generate_pipeline_docs.py
 
-Or hook it into mkdocs by adding to mkdocs.yml hooks (see bottom of file).
+Features:
+- Auto-generates pipeline.md and pipeline_details.md from dvc.yaml
+- Creates individual stage documentation pages in docs/stages/
+- Links each stage to its corresponding code documentation
+- Validates that all stage scripts have corresponding code docs
+- Reports documentation completeness status
 """
 
 import yaml
 from pathlib import Path
+from typing import Dict, Optional
 
 DVC_YAML  = Path("dvc.yaml")
 OUTPUT_MD = Path("docs/pipeline.md")
 DETAILED_MD = Path("docs/pipeline_details.md")
+CODE_DOC_DIR = Path("docs/code")
 
 
 def load_dvc(path: Path) -> dict:
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+# ==================== Stage-to-Script Mapping ====================
+
+def get_stage_script(stage_name: str, info: dict) -> Optional[str]:
+    """Extract the Python script path from a stage's cmd or deps.
+    
+    Examples:
+        `python -m src.torch.vit.predictions_analyze` → `src/torch/vit/predictions_analyze.py`
+        `python -m src.data_single` → `src/data_single.py`
+    
+    Args:
+        stage_name: Name of the stage (for error messages)
+        info: Stage info dict from dvc.yaml
+        
+    Returns:
+        Path to Python script, or None if not found
+    """
+    cmd = info.get('cmd', '')
+    
+    # Try to parse "python -m module.path" format
+    if 'python -m ' in cmd:
+        module_path = cmd.split('python -m ')[-1].split()[0]
+        # Convert dots to slashes: src.torch.vit.predictions_analyze → src/torch/vit/predictions_analyze.py
+        script_path = module_path.replace('.', '/') + '.py'
+        return script_path
+    
+    # Fallback: look for .py file in deps (main script, not utility)
+    deps = info.get('deps', [])
+    # Look for a .py file that's likely the main script (basename matches stage context)
+    for d in deps:
+        if d.endswith('.py') and not d.endswith('/__init__.py'):
+            # Heuristic: if it's the first or most specific dep, it's likely the main script
+            if stage_name.replace('-', '_') in d:
+                return d
+    
+    # If no heuristic match, take any .py dep (not ideal but better than nothing)
+    for d in deps:
+        if d.endswith('.py') and not d.endswith('/__init__.py'):
+            return d
+    
+    return None
+
+
+def get_code_doc_name(script_path: str) -> str:
+    """Convert script path to code doc filename.
+    
+    Examples:
+        `src/torch/vit/predictions_analyze.py` → `predictions_analyze`
+        `src/data_single.py` → `data_single`
+    """
+    return Path(script_path).stem
+
+
+def code_doc_exists(script_path: str) -> bool:
+    """Check if code doc markdown exists for this script."""
+    doc_name = get_code_doc_name(script_path)
+    doc_path = CODE_DOC_DIR / f"{doc_name}.md"
+    return doc_path.exists()
+
+
+def insert_code_doc_link(stage_page: Path, code_doc_name: str) -> bool:
+    """Insert code documentation link at top of stage page if not already present.
+    
+    Non-destructive: only adds link if it doesn't already exist.
+    
+    Args:
+        stage_page: Path to stage markdown file
+        code_doc_name: Filename of code doc (without .md)
+        
+    Returns:
+        True if link was added, False if already present or skipped
+    """
+    if not stage_page.exists():
+        return False
+    
+    content = stage_page.read_text()
+    
+    # Check if link already exists
+    if f'../code/{code_doc_name}.md' in content or 'Code Documentation' in content or 'Implementation' in content:
+        return False
+    
+    # Insert link after the heading
+    lines = content.split('\n')
+    if len(lines) > 1:
+        # Insert after first heading (typically line 1)
+        lines.insert(1, f"\n**Implementation**: [View code documentation](../code/{code_doc_name}.md)\n")
+        stage_page.write_text('\n'.join(lines))
+        return True
+    
+    return False
+
+
+def validate_and_report(stages: dict) -> Dict[str, dict]:
+    """Validate that all stages have corresponding code documentation.
+    
+    Returns a dict with:
+        - 'documented': stages with code docs
+        - 'missing': stages without code docs
+        - 'summary': status message
+    """
+    documented = {}
+    missing = {}
+    
+    for stage_name, info in stages.items():
+        script_path = get_stage_script(stage_name, info)
+        if script_path:
+            if code_doc_exists(script_path):
+                doc_name = get_code_doc_name(script_path)
+                documented[stage_name] = {
+                    'script': script_path,
+                    'doc': f"docs/code/{doc_name}.md",
+                    'status': '✓'
+                }
+            else:
+                doc_name = get_code_doc_name(script_path)
+                missing[stage_name] = {
+                    'script': script_path,
+                    'doc': f"docs/code/{doc_name}.md",
+                    'status': '✗'
+                }
+        else:
+            missing[stage_name] = {
+                'script': '(not found)',
+                'doc': '(unknown)',
+                'status': '?'
+            }
+    
+    return {
+        'documented': documented,
+        'missing': missing,
+        'total_stages': len(stages),
+        'documented_count': len(documented),
+        'missing_count': len(missing)
+    }
 
 
 def format_list(items: list[str]) -> str:
@@ -153,10 +297,57 @@ if __name__ == "__main__":
     stage_dir = Path("docs/stages")
     stage_dir.mkdir(parents=True, exist_ok=True)
 
+    links_added = 0
+    
     for name, info in stages.items():
         page = stage_dir / f"{name}.md"
-        if not page.exists():                   # ← key line
+        
+        # Get associated script and code doc
+        script_path = get_stage_script(name, info)
+        code_doc_name = get_code_doc_name(script_path) if script_path else None
+        
+        if not page.exists():
+            # Create new page
             page.write_text(generate_stage_page(name, info))
             print(f"  Created {page}")
+            
+            # Add code doc link to new page
+            if code_doc_name and insert_code_doc_link(page, code_doc_name):
+                links_added += 1
+                print(f"    → Linked to code/{code_doc_name}.md")
         else:
-            print(f"  Skipped {page} (already exists)")
+            # Page exists: try to add link if not present
+            if code_doc_name and insert_code_doc_link(page, code_doc_name):
+                links_added += 1
+                print(f"  Updated {page} with code doc link")
+    
+    # Validation and reporting
+    print("\n" + "="*60)
+    print("DOCUMENTATION VALIDATION")
+    print("="*60)
+    
+    validation = validate_and_report(stages)
+    total = validation['total_stages']
+    documented = validation['documented_count']
+    missing = validation['missing_count']
+    
+    print(f"\nTotal stages: {total}")
+    print(f"  ✓ With code documentation: {documented}")
+    print(f"  ✗ Missing code documentation: {missing}")
+    
+    if validation['missing']:
+        print("\n⚠️  MISSING CODE DOCUMENTATION:")
+        for stage_name, info in validation['missing'].items():
+            script = info.get('script', 'unknown')
+            doc = info.get('doc', '(unknown)')
+            print(f"   - {stage_name}")
+            print(f"     Script: {script}")
+            print(f"     Expected doc: {doc}")
+    
+    if validation['documented']:
+        print("\n✓ DOCUMENTED STAGES:")
+        for stage_name, info in validation['documented'].items():
+            print(f"   - {stage_name} → {info['doc']}")
+    
+    print(f"\n{links_added} code documentation link(s) added/updated in stage pages")
+    print("="*60)
