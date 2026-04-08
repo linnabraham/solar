@@ -1,5 +1,8 @@
 # `plot_contour_image_grid`
 
+**Implementation**: [View code documentation](../code/plot_contour_image_grid.md)
+
+
 **Command**
 ```bash
 python -m src.torch.vit.plot_contour_image_grid

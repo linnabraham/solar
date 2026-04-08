@@ -1,5 +1,8 @@
 # `create-distribution`
 
+**Implementation**: [View code documentation](../code/class_wise_distribution.md)
+
+
 **Command**
 ```bash
 python -m src.torch.vit.class_wise_distribution

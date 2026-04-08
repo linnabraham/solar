@@ -1,5 +1,8 @@
 # `plot-class-dist`
 
+**Implementation**: [View code documentation](../code/plot_class_wise_distribution.md)
+
+
 **Command**
 ```bash
 python -m src.torch.vit.plot_class_wise_distribution

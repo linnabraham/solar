@@ -1,5 +1,8 @@
 # `kshap-stats`
 
+**Implementation**: [View code documentation](../code/kshap.md)
+
+
 **Command**
 ```bash
 python -m src.torch.vit.kshap
