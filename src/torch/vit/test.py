@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from pathlib import Path
 import matplotlib.pyplot as plt
 import argparse
 import time
@@ -172,6 +173,7 @@ def main(
         fontcolor_threshold=0.5,
     )
     
+    Path(config.output_path).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(config.output_path, bbox_inches="tight", dpi=150)
     plt.close(fig)
     print(f"✓ Saved confusion matrix to {config.output_path}")
