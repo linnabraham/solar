@@ -546,3 +546,56 @@ stages:
       md5: aed83e22795b477aeea3ccd4be955f7a.dir
       size: 201727
       nfiles: 1
+  subset-data:
+    cmd: python -m src.aarp_subset_pipeline --process --json
+    deps:
+    - path: data/grouped_df.csv
+      hash: md5
+      md5: b0ecebd5ecbf31c17d74918a48d5efce
+      size: 636768
+    - path: data/neg_urls_selected_downloaded.csv
+      hash: md5
+      md5: 899963aa1768eac5358732fd35094760
+      size: 4338544
+    - path: data/pos_urls_selected_downloaded.csv
+      hash: md5
+      md5: 82a83503ef966bb95230b099b4f9b2df
+      size: 254673
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/aarp_subset_pipeline.py
+      hash: md5
+      md5: dcbdb03217dbd37ac3a082f8df8bb270
+      size: 12992
+    outs:
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+  subset-confusion-matrix:
+    cmd: python -m src.torch.vit.test --subset test --json-path 
+      solar_dataset_subset.json --output-path plots/subset/cm.png
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: 16c8a0dfd4a30e5d0ec0a60f75479743
+      size: 9687
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/subset/cm.png
+      hash: md5
+      md5: 0d2c7a9c2406e54fdf9cb7218f0aedc7
+      size: 11392
