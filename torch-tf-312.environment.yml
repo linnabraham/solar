@@ -17,12 +17,13 @@ dependencies:
   - pandas
   - lightning
   - scikit-learn
-  - vit-pytorch
+  - vit-pytorch<=1.10
   - captum
   - sunpy
   - sunkit-instruments
   - xgboost
   - gdown
+  - setuptools<=81.0
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
