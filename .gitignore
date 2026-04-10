@@ -6,7 +6,6 @@
 /archive
 /astro-utils
 /wandb
-/outputs
 /notebook
 /data
 .ipynb_checkpoints
