@@ -173,3 +173,32 @@ stages:
     - shap_stats.json
     outs:
     - plots/kshap/results
+
+  # ── Subset pipeline stages ────────────────────────────────────────────────
+  # Operates on a small locally-downloaded AARP subset (see src/aarp_subset_pipeline.py).
+  # Run --download manually once before first dvc repro (external NASA fetch, not tracked).
+
+  subset-data:
+    cmd: python -m src.aarp_subset_pipeline --process --json
+    deps:
+    - src/aarp_subset_pipeline.py
+    - data/grouped_df.csv
+    - data/pos_urls_selected_downloaded.csv
+    - data/neg_urls_selected_downloaded.csv
+    - solar_dataset.json
+    outs:
+    - solar_dataset_subset.json
+
+  subset-confusion-matrix:
+    cmd: >-
+      python -m src.torch.vit.test
+      --subset test
+      --json-path solar_dataset_subset.json
+      --output-path plots/subset/cm.png
+    deps:
+    - src/torch/vit/test.py
+    - solar_dataset_subset.json
+    - outputs/glad-shape-197/trained_model.pth
+    - stats.pkl
+    outs:
+    - plots/subset/cm.png
