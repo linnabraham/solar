@@ -202,3 +202,19 @@ stages:
     - stats.pkl
     outs:
     - plots/subset/cm.png
+
+  subset-prediction-plots:
+    cmd: >-
+      python -m src.torch.vit.predictions_analyze
+      --json-path solar_dataset_subset.json
+      --output-dir plots/subset/predictions
+    deps:
+    - src/torch/vit/predictions_analyze.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
+    - solar_dataset_subset.json
+    - outputs/glad-shape-197/trained_model.pth
+    - stats.pkl
+    outs:
+    - plots/subset/predictions/377/goes_with_predictions.png
+    - plots/subset/predictions/1449/goes_with_predictions.png

@@ -599,3 +599,40 @@ stages:
       hash: md5
       md5: 0d2c7a9c2406e54fdf9cb7218f0aedc7
       size: 11392
+  subset-prediction-plots:
+    cmd: python -m src.torch.vit.predictions_analyze --json-path 
+      solar_dataset_subset.json --output-dir plots/subset/predictions
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/predictions_analyze.py
+      hash: md5
+      md5: 814143273ba76114ed3b1d9c309b0d7b
+      size: 14255
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/subset/predictions/1449/goes_with_predictions.png
+      hash: md5
+      md5: d348a45bfe52ab6bfab5ddd9b9259fea
+      size: 61338
+    - path: plots/subset/predictions/377/goes_with_predictions.png
+      hash: md5
+      md5: bff6d5607198a92ab06225ab734396c7
+      size: 81708
