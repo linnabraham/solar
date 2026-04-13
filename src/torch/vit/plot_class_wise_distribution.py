@@ -271,20 +271,28 @@ def plot_all_passbands(
 
 # ==================== Main Block ====================
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-path",        default="solar_dataset.json")
+    parser.add_argument("--attributions-neg", default="data/intermediate-outs/attributions_neg.pt")
+    parser.add_argument("--attributions-pos", default="data/intermediate-outs/attributions_pos.pt")
+    parser.add_argument("--output-dir",       default="plots/distribution")
+    args = parser.parse_args()
+
     try:
         # Configure plotting style
         print("Configuring plot style...")
         configure_plot_style(font_size=DEFAULT_FONT_SIZE)
-        
+
         # Load metadata
-        print("Loading metadata from solar_dataset.json...")
-        metadata = get_metadata_from_json('solar_dataset.json')
+        print(f"Loading metadata from {args.json_path}...")
+        metadata = get_metadata_from_json(args.json_path)
         training_df, val_df, test_df = dfs_from_metadata(metadata)
-        
+
         # Load attributions
         print("Loading attributions...")
-        attributions_list_neg = torch.load("data/intermediate-outs/attributions_neg.pt")
-        attributions_list_pos = torch.load("data/intermediate-outs/attributions_pos.pt")
+        attributions_list_neg = torch.load(args.attributions_neg)
+        attributions_list_pos = torch.load(args.attributions_pos)
 
         # Load images
         print("Loading test images for positive (flare) class...")
@@ -302,7 +310,7 @@ if __name__ == "__main__":
             images,
             attributions,
             passbands=list(all_wavelengths),
-            save_dir="plots/distribution",
+            save_dir=args.output_dir,
             output_format="pdf",
             output_dpi=300
         )

@@ -47,10 +47,16 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
 
 def get_intensities_using_attributions(attributions_list, images_list,
                                        channel, percentile_level):
+    # Guard against empty lists (e.g. subset splits with no samples for a class)
+    if not attributions_list or not images_list:
+        return np.array([])
     attributions_comb = np.array([item[channel] for attribution in attributions_list
                                   for item in attribution])
     images_comb= np.array([item[channel] for images in images_list
                            for item in images])
+    # Guard against degenerate array shape when all lists were empty iterables
+    if attributions_comb.ndim < 3:
+        return np.array([])
     thresholds = np.percentile(attributions_comb, percentile_level, axis=(1, 2))
     thresholds_expanded = thresholds[:, None, None]
     filtered_images = np.where(attributions_comb  > thresholds_expanded, images_comb, 0)
@@ -79,7 +85,10 @@ def plot_intensity_distribution(images:tuple, attributions:tuple, percentile_lev
         ax = axes[idx]
 
         for class_idx, class_intensities in enumerate((flattened_int_neg, flattened_int_pos)):
-            ax.hist(np.log(class_intensities[class_intensities >= 1]), bins=nbins, range=x_range,
+            valid = class_intensities[class_intensities >= 1]
+            if valid.size == 0:  # skip empty class (e.g. no neg samples in subset)
+                continue
+            ax.hist(np.log(valid), bins=nbins, range=x_range,
                 density=True, label=("Flared" if class_idx == 1 else "Non-Flared"), alpha=alpha)
 
         ax.set_title(fr"${percentile_level}^{{\mathrm{{th}}}}$ percentile")
@@ -91,9 +100,16 @@ def plot_intensity_distribution(images:tuple, attributions:tuple, percentile_lev
     return fig, axes
 
 if __name__=="__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-path",      default="solar_dataset.json")
+    parser.add_argument("--output-neg",     default="data/intermediate-outs/attributions_neg.pt")
+    parser.add_argument("--output-pos",     default="data/intermediate-outs/attributions_pos.pt")
+    args = parser.parse_args()
+
     # Load Data and Model
     trained_model_path = "outputs/glad-shape-197/trained_model.pth"
-    with open('solar_dataset.json', 'r') as json_file:
+    with open(args.json_path, 'r') as json_file:
         metadata = json.load(json_file)
 
     training_df, val_df, test_df = dfs_from_metadata(metadata)
@@ -149,5 +165,7 @@ if __name__=="__main__":
         gc.collect()
         torch.cuda.empty_cache()
 
-    torch.save(attributions_list_neg, "data/intermediate-outs/attributions_neg.pt")
-    torch.save(attributions_list_pos, "data/intermediate-outs/attributions_pos.pt")
+    import os
+    os.makedirs(os.path.dirname(args.output_neg), exist_ok=True)
+    torch.save(attributions_list_neg, args.output_neg)
+    torch.save(attributions_list_pos, args.output_pos)
