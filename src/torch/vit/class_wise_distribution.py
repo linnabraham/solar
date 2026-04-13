@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 from itertools import islice
+from tqdm import tqdm
 from aarp_ml.torch.model import DeepFlare_ViT
 import matplotlib.pyplot as plt
 from src.torch.vit.ig import single_aarp, make_predictions, do_ig
@@ -33,7 +34,7 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
     ib_size = 1
     n_images = s_images.shape[0]
     with torch.no_grad():
-        for (batch,) in islice(loader, n_images):
+        for (batch,) in tqdm(islice(loader, n_images), total=n_images, desc=f"IG aarp={aarp_id}"):
             batch = batch.to(device)
             baseline_zero = transform(torch.zeros_like(batch))
             baseline_zero = baseline_zero.to(device)
