@@ -355,11 +355,17 @@ def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_
 
 def main():
     """Main execution: generate prediction plots for test/validation samples.
-    
+
     Loads model and data, processes each sample in test/validation split,
     generates GOES plots with overlaid predictions, and saves output.
     """
-    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-path", default="solar_dataset.json")
+    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_HOME)
+    args = parser.parse_args()
+
+    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
     config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
@@ -377,12 +383,12 @@ def main():
         model.load_state_dict(checkpoint)
     model = model.to(device)
 
-    output_home = DEFAULT_OUTPUT_HOME
+    output_home = args.output_dir
     os.makedirs(output_home, exist_ok=True)
 
-    for aarp_id in test_df.aarp_id.unique().tolist():
+    for aarp_id in test_df.aarp_id.unique().tolist() if not test_df.empty else []:
         make_prediction_plot(aarp_id, test_df, transform, model, device, output_home)
-    for aarp_id in val_df.aarp_id.unique().tolist():
+    for aarp_id in val_df.aarp_id.unique().tolist() if not val_df.empty else []:
         make_prediction_plot(aarp_id, val_df, transform, model, device, output_home)
 
 if __name__ == "__main__":

@@ -75,9 +75,9 @@ def dfs_from_metadata(metadata):
     training_df = pd.DataFrame(metadata['training'])
     val_df = pd.DataFrame(metadata['validation'])
     test_df = pd.DataFrame(metadata['test'])
-    training_df['timestamp'] = training_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
-    val_df['timestamp'] = val_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
-    test_df['timestamp'] = test_df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
+    for df in [training_df, val_df, test_df]:
+        if not df.empty:
+            df['timestamp'] = df['timestamp'].apply(pd.to_datetime).dt.tz_localize(None)
     training_df = training_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
     val_df = val_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
     test_df = test_df.rename({str(i):all_wavelengths[i] for i in range(7)}, axis=1)
