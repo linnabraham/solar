@@ -23,6 +23,8 @@ dependencies:
   - sunkit-instruments
   - xgboost
   - gdown
+  - scienceplots
+  - seaborn
   - setuptools<=81.0
   - pip
   - pip:
