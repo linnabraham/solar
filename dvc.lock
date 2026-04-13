@@ -670,3 +670,83 @@ stages:
       hash: md5
       md5: 6c652f23233262545376508ab3f29360
       size: 16507578
+  subset-create-distribution:
+    cmd: python -m src.torch.vit.class_wise_distribution --json-path 
+      solar_dataset_subset.json --output-neg 
+      data/intermediate-outs/subset_attributions_neg.pt --output-pos 
+      data/intermediate-outs/subset_attributions_pos.pt
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: 0529d5592d1940110db34f1ff976cf8b
+      size: 7109
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: data/intermediate-outs/subset_attributions_neg.pt
+      hash: md5
+      md5: fc44fa4d8ec5e4c1b185740b3063f86d
+      size: 992
+    - path: data/intermediate-outs/subset_attributions_pos.pt
+      hash: md5
+      md5: a8959820723d1ee26f57ab748c3d593e
+      size: 6271633760
+  subset-plot-class-dist:
+    cmd: python -m src.torch.vit.plot_class_wise_distribution --json-path 
+      solar_dataset_subset.json --attributions-neg 
+      data/intermediate-outs/subset_attributions_neg.pt --attributions-pos 
+      data/intermediate-outs/subset_attributions_pos.pt --output-dir 
+      plots/subset/distribution
+    deps:
+    - path: data/intermediate-outs/subset_attributions_neg.pt
+      hash: md5
+      md5: fc44fa4d8ec5e4c1b185740b3063f86d
+      size: 992
+    - path: data/intermediate-outs/subset_attributions_pos.pt
+      hash: md5
+      md5: a8959820723d1ee26f57ab748c3d593e
+      size: 6271633760
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: 0529d5592d1940110db34f1ff976cf8b
+      size: 7109
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/plot_class_wise_distribution.py
+      hash: md5
+      md5: 680f69fbdb9e2a74c781baa640df6a4b
+      size: 12413
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    outs:
+    - path: plots/subset/distribution
+      hash: md5
+      md5: 9940f1e2f6edeb5f01e3de226c30307c.dir
+      size: 164937
+      nfiles: 7

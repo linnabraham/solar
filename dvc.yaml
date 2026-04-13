@@ -219,6 +219,43 @@ stages:
     - plots/subset/predictions/377/goes_with_predictions.png
     - plots/subset/predictions/1449/goes_with_predictions.png
 
+  subset-create-distribution:
+    cmd: >-
+      python -m src.torch.vit.class_wise_distribution
+      --json-path solar_dataset_subset.json
+      --output-neg data/intermediate-outs/subset_attributions_neg.pt
+      --output-pos data/intermediate-outs/subset_attributions_pos.pt
+    deps:
+    - src/torch/vit/class_wise_distribution.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
+    - solar_dataset_subset.json
+    - outputs/glad-shape-197/trained_model.pth
+    - stats.pkl
+    outs:
+    - data/intermediate-outs/subset_attributions_neg.pt:
+        cache: false
+    - data/intermediate-outs/subset_attributions_pos.pt:
+        cache: false
+
+  subset-plot-class-dist:
+    cmd: >-
+      python -m src.torch.vit.plot_class_wise_distribution
+      --json-path solar_dataset_subset.json
+      --attributions-neg data/intermediate-outs/subset_attributions_neg.pt
+      --attributions-pos data/intermediate-outs/subset_attributions_pos.pt
+      --output-dir plots/subset/distribution
+    deps:
+    - src/torch/vit/plot_class_wise_distribution.py
+    - src/torch/vit/class_wise_distribution.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
+    - solar_dataset_subset.json
+    - data/intermediate-outs/subset_attributions_neg.pt
+    - data/intermediate-outs/subset_attributions_pos.pt
+    outs:
+    - plots/subset/distribution
+
   subset-contour-grid:
     cmd: >-
       python -m src.torch.vit.plot_contour_image_grid
