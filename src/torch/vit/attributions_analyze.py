@@ -126,8 +126,14 @@ def main() -> None:
         FileNotFoundError: If the trained model checkpoint does not exist
         RuntimeError: If model loading or initialization fails
     """
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-path",   default="solar_dataset.json")
+    parser.add_argument("--output-dir",  default=OUTPUT_HOME)
+    args = parser.parse_args()
+
     # Load Data and Model
-    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
     config.trained_model_path = TRAINED_MODEL_PATH
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
@@ -145,12 +151,12 @@ def main() -> None:
         model.load_state_dict(checkpoint)
     model = model.to(device)
 
-    os.makedirs(OUTPUT_HOME, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    for aarp_id in test_df.aarp_id.unique().tolist():
-        create_plots(aarp_id, test_df, transform, model, device, OUTPUT_HOME)
-    for aarp_id in val_df.aarp_id.unique().tolist():
-        create_plots(aarp_id, val_df, transform, model, device, OUTPUT_HOME)
+    for aarp_id in test_df.aarp_id.unique().tolist() if not test_df.empty else []:
+        create_plots(aarp_id, test_df, transform, model, device, args.output_dir)
+    for aarp_id in val_df.aarp_id.unique().tolist() if not val_df.empty else []:
+        create_plots(aarp_id, val_df, transform, model, device, args.output_dir)
 
 if __name__=="__main__":
     main()
