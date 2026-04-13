@@ -167,26 +167,35 @@ def plot_aia_image_grid(
 
 # ==================== Main Block ====================
 if __name__ == "__main__":
-    """
-    Example workflow: Load an AARP instance, compute attributions, and visualize
-    with AIA images and attribution contours overlaid on the grid.
-    """
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-path",   default="solar_dataset.json")
+    parser.add_argument("--aarp-id",     type=int, default=3563)
+    parser.add_argument("--output-path", default="plots/attribution_contour_grid.png")
+    args = parser.parse_args()
+
     try:
         # Load configuration and data
-        config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+        config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
         config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
         metadata, model, transform, device = get_data_model(config)
         training_df, val_df, test_df = dfs_from_metadata(metadata)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model = model.to(device)
-        
+
         # Select AARP instance and time index
-        aarp_id = 3563
+        aarp_id = args.aarp_id
         channel = 1  # Passband 131
         t_idx = 12
-        
-        # Load data
-        aarp_id_df = val_df.query(f"aarp_id=={aarp_id}")
+
+        # Find the AARP in whichever split it belongs to
+        aarp_id_df = None
+        for df in [test_df, val_df, training_df]:
+            if not df.empty and aarp_id in df.aarp_id.values:
+                aarp_id_df = df.query(f"aarp_id=={aarp_id}")
+                break
+        if aarp_id_df is None or aarp_id_df.empty:
+            raise ValueError(f"AARP {aarp_id} not found in any split of {args.json_path}")
         s_aarp = single_aarp(aarp_id, aarp_id_df)
         s_images = s_aarp.get_images()
         image = s_images[t_idx]
@@ -208,9 +217,10 @@ if __name__ == "__main__":
             show=False
         )
         
-        output_path = "plots/attribution_contour_grid.png"
-        fig.savefig(output_path, bbox_inches="tight", dpi=300)
-        print(f"✓ Saved figure to {output_path}")
+        from pathlib import Path
+        Path(args.output_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(args.output_path, bbox_inches="tight", dpi=300)
+        print(f"✓ Saved figure to {args.output_path}")
         
     except FileNotFoundError as e:
         print(f"✗ File error: {e}")
