@@ -636,3 +636,37 @@ stages:
       hash: md5
       md5: bff6d5607198a92ab06225ab734396c7
       size: 81708
+  subset-contour-grid:
+    cmd: python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset_subset.json --aarp-id 377 --output-path 
+      plots/subset/attribution_contour_grid.png
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/plot_contour_image_grid.py
+      hash: md5
+      md5: bb3ec3c2e81e09bd660ebf3f646a986f
+      size: 9359
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/subset/attribution_contour_grid.png
+      hash: md5
+      md5: 6c652f23233262545376508ab3f29360
+      size: 16507578
