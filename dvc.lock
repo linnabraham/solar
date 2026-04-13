@@ -807,3 +807,41 @@ stages:
       hash: md5
       md5: 7fd7a352e0057d5a622df33a3cc8fa5c
       size: 37507
+  subset-create-movie-377:
+    cmd: python -m src.torch.vit.create_movies --json-path 
+      solar_dataset_subset.json --aarp-id 377 --output-path 
+      plots/subset/movie_377_131.mp4
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: c978236cd1d264551ebed91d31091b2f
+      size: 7180
+    - path: src/torch/vit/create_movies.py
+      hash: md5
+      md5: 425a0cc448168cf2cdae2246cfa5612c
+      size: 3893
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/subset/movie_377_131.mp4
+      hash: md5
+      md5: 23848129805934071e9301d55f18fe83
+      size: 9964145
