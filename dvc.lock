@@ -567,13 +567,13 @@ stages:
       size: 42253014
     - path: src/aarp_subset_pipeline.py
       hash: md5
-      md5: dcbdb03217dbd37ac3a082f8df8bb270
-      size: 12992
+      md5: 7121ff9398faeeba6da579ad410ce7d5
+      size: 14955
     outs:
     - path: solar_dataset_subset.json
       hash: md5
-      md5: 97bbd5188b988939aa1a0c2f8a476d64
-      size: 280429
+      md5: 8c51233bd9905e04acdb97ab1da6cca4
+      size: 1605977
   subset-confusion-matrix:
     cmd: python -m src.torch.vit.test --subset test --json-path 
       solar_dataset_subset.json --output-path plots/subset/cm.png
