@@ -887,3 +887,29 @@ stages:
       hash: md5
       md5: a98a7cc9b9861b37d20fdd2cd739e26d
       size: 183088897
+  subset-create-raw-movie-377:
+    cmd: python -m src.torch.vit.create_raw_movie --json-path 
+      solar_dataset_subset.json --aarp-id 377 --output-path 
+      plots/subset/movie_377_raw.mp4
+    deps:
+    - path: solar_dataset_subset.json
+      hash: md5
+      md5: 97bbd5188b988939aa1a0c2f8a476d64
+      size: 280429
+    - path: src/torch/vit/create_raw_movie.py
+      hash: md5
+      md5: ecca6217817d72d3981148eabdb25069
+      size: 3734
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 532398a7e7b04d9ec76de859f3b29386
+      size: 6640
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    outs:
+    - path: plots/subset/movie_377_raw.mp4
+      hash: md5
+      md5: 35d54e9330cb23d97eb3cebb1f080a5c
+      size: 15053606
