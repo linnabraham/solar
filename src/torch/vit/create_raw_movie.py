@@ -32,6 +32,20 @@ DEFAULT_COLS = 4
 
 
 def make_raw_movie(s_aarp, output_path, fps=DEFAULT_FPS, vmax_percentile=DEFAULT_VMAX_PERCENTILE):
+    """Render a raw AIA image movie for a single AARP with no attribution overlay.
+
+    For each timestep, renders all 7 AIA passbands in a grid using SDO/AIA colormaps,
+    with the timestamp and AARP metadata as the figure title. Frames are stitched into
+    an MP4 via ffmpeg.
+
+    Args:
+        s_aarp: A single_aarp instance with attributes ``aarp_id``, ``label``,
+            ``timestamps``, and a ``get_images()`` method returning (T, 7, H, W).
+        output_path (str): Destination path for the output MP4 file.
+        fps (int): Frames per second for the output video. Defaults to 5.
+        vmax_percentile (float): Percentile used to clip the colour scale for each
+            passband image. Defaults to 99.9.
+    """
     s_images = s_aarp.get_images()   # (T, 7, H, W)
     timestamps = list(s_aarp.timestamps)  # convert to list for positional indexing
     n_frames = s_images.shape[0]

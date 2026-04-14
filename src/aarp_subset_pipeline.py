@@ -339,6 +339,11 @@ def phase_json() -> None:
 # ---------------------------------------------------------------------------
 
 def _banner(title: str) -> None:
+    """Print a section separator banner to stdout.
+
+    Args:
+        title (str): Text to display inside the banner.
+    """
     print(f"\n{'='*60}")
     print(f"  {title}")
     print(f"{'='*60}")
@@ -349,6 +354,14 @@ def _banner(title: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    """Entry point for the AARP subset pipeline.
+
+    Parses CLI flags and runs the requested phases sequentially.
+    Defaults to ``--all`` when no phase flag is provided.
+
+    Returns:
+        int: Exit code — 0 on success, 1 on error.
+    """
     parser = argparse.ArgumentParser(
         description="Download and preprocess an AARP subset for per-AARP analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
