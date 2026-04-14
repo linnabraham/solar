@@ -38,7 +38,19 @@ nav:
     - xgb-feat-importance: stages/xgb-feat-importance.md
     - kshap-stats: stages/kshap-stats.md
     - kshap-analyze: stages/kshap-analyze.md
-  
+
+  - Subset Pipeline Stages:
+    - subset-data: stages/subset-data.md
+    - subset-confusion-matrix: stages/subset-confusion-matrix.md
+    - subset-create-distribution: stages/subset-create-distribution.md
+    - subset-plot-class-dist: stages/subset-plot-class-dist.md
+    - subset-prediction-plots: stages/subset-prediction-plots.md
+    - subset-attribution-analysis: stages/subset-attribution-analysis.md
+    - subset-contour-grid: stages/subset-contour-grid.md
+    - subset-raw-movies: stages/subset-raw-movies.md
+    - subset-attribution-movies: stages/subset-attribution-movies.md
+    - subset-contour-grid-movies: stages/subset-contour-grid-movies.md
+
   - Code Documentation:
     - Stage Scripts:
       - predictions_analyze: code/predictions_analyze.md
@@ -52,6 +64,9 @@ nav:
       - analyze_shap: code/analyze_shap.md
       - data_single: code/data_single.md
       - xgb_feat_importance: code/xgb_feat_importance.md
+      - create_raw_movie: code/create_raw_movie.md
+      - create_contour_grid_movie: code/create_contour_grid_movie.md
+      - aarp_subset_pipeline: code/aarp_subset_pipeline.md
     - Shared Utilities:
       - ig: code/ig.md
       - utils: code/utils.md

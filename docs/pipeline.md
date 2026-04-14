@@ -31,3 +31,23 @@ dvc repro
 - [kshap-stats](stages/kshap-stats.md)
 
 - [kshap-analyze](stages/kshap-analyze.md)
+
+- [subset-data](stages/subset-data.md)
+
+- [subset-confusion-matrix](stages/subset-confusion-matrix.md)
+
+- [subset-prediction-plots](stages/subset-prediction-plots.md)
+
+- [subset-create-distribution](stages/subset-create-distribution.md)
+
+- [subset-plot-class-dist](stages/subset-plot-class-dist.md)
+
+- [subset-attribution-analysis](stages/subset-attribution-analysis.md)
+
+- [subset-raw-movies](stages/subset-raw-movies.md)
+
+- [subset-attribution-movies](stages/subset-attribution-movies.md)
+
+- [subset-contour-grid-movies](stages/subset-contour-grid-movies.md)
+
+- [subset-contour-grid](stages/subset-contour-grid.md)
