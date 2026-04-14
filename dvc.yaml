@@ -295,6 +295,25 @@ stages:
     - plots/subset/movie_377_131.mp4:
         cache: false
 
+  subset-create-contour-movie-377:
+    cmd: >-
+      python -m src.torch.vit.create_contour_grid_movie
+      --json-path solar_dataset_subset.json
+      --aarp-id 377
+      --output-path plots/subset/movie_377_contour_grid.mp4
+    deps:
+    - src/torch/vit/create_contour_grid_movie.py
+    - src/torch/vit/plot_contour_image_grid.py
+    - src/torch/vit/class_wise_distribution.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
+    - solar_dataset_subset.json
+    - outputs/glad-shape-197/trained_model.pth
+    - stats.pkl
+    outs:
+    - plots/subset/movie_377_contour_grid.mp4:
+        cache: false
+
   subset-contour-grid:
     cmd: >-
       python -m src.torch.vit.plot_contour_image_grid
