@@ -10,3 +10,4 @@
 /data
 .ipynb_checkpoints
 /shap_stats.json
+/solar_dataset_subset.json

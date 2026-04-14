@@ -39,11 +39,15 @@ from src.fits_parallel_download import download_urls_in_parallel
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Initial 3-AARP validation set:
-#   1449 — test  / pos / 28 compressed files  (~55 frames)
-#   377  — test  / pos / 35 compressed files  (~231 frames)
-#   903  — train / neg / 24 compressed files  (~55 frames)
-TARGET_AARP_IDS = [1449, 377, 903]
+# Subset selection — both classes, all splits represented, prefer larger max_dim (less padding).
+#
+# test  pos:  377  (max_dim=~1200, ~231 frames), 1449 (max_dim=~500,  ~55 frames)
+# test  neg: 4296  (max_dim=1166, ~616 frames)
+# val   pos: 3563  (max_dim=1975, ~231 frames)
+# val   neg:  185  (max_dim=851,  ~528 frames)
+# train pos: 1807  (max_dim=1019, ~231 frames)  — good shape, manageable download
+# train neg:  903  (max_dim=581,   ~55 frames)  — original small anchor
+TARGET_AARP_IDS = [377, 1449, 4296, 3563, 185, 1807, 903]
 
 # Local directories — mirror the layout expected by solar_dataset.json
 COMPRESSED_POS = Path("data/E8/compressed/pos")
@@ -203,10 +207,49 @@ def phase_process() -> None:
             )
 
         ext_dir.mkdir(parents=True, exist_ok=True)
-        print(f"  Extracting {len(local_paths)} files → {ext_dir}")
+
+        # Determine which AARPs need (re-)processing by checking:
+        #   1. extracted file count matches expected count from full JSON
+        #   2. no zero-byte files (truncated writes)
+        with open(FULL_JSON) as _f:
+            _full = json.load(_f)
+        expected_counts = {}
+        for split in ("training", "validation", "test"):
+            for entry in _full.get(split, []):
+                if entry["aarp_id"] in target_ids:
+                    expected_counts[entry["aarp_id"]] = \
+                        expected_counts.get(entry["aarp_id"], 0) + 1
+
+        ids_to_process = []
+        for aid in target_ids:
+            if _label_of(aid) != label:
+                continue
+            existing = list(ext_dir.glob(f"{aid}_*.fits"))
+            expected = expected_counts.get(aid, 0)
+            zero_byte = [f for f in existing if f.stat().st_size == 0]
+            if zero_byte:
+                print(f"  AARP {aid}: {len(zero_byte)} zero-byte file(s) — will re-process")
+                ids_to_process.append(aid)
+            elif len(existing) == expected and expected > 0:
+                print(f"  AARP {aid}: {len(existing)}/{expected} frames found — skipping")
+            else:
+                print(f"  AARP {aid}: {len(existing)}/{expected} frames found — will process")
+                ids_to_process.append(aid)
+
+        if not ids_to_process:
+            continue
+
+        to_process = [
+            p for p in local_paths
+            if rows[rows.compressed_fits_fullpath.apply(
+                lambda x: Path(x).name) == Path(p).name].AARP.values[0]
+            in ids_to_process
+        ]
+
+        print(f"  Extracting {len(to_process)} compressed file(s) for AARPs {ids_to_process} → {ext_dir}")
 
         pad_and_resize_in_parallel(
-            local_paths,
+            to_process,
             padding_func=pad_with_quiet,
             dest=str(ext_dir),
             biggest_shape=BIGGEST_SHAPE,
@@ -214,7 +257,7 @@ def phase_process() -> None:
         )
 
         n_out = len(list(ext_dir.glob("*.fits")))
-        print(f"  {ext_dir}: {n_out} frames written")
+        print(f"  {ext_dir}: {n_out} frames total")
 
 
 def _label_of(aarp_id: int) -> int:
