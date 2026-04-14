@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -58,8 +59,7 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--json-path",   default="solar_dataset.json")
-    parser.add_argument("--aarp-id",     type=int, default=3563)
-    parser.add_argument("--output-path", default="tests_outputs/movie_131.mp4")
+    parser.add_argument("--output-dir",  default="plots/attribution_movies")
     parser.add_argument("--passband",    type=int, default=131)
     args = parser.parse_args()
 
@@ -71,27 +71,23 @@ if __name__=="__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
-    # Search across all splits for the requested AARP
-    aarp_id = args.aarp_id
-    aarp_id_df = None
-    for df in [test_df, val_df, training_df]:
-        if not df.empty and aarp_id in df.aarp_id.values:
-            aarp_id_df = df.query(f"aarp_id == {aarp_id}")
-            break
-    if aarp_id_df is None:
-        raise ValueError(f"AARP {aarp_id} not found in any split")
-
-    s_images, attributions = run_pred_and_ig(aarp_id, aarp_id_df, transform, model, device)
-    attributions_arr = np.array(attributions)
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     channel = all_wavelengths.index(args.passband)
-    passband_attributions = attributions_arr[:, channel, :, :]
 
-    Path(args.output_path).parent.mkdir(parents=True, exist_ok=True)
-    make_attribution_movie(
-        images=s_images,
-        attributions=passband_attributions,
-        passband=args.passband,
-        filename=args.output_path,
-        channel=channel,
-        fps=1
-    )
+    for df, split in [(training_df, "training"), (val_df, "validation"), (test_df, "test")]:
+        if df.empty:
+            continue
+        for aarp_id in df.aarp_id.unique():
+            aarp_id_df = df.query(f"aarp_id == {aarp_id}")
+            s_images, attributions = run_pred_and_ig(aarp_id, aarp_id_df, transform, model, device)
+            attributions_arr = np.array(attributions)
+            passband_attributions = attributions_arr[:, channel, :, :]
+            output_path = os.path.join(args.output_dir, f"{aarp_id}.mp4")
+            make_attribution_movie(
+                images=s_images,
+                attributions=passband_attributions,
+                passband=args.passband,
+                filename=output_path,
+                channel=channel,
+                fps=1
+            )

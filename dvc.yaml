@@ -277,12 +277,25 @@ stages:
     - plots/subset/predictions/1449/attributions_percentiles_99.png
     - plots/subset/predictions/1449/filtered_image_intensities.png
 
-  subset-create-movie-377:
+  subset-raw-movies:
+    cmd: >-
+      python -m src.torch.vit.create_raw_movie
+      --json-path solar_dataset_subset.json
+      --output-dir plots/subset/movies/raw
+    deps:
+    - src/torch/vit/create_raw_movie.py
+    - src/torch/vit/ig.py
+    - src/torch/vit/utils.py
+    - solar_dataset_subset.json
+    outs:
+    - plots/subset/movies/raw:
+        cache: false
+
+  subset-attribution-movies:
     cmd: >-
       python -m src.torch.vit.create_movies
       --json-path solar_dataset_subset.json
-      --aarp-id 377
-      --output-path plots/subset/movie_377_131.mp4
+      --output-dir plots/subset/movies/attribution
     deps:
     - src/torch/vit/create_movies.py
     - src/torch/vit/class_wise_distribution.py
@@ -292,30 +305,14 @@ stages:
     - outputs/glad-shape-197/trained_model.pth
     - stats.pkl
     outs:
-    - plots/subset/movie_377_131.mp4:
+    - plots/subset/movies/attribution:
         cache: false
 
-  subset-create-raw-movie-377:
-    cmd: >-
-      python -m src.torch.vit.create_raw_movie
-      --json-path solar_dataset_subset.json
-      --aarp-id 377
-      --output-path plots/subset/movie_377_raw.mp4
-    deps:
-    - src/torch/vit/create_raw_movie.py
-    - src/torch/vit/ig.py
-    - src/torch/vit/utils.py
-    - solar_dataset_subset.json
-    outs:
-    - plots/subset/movie_377_raw.mp4:
-        cache: false
-
-  subset-create-contour-movie-377:
+  subset-contour-grid-movies:
     cmd: >-
       python -m src.torch.vit.create_contour_grid_movie
       --json-path solar_dataset_subset.json
-      --aarp-id 377
-      --output-path plots/subset/movie_377_contour_grid.mp4
+      --output-dir plots/subset/movies/contour_grid
     deps:
     - src/torch/vit/create_contour_grid_movie.py
     - src/torch/vit/plot_contour_image_grid.py
@@ -326,7 +323,7 @@ stages:
     - outputs/glad-shape-197/trained_model.pth
     - stats.pkl
     outs:
-    - plots/subset/movie_377_contour_grid.mp4:
+    - plots/subset/movies/contour_grid:
         cache: false
 
   subset-contour-grid:

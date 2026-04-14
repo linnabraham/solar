@@ -79,8 +79,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--json-path",   default="solar_dataset.json")
-    parser.add_argument("--aarp-id",     type=int, default=3563)
-    parser.add_argument("--output-path", default="plots/raw_movie.mp4")
+    parser.add_argument("--output-dir",  default="plots/raw_movies")
     parser.add_argument("--fps",         type=int, default=DEFAULT_FPS)
     args = parser.parse_args()
 
@@ -88,12 +87,12 @@ if __name__ == "__main__":
         metadata = json.load(f)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 
-    aarp_id_df = None
-    for df in [test_df, val_df, training_df]:
-        if not df.empty and args.aarp_id in df.aarp_id.values:
-            aarp_id_df = df.query(f"aarp_id == {args.aarp_id}")
-            break
-    if aarp_id_df is None:
-        raise ValueError(f"AARP {args.aarp_id} not found in any split of {args.json_path}")
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    make_raw_movie(single_aarp(args.aarp_id, aarp_id_df), args.output_path, fps=args.fps)
+    for df, split in [(training_df, "training"), (val_df, "validation"), (test_df, "test")]:
+        if df.empty:
+            continue
+        for aarp_id in df.aarp_id.unique():
+            aarp_id_df = df.query(f"aarp_id == {aarp_id}")
+            output_path = os.path.join(args.output_dir, f"{aarp_id}.mp4")
+            make_raw_movie(single_aarp(aarp_id, aarp_id_df), output_path, fps=args.fps)
