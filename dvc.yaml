@@ -33,13 +33,13 @@ stages:
     - src/torch/vit/ig.py
     - src/torch/vit/utils.py
     outs:
-    - plots/distribution/131.pdf
-    - plots/distribution/171.pdf
-    - plots/distribution/193.pdf
-    - plots/distribution/211.pdf
-    - plots/distribution/304.pdf
-    - plots/distribution/335.pdf
-    - plots/distribution/94.pdf
+    - plots/distribution/131.png
+    - plots/distribution/171.png
+    - plots/distribution/193.png
+    - plots/distribution/211.png
+    - plots/distribution/304.png
+    - plots/distribution/335.png
+    - plots/distribution/94.png
 
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance

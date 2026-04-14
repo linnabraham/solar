@@ -277,6 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--attributions-neg", default="data/intermediate-outs/attributions_neg.pt")
     parser.add_argument("--attributions-pos", default="data/intermediate-outs/attributions_pos.pt")
     parser.add_argument("--output-dir",       default="plots/distribution")
+    parser.add_argument("--output-format",    default="png", choices=["pdf", "png", "jpg"])
     args = parser.parse_args()
 
     try:
@@ -311,7 +312,7 @@ if __name__ == "__main__":
             attributions,
             passbands=list(all_wavelengths),
             save_dir=args.output_dir,
-            output_format="pdf",
+            output_format=args.output_format,
             output_dpi=300
         )
         
