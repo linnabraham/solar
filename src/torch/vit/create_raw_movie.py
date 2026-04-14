@@ -33,7 +33,7 @@ DEFAULT_COLS = 4
 
 def make_raw_movie(s_aarp, output_path, fps=DEFAULT_FPS, vmax_percentile=DEFAULT_VMAX_PERCENTILE):
     s_images = s_aarp.get_images()   # (T, 7, H, W)
-    timestamps = s_aarp.timestamps
+    timestamps = list(s_aarp.timestamps)  # convert to list for positional indexing
     n_frames = s_images.shape[0]
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
