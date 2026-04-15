@@ -26,6 +26,9 @@ dependencies:
   - scienceplots
   - seaborn
   - setuptools<=81.0
+  - mkdocs-material=9.7
+  - mkdocstrings
+  - mkdocstrings-python
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
