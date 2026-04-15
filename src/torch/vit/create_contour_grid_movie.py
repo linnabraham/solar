@@ -85,6 +85,8 @@ if __name__ == "__main__":
     parser.add_argument("--json-path",  default="solar_dataset.json")
     parser.add_argument("--output-dir", default="plots/contour_grid_movies")
     parser.add_argument("--fps",        type=int, default=DEFAULT_FPS)
+    parser.add_argument("--splits",     nargs="+", default=["validation", "test"],
+                        choices=["training", "validation", "test"])
     args = parser.parse_args()
 
     config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
@@ -98,7 +100,7 @@ if __name__ == "__main__":
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     for df, split in [(training_df, "training"), (val_df, "validation"), (test_df, "test")]:
-        if df.empty:
+        if df.empty or split not in args.splits:
             continue
         for aarp_id in df.aarp_id.unique():
             aarp_id_df = df.query(f"aarp_id == {aarp_id}")
