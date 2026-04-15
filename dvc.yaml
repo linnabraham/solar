@@ -22,6 +22,7 @@ stages:
     - plots/predictions/4920/goes_with_predictions.png
     - plots/predictions/5894/goes_with_predictions.png
     - plots/predictions/833/goes_with_predictions.png
+
   plot-class-dist:
     cmd: python -m src.torch.vit.plot_class_wise_distribution
     deps:
@@ -49,6 +50,7 @@ stages:
     outs:
     - plots/xgb_feat_importance_gain.png
     - plots/xgb_feat_importance_weight.png
+
   plot_contour_image_grid:
     cmd: python -m src.torch.vit.plot_contour_image_grid
     deps:
@@ -61,8 +63,12 @@ stages:
     - stats.pkl
     outs:
     - plots/attribution_contour_grid.png
+
   create_movie:
-    cmd: python -m src.torch.vit.create_movies
+    cmd: >-
+      python -m src.torch.vit.create_movies
+      --output-dir plots/attribution_movies
+      --splits validation test
     deps:
     - outputs/glad-shape-197/trained_model.pth
     - solar_dataset.json
@@ -73,8 +79,9 @@ stages:
     - src/torch/vit/utils.py
     - stats.pkl
     outs:
-    - tests_outputs/movie_131.mp4:
+    - plots/attribution_movies:
         cache: false
+
   attribution_analyzis:
     cmd: python -m src.torch.vit.attributions_analyze
     deps:
@@ -84,6 +91,9 @@ stages:
     - src/torch/vit/predictions_analyze.py
     - src/torch/vit/train.py
     - src/torch/vit/utils.py
+    - solar_dataset.json
+    - outputs/glad-shape-197/trained_model.pth
+    - stats.pkl
     outs:
     - plots/predictions/1275/attributions_percentiles_99.png
     - plots/predictions/1449/attributions_percentiles_99.png
@@ -218,6 +228,11 @@ stages:
     outs:
     - plots/subset/predictions/377/goes_with_predictions.png
     - plots/subset/predictions/1449/goes_with_predictions.png
+    - plots/subset/predictions/4296/goes_with_predictions.png
+    - plots/subset/predictions/3563/goes_with_predictions.png
+    - plots/subset/predictions/185/goes_with_predictions.png
+    - plots/subset/predictions/1807/goes_with_predictions.png
+    - plots/subset/predictions/903/goes_with_predictions.png
 
   subset-create-distribution:
     cmd: >-
@@ -276,12 +291,23 @@ stages:
     - plots/subset/predictions/377/filtered_image_intensities.png
     - plots/subset/predictions/1449/attributions_percentiles_99.png
     - plots/subset/predictions/1449/filtered_image_intensities.png
+    - plots/subset/predictions/4296/attributions_percentiles_99.png
+    - plots/subset/predictions/4296/filtered_image_intensities.png
+    - plots/subset/predictions/3563/attributions_percentiles_99.png
+    - plots/subset/predictions/3563/filtered_image_intensities.png
+    - plots/subset/predictions/185/attributions_percentiles_99.png
+    - plots/subset/predictions/185/filtered_image_intensities.png
+    - plots/subset/predictions/1807/attributions_percentiles_99.png
+    - plots/subset/predictions/1807/filtered_image_intensities.png
+    - plots/subset/predictions/903/attributions_percentiles_99.png
+    - plots/subset/predictions/903/filtered_image_intensities.png
 
   subset-raw-movies:
     cmd: >-
       python -m src.torch.vit.create_raw_movie
       --json-path solar_dataset_subset.json
       --output-dir plots/subset/movies/raw
+      --splits training validation test
     deps:
     - src/torch/vit/create_raw_movie.py
     - src/torch/vit/ig.py
@@ -296,6 +322,7 @@ stages:
       python -m src.torch.vit.create_movies
       --json-path solar_dataset_subset.json
       --output-dir plots/subset/movies/attribution
+      --splits training validation test
     deps:
     - src/torch/vit/create_movies.py
     - src/torch/vit/class_wise_distribution.py
@@ -313,6 +340,7 @@ stages:
       python -m src.torch.vit.create_contour_grid_movie
       --json-path solar_dataset_subset.json
       --output-dir plots/subset/movies/contour_grid
+      --splits training validation test
     deps:
     - src/torch/vit/create_contour_grid_movie.py
     - src/torch/vit/plot_contour_image_grid.py
