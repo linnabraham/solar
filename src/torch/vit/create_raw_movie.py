@@ -11,6 +11,7 @@ Usage:
         --output-path plots/subset/movie_377_raw.mp4
 """
 
+import gc
 import json
 import os
 import subprocess
@@ -110,3 +111,4 @@ if __name__ == "__main__":
             aarp_id_df = df.query(f"aarp_id == {aarp_id}")
             output_path = os.path.join(args.output_dir, f"{aarp_id}.mp4")
             make_raw_movie(single_aarp(aarp_id, aarp_id_df), output_path, fps=args.fps)
+            gc.collect()

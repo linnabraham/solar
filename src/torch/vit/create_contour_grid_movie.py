@@ -109,3 +109,6 @@ if __name__ == "__main__":
                 output_path=os.path.join(args.output_dir, f"{aarp_id}.mp4"),
                 fps=args.fps,
             )
+            del s_images, attributions
+            gc.collect()
+            torch.cuda.empty_cache()

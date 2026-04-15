@@ -51,6 +51,7 @@ def make_attribution_movie(
         contour_obj[0] = ax.contour(saliency, levels=levels[-1:], colors='red', linewidths=1.5)
     ani = FuncAnimation(fig, update, frames=nframes, interval=interval)
     ani.save(filename, writer='ffmpeg', fps=fps)
+    plt.close(fig)
 
 if __name__=="__main__":
     import argparse
@@ -78,11 +79,11 @@ if __name__=="__main__":
         if df.empty:
             continue
         for aarp_id in df.aarp_id.unique():
+            output_path = os.path.join(args.output_dir, f"{aarp_id}.mp4")
             aarp_id_df = df.query(f"aarp_id == {aarp_id}")
             s_images, attributions = run_pred_and_ig(aarp_id, aarp_id_df, transform, model, device)
             attributions_arr = np.array(attributions)
             passband_attributions = attributions_arr[:, channel, :, :]
-            output_path = os.path.join(args.output_dir, f"{aarp_id}.mp4")
             make_attribution_movie(
                 images=s_images,
                 attributions=passband_attributions,
@@ -91,3 +92,6 @@ if __name__=="__main__":
                 channel=channel,
                 fps=1
             )
+            del s_images, attributions, attributions_arr, passband_attributions
+            gc.collect()
+            torch.cuda.empty_cache()
