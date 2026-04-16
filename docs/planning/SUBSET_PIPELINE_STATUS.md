@@ -90,13 +90,28 @@ so existing full-dataset DVC stages are unaffected.
 | `src/torch/vit/predictions_analyze.py` | Added `--json-path`, `--output-dir`; guarded empty df loops |
 | `src/torch/vit/plot_contour_image_grid.py` | Added `--json-path`, `--aarp-id`, `--output-path`; cross-split AARP lookup |
 | `src/torch/vit/class_wise_distribution.py` | Added `--json-path`, `--output-neg/pos`; tqdm on IG loop; empty-list guard |
-| `src/torch/vit/plot_class_wise_distribution.py` | Added `--json-path`, `--attributions-*`, `--output-dir` |
+| `src/torch/vit/plot_class_wise_distribution.py` | Added `--json-path`, `--attributions-*`, `--output-dir`; `--output-format` (default png) |
 | `src/torch/vit/attributions_analyze.py` | Added `--json-path`, `--output-dir`; guarded empty loops |
-| `src/torch/vit/create_movies.py` | Loops all AARPs; `--output-dir`; fixed model path typo (`output/` → `outputs/`) |
-| `src/torch/vit/create_raw_movie.py` | New standalone script; all-AARP loop; no model needed |
-| `src/torch/vit/create_contour_grid_movie.py` | New standalone script; all-AARP loop; all 7 passbands + IG contours per frame |
+| `src/torch/vit/create_movies.py` | Loops all AARPs; `--output-dir`; `--splits` (default: validation test); `plt.close` + `gc.collect` after each AARP; removed inline ffmpeg integrity check (use `cleanup_corrupt_movies.py` instead) |
+| `src/torch/vit/create_raw_movie.py` | New standalone script; all-AARP loop; `--splits`; `gc.collect` after each AARP; no model needed |
+| `src/torch/vit/create_contour_grid_movie.py` | New standalone script; all-AARP loop; `--splits`; `del` + `gc.collect` + `cuda.empty_cache` after each AARP; all 7 passbands + IG contours per frame |
+| `src/torch/vit/cleanup_corrupt_movies.py` | New utility script; scans a directory for corrupt MP4s via ffmpeg null muxer; `--dry-run` flag; `is_valid_mp4()` extracted for future reuse |
 | `src/aarp_subset_pipeline.py` | Expanded TARGET_AARP_IDS to 7; added skip logic with count + zero-byte checks |
 | `torch-tf-312.environment.yml` | Added `scienceplots`, `seaborn` |
+
+---
+
+## DVC yaml Fixes (post-initial)
+
+| Stage | Issue fixed |
+|-------|-------------|
+| `create_movie` | Was outputting to stale `tests_outputs/movie_131.mp4`; updated to `plots/attribution_movies/` directory + `--splits validation test` |
+| `attribution_analyzis` | Missing deps: added `solar_dataset.json`, `outputs/glad-shape-197/trained_model.pth`, `stats.pkl` |
+| `subset-prediction-plots` | outs only listed AARPs 377 and 1449; expanded to all 7 |
+| `subset-attribution-analysis` | outs only listed AARPs 377 and 1449; expanded to all 7 |
+| `subset-raw-movies` | Missing `--splits training validation test`; default skipped training AARPs 1807 and 903 |
+| `subset-attribution-movies` | Same as above |
+| `subset-contour-grid-movies` | Same as above |
 
 ---
 
