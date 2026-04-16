@@ -123,6 +123,126 @@ def insert_code_doc_link(stage_page: Path, code_doc_name: str) -> bool:
     return False
 
 
+def parse_stage_page(page: Path) -> Dict[str, object]:
+    """Extract cmd, deps, and outs from an existing stage markdown page.
+
+    Returns a dict with keys 'cmd' (str), 'deps' (list[str]), 'outs' (list[str]).
+    Any section not found is returned as None / empty list.
+    """
+    text = page.read_text()
+    lines = text.split('\n')
+
+    cmd = None
+    deps: list[str] = []
+    outs: list[str] = []
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # Command: grab the content of the bash fenced block that follows
+        if line.strip() == '**Command**':
+            # skip to ```bash
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith('```'):
+                i += 1
+            i += 1  # skip the ```bash line
+            cmd_lines = []
+            while i < len(lines) and not lines[i].strip().startswith('```'):
+                cmd_lines.append(lines[i])
+                i += 1
+            cmd = '\n'.join(cmd_lines).strip()
+            i += 1  # skip closing ```
+            continue
+
+        # Dependencies section
+        if line.strip() == '**Dependencies**':
+            i += 1
+            while i < len(lines):
+                l = lines[i].strip()
+                if l.startswith('- `') and l.endswith('`'):
+                    deps.append(l[3:-1])  # strip "- `" and trailing "`"
+                elif l.startswith('**') or l.startswith('##') or l == '':
+                    if l.startswith('**') or l.startswith('##'):
+                        break
+                i += 1
+            continue
+
+        # Outputs section
+        if line.strip() == '**Outputs**':
+            i += 1
+            while i < len(lines):
+                l = lines[i].strip()
+                if l.startswith('- `'):
+                    # Strip "- `" and anything after the closing "`" (e.g. _(not cached)_)
+                    rest = l[3:]
+                    end = rest.find('`')
+                    if end != -1:
+                        outs.append(rest[:end])
+                elif l.startswith('**') or l.startswith('##') or l == '':
+                    if l.startswith('**') or l.startswith('##'):
+                        break
+                i += 1
+            continue
+
+        i += 1
+
+    return {'cmd': cmd, 'deps': deps, 'outs': outs}
+
+
+def extract_dvc_outs(info: dict) -> list[str]:
+    """Normalise dvc.yaml outs (str or dict) to a flat list of path strings."""
+    result = []
+    for o in info.get('outs', []):
+        if isinstance(o, str):
+            result.append(o)
+        elif isinstance(o, dict):
+            result.extend(o.keys())
+    return result
+
+
+def check_stage_staleness(name: str, info: dict, page: Path) -> list[str]:
+    """Compare dvc.yaml stage definition against what is written in the stage page.
+
+    Returns a list of human-readable warning strings (empty list = in sync).
+    """
+    if not page.exists():
+        return []  # new page — not stale, just missing
+
+    parsed = parse_stage_page(page)
+    warnings = []
+
+    # --- cmd ---
+    dvc_cmd = info.get('cmd', '').strip()
+    page_cmd = (parsed['cmd'] or '').strip()
+    if dvc_cmd != page_cmd:
+        warnings.append(f"  cmd changed:\n    page : {page_cmd!r}\n    dvc  : {dvc_cmd!r}")
+
+    # --- deps ---
+    dvc_deps = sorted(info.get('deps', []))
+    page_deps = sorted(parsed['deps'])
+    if dvc_deps != page_deps:
+        added   = sorted(set(dvc_deps) - set(page_deps))
+        removed = sorted(set(page_deps) - set(dvc_deps))
+        if added:
+            warnings.append(f"  deps added  : {added}")
+        if removed:
+            warnings.append(f"  deps removed: {removed}")
+
+    # --- outs ---
+    dvc_outs  = sorted(extract_dvc_outs(info))
+    page_outs = sorted(parsed['outs'])
+    if dvc_outs != page_outs:
+        added   = sorted(set(dvc_outs) - set(page_outs))
+        removed = sorted(set(page_outs) - set(dvc_outs))
+        if added:
+            warnings.append(f"  outs added  : {added}")
+        if removed:
+            warnings.append(f"  outs removed: {removed}")
+
+    return warnings
+
+
 def validate_and_report(stages: dict) -> Dict[str, dict]:
     """Validate that all stages have corresponding code documentation.
     
@@ -165,6 +285,55 @@ def validate_and_report(stages: dict) -> Dict[str, dict]:
         'documented_count': len(documented),
         'missing_count': len(missing)
     }
+
+
+def fix_stage_page(name: str, info: dict, page: Path, code_doc_name: Optional[str]) -> bool:
+    """Regenerate the auto-generated header of a stale stage page.
+
+    Rewrites cmd / deps / outs from dvc.yaml while preserving every ``##``
+    section the user has written (Notes, Output, etc.).
+
+    Returns True if the file was changed.
+    """
+    if not page.exists():
+        return False
+
+    content = page.read_text()
+    lines = content.split('\n')
+
+    # Find where manual content begins: first line that starts with '## '
+    manual_start = next(
+        (i for i, l in enumerate(lines) if l.startswith('## ')),
+        None
+    )
+
+    # Build the new auto-generated header (without the trailing ## Notes stub)
+    header_lines = generate_stage_page(name, info).split('\n')
+    notes_start = next(
+        (i for i, l in enumerate(header_lines) if l.startswith('## ')),
+        None
+    )
+    if notes_start is not None:
+        header_lines = header_lines[:notes_start]
+    new_header = '\n'.join(header_lines).rstrip()
+
+    if manual_start is not None:
+        manual_tail = '\n'.join(lines[manual_start:])
+        new_content = new_header + '\n\n' + manual_tail
+    else:
+        # No manual sections at all — keep the Notes stub
+        new_content = new_header + '\n\n## Notes\n\n_Add your notes about this stage here._\n'
+
+    if new_content == content:
+        return False
+
+    page.write_text(new_content)
+
+    # Re-insert the implementation link if it was lost during regeneration
+    if code_doc_name:
+        insert_code_doc_link(page, code_doc_name)
+
+    return True
 
 
 def format_list(items: list[str]) -> str:
@@ -279,6 +448,15 @@ def generate_stage_page(name: str, info: dict) -> str:
     return "\n".join(lines)
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate and validate pipeline documentation.")
+    parser.add_argument(
+        "--fix", action="store_true",
+        help="Auto-fix stale stage pages by regenerating cmd/deps/outs from dvc.yaml "
+             "while preserving manually-written ## sections."
+    )
+    args = parser.parse_args()
+
     data   = load_dvc(DVC_YAML)
     stages = data.get("stages", {})
     md     = generate_markdown(stages)
@@ -321,6 +499,40 @@ if __name__ == "__main__":
                 links_added += 1
                 print(f"  Updated {page} with code doc link")
     
+    # Staleness detection
+    stale_stages = {}
+    for name, info in stages.items():
+        page = stage_dir / f"{name}.md"
+        warnings = check_stage_staleness(name, info, page)
+        if warnings:
+            stale_stages[name] = warnings
+
+    if stale_stages:
+        print("\n" + "="*60)
+        print("STALENESS WARNINGS — stage pages out of sync with dvc.yaml")
+        print("="*60)
+        for stage_name, warns in stale_stages.items():
+            print(f"\n⚠️  {stage_name}  ({stage_dir / (stage_name + '.md')})")
+            for w in warns:
+                print(w)
+
+        if args.fix:
+            print("\n── Fixing stale pages ──")
+            for stage_name in stale_stages:
+                info = stages[stage_name]
+                page = stage_dir / f"{stage_name}.md"
+                script_path = get_stage_script(stage_name, info)
+                code_doc_name = get_code_doc_name(script_path) if script_path else None
+                if fix_stage_page(stage_name, info, page, code_doc_name):
+                    print(f"  ✓ Fixed {page}")
+                else:
+                    print(f"  – {page} unchanged (already in sync?)")
+        else:
+            print("\nRe-run with --fix to auto-update the stale pages,")
+            print("or edit them manually and re-run to confirm they are in sync.")
+    else:
+        print("\n✓ All existing stage pages are in sync with dvc.yaml")
+
     # Validation and reporting
     print("\n" + "="*60)
     print("DOCUMENTATION VALIDATION")
