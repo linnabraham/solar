@@ -9,6 +9,7 @@ python -m src.torch.vit.analyze_shap
 ```
 
 **Dependencies**
+- `src/torch/vit/analyze_shap.py`
 - `shap_stats.json`
 
 **Outputs**

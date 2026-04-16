@@ -5,7 +5,7 @@
 
 **Command**
 ```bash
-python -m src.torch.vit.create_movies
+python -m src.torch.vit.create_movies --output-dir plots/attribution_movies --splits validation test
 ```
 
 **Dependencies**
@@ -19,7 +19,7 @@ python -m src.torch.vit.create_movies
 - `stats.pkl`
 
 **Outputs**
-- `tests_outputs/movie_131.mp4` _(not cached)_
+- `plots/attribution_movies` _(not cached)_
 
 ## Notes
 

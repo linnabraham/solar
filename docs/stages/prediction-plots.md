@@ -16,20 +16,20 @@ python -m src.torch.vit.predictions_analyze
 - `src/torch/vit/predictions_analyze.py`
 
 **Outputs**
-- `pred-output/1275/goes_with_predictions.png`
-- `pred-output/1449/goes_with_predictions.png`
-- `pred-output/185/goes_with_predictions.png`
-- `pred-output/2026/goes_with_predictions.png`
-- `pred-output/3153/goes_with_predictions.png`
-- `pred-output/3229/goes_with_predictions.png`
-- `pred-output/3364/goes_with_predictions.png`
-- `pred-output/3563/goes_with_predictions.png`
-- `pred-output/377/goes_with_predictions.png`
-- `pred-output/401/goes_with_predictions.png`
-- `pred-output/4296/goes_with_predictions.png`
-- `pred-output/4920/goes_with_predictions.png`
-- `pred-output/5894/goes_with_predictions.png`
-- `pred-output/833/goes_with_predictions.png`
+- `plots/predictions/1275/goes_with_predictions.png`
+- `plots/predictions/1449/goes_with_predictions.png`
+- `plots/predictions/185/goes_with_predictions.png`
+- `plots/predictions/2026/goes_with_predictions.png`
+- `plots/predictions/3153/goes_with_predictions.png`
+- `plots/predictions/3229/goes_with_predictions.png`
+- `plots/predictions/3364/goes_with_predictions.png`
+- `plots/predictions/3563/goes_with_predictions.png`
+- `plots/predictions/377/goes_with_predictions.png`
+- `plots/predictions/401/goes_with_predictions.png`
+- `plots/predictions/4296/goes_with_predictions.png`
+- `plots/predictions/4920/goes_with_predictions.png`
+- `plots/predictions/5894/goes_with_predictions.png`
+- `plots/predictions/833/goes_with_predictions.png`
 
 ## Output
 

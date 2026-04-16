@@ -18,13 +18,22 @@ python -m src.torch.vit.plot_class_wise_distribution
 - `src/torch/vit/utils.py`
 
 **Outputs**
-- `plots/distribution/131.pdf`
-- `plots/distribution/171.pdf`
-- `plots/distribution/193.pdf`
-- `plots/distribution/211.pdf`
-- `plots/distribution/304.pdf`
-- `plots/distribution/335.pdf`
-- `plots/distribution/94.pdf`
+- `plots/distribution/131.png`
+- `plots/distribution/171.png`
+- `plots/distribution/193.png`
+- `plots/distribution/211.png`
+- `plots/distribution/304.png`
+- `plots/distribution/335.png`
+- `plots/distribution/94.png`
+
+## Output
+![94](../assets/plots/distribution-png/94.png)
+![131](../assets/plots/distribution-png/131.png)
+![171](../assets/plots/distribution-png/171.png)
+![193](../assets/plots/distribution-png/193.png)
+![211](../assets/plots/distribution-png/211.png)
+![304](../assets/plots/distribution-png/304.png)
+![335](../assets/plots/distribution-png/335.png)
 
 ## Notes
 

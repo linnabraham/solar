@@ -9,6 +9,7 @@ python -m src.torch.vit.kshap
 ```
 
 **Dependencies**
+- `src/torch/vit/kshap.py`
 - `aarp_ml/torch/dataset.py`
 - `aarp_ml/torch/model.py`
 - `outputs/glad-shape-197/trained_model.pth`
