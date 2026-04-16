@@ -17,8 +17,8 @@ stages:
       size: 6640
     - path: src/torch/vit/predictions_analyze.py
       hash: md5
-      md5: 6e08c9dd75d787921bf6f530b66d8455
-      size: 13983
+      md5: 814143273ba76114ed3b1d9c309b0d7b
+      size: 14255
     - path: stats.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -97,49 +97,49 @@ stages:
       size: 42253014
     - path: src/torch/vit/class_wise_distribution.py
       hash: md5
-      md5: a59405bb235fbcd6a01f03127ebadfb1
-      size: 6298
+      md5: c978236cd1d264551ebed91d31091b2f
+      size: 7180
     - path: src/torch/vit/ig.py
       hash: md5
       md5: 532398a7e7b04d9ec76de859f3b29386
       size: 6640
     - path: src/torch/vit/plot_class_wise_distribution.py
       hash: md5
-      md5: 34c41504270cf328964b81c84612a4dc
-      size: 12044
+      md5: ce55f5d5e1445f946042ae32af833aa7
+      size: 12518
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: c679c59a94316f08671764e0d07a0ac6
-      size: 7670
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
     outs:
-    - path: plots/distribution/131.pdf
+    - path: plots/distribution/131.png
       hash: md5
-      md5: fd94bfd6068163b6854af51beb5efdae
-      size: 25495
-    - path: plots/distribution/171.pdf
+      md5: 9663646ffc9140f400858d589841dc62
+      size: 123509
+    - path: plots/distribution/171.png
       hash: md5
-      md5: ff327a79ffe094104c7e40dc6f0ab722
-      size: 25391
-    - path: plots/distribution/193.pdf
+      md5: b06b741d479935037983511497c27a46
+      size: 128309
+    - path: plots/distribution/193.png
       hash: md5
-      md5: 48471ff19aa1f174657df0b11449dd5a
-      size: 26376
-    - path: plots/distribution/211.pdf
+      md5: d2f1c5f748550036391b92632380a357
+      size: 130842
+    - path: plots/distribution/211.png
       hash: md5
-      md5: d54012646f4b5b1971db814dc7a14fbf
-      size: 26036
-    - path: plots/distribution/304.pdf
+      md5: cc99cab0d0d1155d1e9ad65dcf947686
+      size: 129570
+    - path: plots/distribution/304.png
       hash: md5
-      md5: a000b267e62dead42b5adfe1ddaf2c06
-      size: 25931
-    - path: plots/distribution/335.pdf
+      md5: 57badfd77716c0dccdb27db9c95ba744
+      size: 128572
+    - path: plots/distribution/335.png
       hash: md5
-      md5: ac9098b83ed4e8407f9dd522b3fc93eb
-      size: 25696
-    - path: plots/distribution/94.pdf
+      md5: c463c3af97f6ec23c84f05c24c9cd5e6
+      size: 127228
+    - path: plots/distribution/94.png
       hash: md5
-      md5: 883bdf8e04ba8819bab0dbb84cf8f964
-      size: 25194
+      md5: 442f12c5d7c4b8428b88e570b162b2e2
+      size: 121230
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance
     deps:
@@ -177,16 +177,16 @@ stages:
       size: 6640
     - path: src/torch/vit/plot_contour_image_grid.py
       hash: md5
-      md5: 0e8bcf9093497e34c8d59e5c16276a64
-      size: 8823
+      md5: bb3ec3c2e81e09bd660ebf3f646a986f
+      size: 9359
     - path: src/torch/vit/train.py
       hash: md5
       md5: ee241813666d738ad6f527d17166403b
       size: 10434
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: c679c59a94316f08671764e0d07a0ac6
-      size: 7670
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
     - path: stats.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -239,30 +239,42 @@ stages:
   attribution_analyzis:
     cmd: python -m src.torch.vit.attributions_analyze
     deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
     - path: src/torch/vit/attributions_analyze.py
       hash: md5
-      md5: 0692d03f0dbe0ce9328e18f2f6f8eb2e
-      size: 6408
+      md5: 806c2048a335bf4f91adf13182df3f69
+      size: 6695
     - path: src/torch/vit/class_wise_distribution.py
       hash: md5
-      md5: a59405bb235fbcd6a01f03127ebadfb1
-      size: 6298
+      md5: c978236cd1d264551ebed91d31091b2f
+      size: 7180
     - path: src/torch/vit/ig.py
       hash: md5
       md5: 532398a7e7b04d9ec76de859f3b29386
       size: 6640
     - path: src/torch/vit/predictions_analyze.py
       hash: md5
-      md5: 6e08c9dd75d787921bf6f530b66d8455
-      size: 13983
+      md5: 814143273ba76114ed3b1d9c309b0d7b
+      size: 14255
     - path: src/torch/vit/train.py
       hash: md5
       md5: ee241813666d738ad6f527d17166403b
       size: 10434
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: c679c59a94316f08671764e0d07a0ac6
-      size: 7670
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
     outs:
     - path: plots/predictions/1275/attributions_percentiles_99.png
       hash: md5
@@ -389,8 +401,8 @@ stages:
       size: 42253014
     - path: src/torch/vit/test.py
       hash: md5
-      md5: acd68e634a583792677108c401097bfe
-      size: 9591
+      md5: 16c8a0dfd4a30e5d0ec0a60f75479743
+      size: 9687
     - path: stats.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -465,16 +477,16 @@ stages:
       size: 42253014
     - path: src/torch/vit/class_wise_distribution.py
       hash: md5
-      md5: a59405bb235fbcd6a01f03127ebadfb1
-      size: 6298
+      md5: c978236cd1d264551ebed91d31091b2f
+      size: 7180
     - path: src/torch/vit/ig.py
       hash: md5
       md5: 532398a7e7b04d9ec76de859f3b29386
       size: 6640
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: 5342d2ce21eefb9aded347a15770f430
-      size: 3626
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
     - path: stats.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -513,8 +525,8 @@ stages:
       size: 16159
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: c679c59a94316f08671764e0d07a0ac6
-      size: 7670
+      md5: b6a766d682c31543d9d20eafb7d28c1a
+      size: 7551
     - path: stats.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -522,20 +534,20 @@ stages:
     outs:
     - path: plots/kshap/images
       hash: md5
-      md5: 650ec39afdd426c07cdbdc4539a0891f.dir
-      size: 422334692
+      md5: 4ed058b3e31cd24b17c3524049b634ee.dir
+      size: 425132731
       nfiles: 150
     - path: shap_stats.json
       hash: md5
-      md5: de86437cebd0367d0d68dd19823e33fd
-      size: 30952
+      md5: a5534b714e9be37ef3191d06829044c1
+      size: 30942
   kshap-analyze:
     cmd: python -m src.torch.vit.analyze_shap
     deps:
     - path: shap_stats.json
       hash: md5
-      md5: ca58d3c03ead1225623411386fb42b0c
-      size: 30973
+      md5: a5534b714e9be37ef3191d06829044c1
+      size: 30942
     - path: src/torch/vit/analyze_shap.py
       hash: md5
       md5: b8987d24609d2bcf3f550f9743af757d
@@ -543,8 +555,8 @@ stages:
     outs:
     - path: plots/kshap/results
       hash: md5
-      md5: aed83e22795b477aeea3ccd4be955f7a.dir
-      size: 201727
+      md5: b92b7e92ba811a32a30f29e06f627a31.dir
+      size: 201834
       nfiles: 1
   subset-data:
     cmd: python -m src.aarp_subset_pipeline --process --json

@@ -123,6 +123,7 @@ stages:
     - plots/predictions/4920/filtered_image_intensities.png
     - plots/predictions/5894/filtered_image_intensities.png
     - plots/predictions/833/filtered_image_intensities.png
+
   confusion-matrix-val:
     cmd: python -m src.torch.vit.test --subset validation
     deps:
@@ -132,6 +133,7 @@ stages:
     - stats.pkl
     outs:
     - plots/cm.png
+
   data-single:
     cmd: python -m src.data_single --process --select
     deps:
@@ -148,6 +150,7 @@ stages:
     - data/neg_urls_selected_downloaded.csv
     - data/pos_urls_selected_downloaded.csv
     - data/shape_limited.csv
+
   create-distribution:
     cmd: python -m src.torch.vit.class_wise_distribution
     deps:
@@ -162,6 +165,7 @@ stages:
         cache: false
     - data/intermediate-outs/attributions_pos.pt:
         cache: false
+
   kshap-stats:
     cmd: python -m src.torch.vit.kshap
     deps:
@@ -176,6 +180,7 @@ stages:
     - shap_stats.json
     - plots/kshap/images:
         cache: false
+
   kshap-analyze:
     cmd: python -m src.torch.vit.analyze_shap
     deps:
