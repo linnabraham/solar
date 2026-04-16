@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [create_movie](../stages/create_movie.md)
+- [create_movie](../stages/create_movie.md) — full dataset (validation + test splits)
+- [subset-attribution-movies](../stages/subset-attribution-movies.md) — 7-AARP subset (all splits)
 
-This script is executed by the `create_movie` DVC stage to generate MP4 movies from sequence data.
+Generates per-AARP attribution overlay MP4 movies using Integrated Gradients.

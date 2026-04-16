@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [create-distribution](../stages/create-distribution.md)
+- [create-distribution](../stages/create-distribution.md) — full dataset
+- [subset-create-distribution](../stages/subset-create-distribution.md) — 7-AARP subset
 
-This script is executed by the `create-distribution` DVC stage to compute class-wise attribution distributions.
+Runs IG on all AARPs and saves per-class attribution tensors for downstream distribution plots.

@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [plot_contour_image_grid](../stages/plot_contour_image_grid.md)
+- [plot_contour_image_grid](../stages/plot_contour_image_grid.md) — full dataset (single AARP)
+- [subset-contour-grid](../stages/subset-contour-grid.md) — 7-AARP subset (single AARP)
 
-This script is executed by the `plot_contour_image_grid` DVC stage to generate contour grid visualizations.
+Renders a 7-passband AIA image grid with IG attribution contours for a single AARP timestep.

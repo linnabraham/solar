@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [prediction-plots](../stages/prediction-plots.md)
+- [prediction-plots](../stages/prediction-plots.md) — full dataset (test + validation)
+- [subset-prediction-plots](../stages/subset-prediction-plots.md) — 7-AARP subset
 
-This script is executed by the `prediction-plots` DVC stage to generate prediction overlays on GOES images.
+Generates per-AARP prediction overlays on GOES X-ray flux timeseries.

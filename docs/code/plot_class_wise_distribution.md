@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [plot-class-dist](../stages/plot-class-dist.md)
+- [plot-class-dist](../stages/plot-class-dist.md) — full dataset
+- [subset-plot-class-dist](../stages/subset-plot-class-dist.md) — 7-AARP subset
 
-This script is executed by the `plot-class-dist` DVC stage to generate distribution plots from attribution data.
+Generates intensity distribution plots per AIA passband, stratified by attribution percentile thresholds.

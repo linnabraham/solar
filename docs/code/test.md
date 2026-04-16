@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [confusion-matrix-val](../stages/confusion-matrix-val.md)
+- [confusion-matrix-val](../stages/confusion-matrix-val.md) — full dataset (validation split)
+- [subset-confusion-matrix](../stages/subset-confusion-matrix.md) — 7-AARP subset (test split)
 
-This script is executed by the `confusion-matrix-val` DVC stage to compute and visualize confusion matrices.
+Runs model inference on a split and saves a confusion matrix PNG.

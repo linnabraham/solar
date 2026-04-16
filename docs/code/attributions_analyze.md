@@ -6,8 +6,9 @@
       show_source: true
       docstring_style: google
 
-## Related Stage
+## Related Stages
 
-**Pipeline Stage**: [attribution_analyzis](../stages/attribution_analyzis.md)
+- [attribution_analyzis](../stages/attribution_analyzis.md) — full dataset (test + validation)
+- [subset-attribution-analysis](../stages/subset-attribution-analysis.md) — 7-AARP subset
 
-This script is executed by the `attribution_analyzis` DVC stage to perform multi-output attribution analysis.
+Generates per-AARP attribution percentile and filtered intensity plots.
