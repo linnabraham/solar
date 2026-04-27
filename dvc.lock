@@ -1031,3 +1031,27 @@ stages:
       md5: e8402d48b3e8e22b5d4d90a3d4a2c194.dir
       size: 77095668
       nfiles: 7
+  confusion-matrix-test:
+    cmd: python -m src.torch.vit.test --subset test
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: 02ae5fe3748bf3ea1fa3310630ecb61e
+      size: 9784
+    - path: stats.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: plots/cm_test.png
+      hash: md5
+      md5: 67226628c7aabd698a389f5031542c1e
+      size: 14556
