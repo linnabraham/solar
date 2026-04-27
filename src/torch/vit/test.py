@@ -18,7 +18,7 @@ from ml_utils.visualization import plot_confusion_matrix
 # ==================== Module Constants ====================
 DEFAULT_BATCH_SIZE = 32
 CONFUSION_MATRIX_CLASSES = [0, 1]
-OUTPUT_PATH = "plots/cm.png"
+OUTPUT_PATH = "plots/cm_{subset}.png"
 VALID_SUBSETS = {'training', 'validation', 'test'}
 DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -34,13 +34,13 @@ class ConfusionMatrixConfig:
         device (str): Device to use for model ('cuda' or 'cpu'). Defaults to auto-detected.
     """
     batch_size: int = DEFAULT_BATCH_SIZE
-    output_path: str = OUTPUT_PATH
+    output_path: str = None
     subset: str = 'validation'
     device: str = DEFAULT_DEVICE
-    
+
     def __post_init__(self):
         """Validate configuration after initialization.
-        
+
         Raises:
             ValueError: If subset is not valid.
         """
@@ -48,6 +48,8 @@ class ConfusionMatrixConfig:
             raise ValueError(
                 f"subset must be one of {VALID_SUBSETS}, got '{self.subset}'"
             )
+        if self.output_path is None:
+            self.output_path = OUTPUT_PATH.format(subset=self.subset)
 
 # ==================== Metrics Helper Function ====================
 def compute_metrics(cm: np.ndarray) -> Dict[str, float]:
@@ -197,8 +199,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--output-path",
-        default=OUTPUT_PATH,
-        help=f"Output path for confusion matrix plot (default: {OUTPUT_PATH})"
+        default=None,
+        help="Output path for confusion matrix plot (default: plots/cm_<subset>.png)"
     )
     parser.add_argument(
         "--trained-model",

@@ -132,7 +132,17 @@ stages:
     - src/torch/vit/test.py
     - stats.pkl
     outs:
-    - plots/cm.png
+    - plots/cm_validation.png
+
+  confusion-matrix-test:
+    cmd: python -m src.torch.vit.test --subset test
+    deps:
+    - outputs/glad-shape-197/trained_model.pth
+    - solar_dataset.json
+    - src/torch/vit/test.py
+    - stats.pkl
+    outs:
+    - plots/cm_test.png
 
   data-single:
     cmd: python -m src.data_single --process --select
