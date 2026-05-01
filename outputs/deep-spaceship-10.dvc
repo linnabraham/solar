@@ -1,0 +1,6 @@
+outs:
+- md5: 8f6e168293b28b798db2b50d602ba42e.dir
+  size: 78666
+  nfiles: 1
+  hash: md5
+  path: deep-spaceship-10
