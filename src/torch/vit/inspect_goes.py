@@ -1,19 +1,14 @@
-"""Inspect raw GOES X-ray flux for a specific AARP.
+"""Inspect raw GOES X-ray flux for a given date range.
 
-Fetches GOES XRS timeseries over the AARP's observation window and either
-prints a table of raw values (default) or saves an interactive Plotly HTML.
-
-No astro_utils dependency — uses sunpy Fido directly.
+Fetches GOES XRS 1-second timeseries and either prints a table of raw values
+(default) or saves an interactive Plotly HTML for pan/zoom inspection.
 
 Usage:
-    python -m src.torch.vit.inspect_goes --aarp-id 377
-    python -m src.torch.vit.inspect_goes --aarp-id 377 --start 2014-01-01 --end 2014-01-03
-    python -m src.torch.vit.inspect_goes --aarp-id 377 --plot
-    python -m src.torch.vit.inspect_goes --aarp-id 377 --start 2014-01-01 --end 2014-01-03 --plot
+    python -m src.torch.vit.inspect_goes --start 2014-01-01 --end 2014-01-03
+    python -m src.torch.vit.inspect_goes --start 2014-01-01 --end 2014-01-03 --plot
 """
 
 import argparse
-import json
 from pathlib import Path
 
 import numpy as np
@@ -21,53 +16,12 @@ import pandas as pd
 import sunpy.timeseries as sunpy_ts
 from sunpy.net import Fido, attrs as a
 
-DEFAULT_JSON_PATH = "solar_dataset.json"
 DEFAULT_OUTPUT_DIR = "plots"
 GOES_CHANNELS = ["xrsa", "xrsb"]
-FETCH_WINDOW_HOURS = 24 * 4.5  # ±4.5 days around AARP midtime
 
-
-# ==================== DATA LOADING ====================
-
-def load_aarp_df(aarp_id, json_path):
-    """Read JSON and return combined DataFrame rows for this AARP across all splits."""
-    with open(json_path) as f:
-        metadata = json.load(f)
-
-    splits = {}
-    for split in ["training", "validation", "test"]:
-        rows = metadata.get(split, [])
-        if rows:
-            df = pd.DataFrame(rows)
-            df["split"] = split
-            splits[split] = df
-
-    combined = pd.concat(splits.values(), ignore_index=True)
-    combined["timestamp"] = pd.to_datetime(combined["timestamp"], utc=True).dt.tz_localize(None)
-
-    aarp_df = combined[combined["aarp_id"] == aarp_id].copy()
-    if aarp_df.empty:
-        raise ValueError(f"AARP {aarp_id} not found in any split of {json_path}")
-
-    found = {s: len(df[df["aarp_id"] == aarp_id]) for s, df in splits.items()}
-    found_in = [s for s, n in found.items() if n > 0]
-    print(f"AARP {aarp_id}: found in {found_in} ({len(aarp_df)} frames)")
-
-    return aarp_df
-
-
-def compute_fetch_window(aarp_df):
-    """Return (start, end) datetimes centred on the AARP observation midpoint."""
-    timestamps = aarp_df["timestamp"]
-    mid = timestamps.min() + (timestamps.max() - timestamps.min()) / 2
-    delta = pd.Timedelta(hours=FETCH_WINDOW_HOURS)
-    return mid - delta, mid + delta
-
-
-# ==================== GOES FETCH ====================
 
 def fetch_goes(start, end):
-    """Fetch GOES XRS 1-second data between start and end (datetime or str)."""
+    """Fetch GOES XRS 1-second data between start and end."""
     start_str = pd.Timestamp(start).isoformat()
     end_str = pd.Timestamp(end).isoformat()
     print(f"Fetching GOES data {start_str} → {end_str} ...")
@@ -84,45 +38,23 @@ def fetch_goes(start, end):
     return goes_ts.truncate(start_str, end_str)
 
 
-# ==================== FILTER ====================
-
-def filter_goes(goes_ts, start=None, end=None):
-    """Return a DataFrame from XRSTimeSeries, optionally truncated to [start, end]."""
-    if start or end:
-        df = goes_ts.data[GOES_CHANNELS].copy()
-        a_ = pd.Timestamp(start) if start else df.index[0]
-        b_ = pd.Timestamp(end) if end else df.index[-1]
-        return goes_ts.truncate(a_, b_).data[GOES_CHANNELS].copy()
-    return goes_ts.data[GOES_CHANNELS].copy()
-
-
-# ==================== TABLE ====================
-
-def print_table(df, aarp_id, start=None, end=None):
-    label = f"AARP {aarp_id}"
-    if start or end:
-        label += f"  [{start or '...'} → {end or '...'}]"
-
-    print(f"\nRaw GOES flux — {label}")
+def print_table(df, start, end):
+    print(f"\nRaw GOES flux  [{start} → {end}]")
     print(f"  Rows : {len(df)}")
     for ch in GOES_CHANNELS:
         print(f"  {ch}  min={df[ch].min():.3e}  max={df[ch].max():.3e}")
-
     print()
     for ch in GOES_CHANNELS:
         flat = df[ch].diff().eq(0).sum()
         if flat > 0:
             print(f"  [{ch}] {flat} consecutive repeated values — possible clipping/saturation")
-
     print()
     pd.set_option("display.float_format", "{:.4e}".format)
     pd.set_option("display.max_rows", None)
     print(df.to_string())
 
 
-# ==================== PLOTLY ====================
-
-def save_plotly_html(df, aarp_id, output_dir, start=None, end=None):
+def save_plotly_html(df, start, end, output_dir):
     try:
         import plotly.graph_objects as go
     except ImportError:
@@ -144,7 +76,7 @@ def save_plotly_html(df, aarp_id, output_dir, start=None, end=None):
         ))
 
     fig.update_layout(
-        title=f"GOES X-ray flux — AARP {aarp_id}",
+        title=f"GOES X-ray flux  {start} → {end}",
         xaxis_title="Time (UTC)",
         yaxis_title="Flux (W m⁻²)",
         yaxis_type="log",
@@ -154,34 +86,29 @@ def save_plotly_html(df, aarp_id, output_dir, start=None, end=None):
         template="plotly_white",
     )
 
-    suffix = f"_{start}_{end}" if (start or end) else ""
-    out_path = Path(output_dir) / f"goes_inspect_{aarp_id}{suffix}.html"
+    start_slug = start.replace("-", "")
+    end_slug = end.replace("-", "")
+    out_path = Path(output_dir) / f"goes_inspect_{start_slug}_{end_slug}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(str(out_path))
     print(f"\n✓ Saved interactive plot to {out_path}")
 
 
-# ==================== MAIN ====================
-
 def main():
-    parser = argparse.ArgumentParser(description="Inspect raw GOES flux for an AARP.")
-    parser.add_argument("--aarp-id", type=int, required=True)
-    parser.add_argument("--json-path", default=DEFAULT_JSON_PATH)
-    parser.add_argument("--start", default=None, help="Filter start e.g. 2014-01-01")
-    parser.add_argument("--end", default=None, help="Filter end e.g. 2014-01-03")
+    parser = argparse.ArgumentParser(description="Inspect raw GOES X-ray flux for a date range.")
+    parser.add_argument("--start", required=True, help="Start date e.g. 2014-01-01")
+    parser.add_argument("--end", required=True, help="End date e.g. 2014-01-03")
     parser.add_argument("--plot", action="store_true", help="Save interactive Plotly HTML")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
 
-    aarp_df = load_aarp_df(args.aarp_id, args.json_path)
-    fetch_start, fetch_end = compute_fetch_window(aarp_df)
-    goes_ts = fetch_goes(fetch_start, fetch_end)
-    df = filter_goes(goes_ts, start=args.start, end=args.end)
+    goes_ts = fetch_goes(args.start, args.end)
+    df = goes_ts.data[GOES_CHANNELS].copy()
 
-    print_table(df, args.aarp_id, start=args.start, end=args.end)
+    print_table(df, args.start, args.end)
 
     if args.plot:
-        save_plotly_html(df, args.aarp_id, args.output_dir, start=args.start, end=args.end)
+        save_plotly_html(df, args.start, args.end, args.output_dir)
 
 
 if __name__ == "__main__":
