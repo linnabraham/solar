@@ -6,7 +6,7 @@ from typing import Optional
 from src.torch.xgb_train import get_feature_names, TrainingConfig
 
 # ==================== Module Constants ====================
-DEFAULT_FIGSIZE = (10, 12)
+DEFAULT_FIGSIZE = (12, 5)
 DEFAULT_DPI = 150
 VALID_IMPORTANCE_TYPES = {'weight', 'gain', 'cover'}
 FEATURE_NAME_PREFIX = 'f'  # XGBoost internal naming convention for features
@@ -14,29 +14,14 @@ FEATURE_NAME_PREFIX = 'f'  # XGBoost internal naming convention for features
 # ==================== Configuration Class ====================
 @dataclass
 class FeatureImportanceConfig:
-    """Configuration for feature importance visualization.
-    
-    Attributes:
-        model_path (str): Path to the trained XGBoost model JSON file.
-        output_path (str): Path where the output PNG will be saved.
-        importance_type (str): Type of importance metric ('weight', 'gain', or 'cover').
-            Defaults to 'weight'.
-        figsize (tuple): Figure size as (width, height) in inches. Defaults to (10, 12).
-        dpi (int): Resolution in dots per inch. Defaults to 150.
-    """
     model_path: str
     output_path: str
     importance_type: str = 'weight'
     figsize: tuple = DEFAULT_FIGSIZE
     dpi: int = DEFAULT_DPI
-    
+    top_n: Optional[int] = None  # None = show all features
+
     def __post_init__(self):
-        """Validate configuration after initialization.
-        
-        Raises:
-            ValueError: If importance_type is not valid.
-            FileNotFoundError: If model file does not exist.
-        """
         if self.importance_type not in VALID_IMPORTANCE_TYPES:
             raise ValueError(
                 f"importance_type must be one of {VALID_IMPORTANCE_TYPES}, "
@@ -88,26 +73,47 @@ def plot_xgb_feature_importance(
     feature_names = get_feature_names(training_config)
     model = xgb.Booster()
     model.load_model(config.model_path)
-    
-    # Get importance and map to human-readable names
+
+    # Get importance, sort descending, apply top_n limit
     importance_dict = model.get_score(importance_type=config.importance_type)
     sorted_features = sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
-    
+    if config.top_n is not None:
+        sorted_features = sorted_features[:config.top_n]
+
     # Map XGBoost internal feature names (f0, f1, ...) to human-readable names
-    feature_map = {
-        f'{FEATURE_NAME_PREFIX}{i}': name 
-        for i, name in enumerate(feature_names)
-    }
-    sorted_feature_names = [feature_map.get(f, f) for f, _ in sorted_features]
-    
-    # Create and customize plot
+    feature_map = {f'{FEATURE_NAME_PREFIX}{i}': name for i, name in enumerate(feature_names)}
+    plot_names = [feature_map.get(f, f) for f, _ in sorted_features]
+    plot_values = [v for _, v in sorted_features]
+
     fig, ax = plt.subplots(figsize=config.figsize, dpi=config.dpi)
-    xgb.plot_importance(model, importance_type=config.importance_type, ax=ax)
-    ax.set_yticklabels(sorted_feature_names)
-    
-    # Dynamic title based on importance type
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('#f8f9fa')
+
+    norm_vals = [v / max(plot_values) for v in plot_values]
+    colors = plt.cm.viridis_r(norm_vals)
+    bars = ax.bar(range(len(plot_names)), plot_values, color=colors, width=0.6, edgecolor='white', linewidth=0.5)
+
+    # Value labels above bars
+    for bar, val in zip(bars, plot_values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2, bar.get_height() + max(plot_values) * 0.01,
+            f'{val:.1f}' if isinstance(val, float) else str(val),
+            ha='center', va='bottom', fontsize=7, color='#444444'
+        )
+
+    ax.set_xticks(range(len(plot_names)))
+    ax.set_xticklabels(plot_names, rotation=45, ha='right', fontsize=8)
+    ax.set_ylabel(config.importance_type.capitalize(), fontsize=11)
+    ax.set_ylim(0, max(plot_values) * 1.12)
+    ax.spines[['top', 'right', 'bottom']].set_visible(False)
+    ax.tick_params(axis='x', length=0)
+    ax.yaxis.grid(True, linestyle='--', alpha=0.6, color='white')
+    ax.set_axisbelow(True)
+
     title = f"XGBoost Feature Importance ({config.importance_type.capitalize()})"
-    plt.title(title, fontsize=14)
+    if config.top_n is not None:
+        title += f" — Top {config.top_n}"
+    ax.set_title(title, fontsize=13, fontweight='bold', pad=12)
     plt.tight_layout()
     
     # Save figure
@@ -130,6 +136,13 @@ if __name__ == "__main__":
             model_path="outputs/deep-spaceship-10/best_xgboost_model.json",
             output_path="plots/xgb_feat_importance_weight.png",
             importance_type="weight",
+        ),
+        # Publication-friendly: top 20 features only
+        FeatureImportanceConfig(
+            model_path="outputs/deep-spaceship-10/best_xgboost_model.json",
+            output_path="plots/xgb_feat_importance_gain_top20.png",
+            importance_type="gain",
+            top_n=20,
         ),
     ]
     
