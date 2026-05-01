@@ -29,6 +29,7 @@ dependencies:
   - mkdocs-material=9.7
   - mkdocstrings
   - mkdocstrings-python
+  - python-dotenv
   - pip
   - pip:
     - git+https://github.com/linnabraham/astro-utils.git
