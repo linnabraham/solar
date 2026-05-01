@@ -149,17 +149,17 @@ stages:
       size: 78666
     - path: src/torch/xgb_feat_importance.py
       hash: md5
-      md5: 3a920e88a2a31686ecb8e31019f4711a
-      size: 5779
+      md5: 249f67103d440b22ccd868fdedf02d9d
+      size: 6450
     outs:
     - path: plots/xgb_feat_importance_gain.png
       hash: md5
-      md5: 5df07383611166ea4e26c50d7ea9bdff
-      size: 464514
+      md5: 3c3fe6037cee1a6d03bafba1e340d513
+      size: 65391
     - path: plots/xgb_feat_importance_weight.png
       hash: md5
-      md5: 3a899758226a3cedf829d0a11b900dc5
-      size: 225892
+      md5: 20b7f68dab669660225259baa190d51e
+      size: 68475
   plot_contour_image_grid:
     cmd: python -m src.torch.vit.plot_contour_image_grid
     deps:
