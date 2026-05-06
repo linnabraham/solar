@@ -43,13 +43,14 @@ stages:
     - plots/distribution/94.png
 
   xgb-feat-importance:
-    cmd: python -m src.torch.xgb_feat_importance
+    cmd: python -m src.torch.xgb_feat_importance --model-path outputs/devoted-pond-14/best_xgboost_model.json
     deps:
-    - outputs/deep-spaceship-10/best_xgboost_model.json
+    - outputs/devoted-pond-14/best_xgboost_model.json
     - src/torch/xgb_feat_importance.py
     outs:
-    - plots/xgb_feat_importance_gain.png
-    - plots/xgb_feat_importance_weight.png
+    - plots/xgb/devoted-pond-14/feat_importance_gain.png
+    - plots/xgb/devoted-pond-14/feat_importance_weight.png
+    - plots/xgb/devoted-pond-14/feat_importance_gain_top20.png
 
   plot_contour_image_grid:
     cmd: python -m src.torch.vit.plot_contour_image_grid
