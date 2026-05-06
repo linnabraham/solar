@@ -141,25 +141,30 @@ stages:
       md5: 442f12c5d7c4b8428b88e570b162b2e2
       size: 121230
   xgb-feat-importance:
-    cmd: python -m src.torch.xgb_feat_importance
+    cmd: python -m src.torch.xgb_feat_importance --model-path 
+      outputs/devoted-pond-14/best_xgboost_model.json
     deps:
-    - path: outputs/deep-spaceship-10/best_xgboost_model.json
+    - path: outputs/devoted-pond-14/best_xgboost_model.json
       hash: md5
-      md5: a77a3df0d6bb8d6e48bbe51781a88960
-      size: 78666
+      md5: e8eb6d2c13466fcfb02ed6ec3670989f
+      size: 60468
     - path: src/torch/xgb_feat_importance.py
       hash: md5
-      md5: 249f67103d440b22ccd868fdedf02d9d
-      size: 6450
+      md5: 5a86e9d4c57f707b69ad9ae2a1a6a203
+      size: 5519
     outs:
-    - path: plots/xgb_feat_importance_gain.png
+    - path: plots/xgb/devoted-pond-14/feat_importance_gain.png
       hash: md5
-      md5: 3c3fe6037cee1a6d03bafba1e340d513
-      size: 65391
-    - path: plots/xgb_feat_importance_weight.png
+      md5: 0235d4f0b65759abb834917c36f1771b
+      size: 75363
+    - path: plots/xgb/devoted-pond-14/feat_importance_gain_top20.png
       hash: md5
-      md5: 20b7f68dab669660225259baa190d51e
-      size: 68475
+      md5: 36333d560c1d1fb2add391ecf29ee77e
+      size: 53375
+    - path: plots/xgb/devoted-pond-14/feat_importance_weight.png
+      hash: md5
+      md5: b8e5db0a1d0d203e4a1027a305d398d3
+      size: 58687
   plot_contour_image_grid:
     cmd: python -m src.torch.vit.plot_contour_image_grid
     deps:
