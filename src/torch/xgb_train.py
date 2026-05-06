@@ -102,8 +102,9 @@ def train_and_eval(config: TrainingConfig):
     X_val, y_val = extract_stats_generator(val_loader, config)
 
     # Convert the dataset into DMatrix format for XGBoost
-    dtrain = xgb.DMatrix(X_train, label=y_train)
-    dval = xgb.DMatrix(X_val, label=y_val)
+    feature_names = get_feature_names(config)
+    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_names)
+    dval = xgb.DMatrix(X_val, label=y_val, feature_names=feature_names)
     evals = [(dtrain, 'train'), (dval, 'validation')]  # Specify datasets for evaluation
     evals_result = {}  # Dictionary to store evaluation results
 

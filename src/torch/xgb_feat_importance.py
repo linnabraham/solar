@@ -1,15 +1,14 @@
+import argparse
 import xgboost as xgb
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-from src.torch.xgb_train import get_feature_names, TrainingConfig
 
 # ==================== Module Constants ====================
 DEFAULT_FIGSIZE = (12, 5)
 DEFAULT_DPI = 150
 VALID_IMPORTANCE_TYPES = {'weight', 'gain', 'cover'}
-FEATURE_NAME_PREFIX = 'f'  # XGBoost internal naming convention for features
 
 # ==================== Configuration Class ====================
 @dataclass
@@ -31,80 +30,54 @@ class FeatureImportanceConfig:
             raise FileNotFoundError(f"Model not found at '{self.model_path}'")
 
 # ==================== Main Function ====================
-def plot_xgb_feature_importance(
-    config: FeatureImportanceConfig,
-    training_config: TrainingConfig
-) -> None:
+def plot_xgb_feature_importance(config: FeatureImportanceConfig) -> None:
     """Generate and save XGBoost feature importance visualization.
-    
-    Loads a trained XGBoost model and creates a horizontal bar plot showing
-    feature importance scores. Features are ranked by importance and labeled
-    with human-readable names from the training config. Supports multiple
-    importance types (e.g., 'weight' for frequency, 'gain' for performance).
-    
-    Args:
-        config (FeatureImportanceConfig): Visualization configuration including
-            model path, output path, and importance metric type.
-        training_config (TrainingConfig): Training configuration containing
-            dataset metadata and feature definitions.
-    
-    Returns:
-        None. Saves PNG file to config.output_path.
-        
-    Raises:
-        FileNotFoundError: If model or feature names file does not exist.
-        ValueError: If importance_type is not valid or config validation fails.
-        
-    Side effects:
-        - Creates output directory if needed (os.makedirs)
-        - Saves matplotlib figure to disk
-        - Closes matplotlib figure to release memory
-        - Prints success message to stdout
-        
-    Example:
-        >>> config = FeatureImportanceConfig(
-        ...     model_path="model.json",
-        ...     output_path="plots/importance.png",
-        ...     importance_type="gain"
-        ... )
-        >>> plot_xgb_feature_importance(config, training_config)
+
+    Feature names are read directly from the model (embedded at training time).
+    Raises ValueError if the model was trained without feature_names in DMatrix.
     """
-    # Load feature names and model
-    feature_names = get_feature_names(training_config)
+    # Load model — feature names are embedded in the saved JSON since training
     model = xgb.Booster()
     model.load_model(config.model_path)
+    if not model.feature_names:
+        raise ValueError(
+            "Model has no feature names embedded. "
+            "Retrain with feature_names passed to xgb.DMatrix."
+        )
 
     # Get importance, sort descending, apply top_n limit
     importance_dict = model.get_score(importance_type=config.importance_type)
+    if not importance_dict:
+        raise ValueError("Model returned no feature importances — model may be untrained or trivial.")
     sorted_features = sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
     if config.top_n is not None:
         sorted_features = sorted_features[:config.top_n]
 
-    # Map XGBoost internal feature names (f0, f1, ...) to human-readable names
-    feature_map = {f'{FEATURE_NAME_PREFIX}{i}': name for i, name in enumerate(feature_names)}
-    plot_names = [feature_map.get(f, f) for f, _ in sorted_features]
+    plot_names = [f for f, _ in sorted_features]
     plot_values = [v for _, v in sorted_features]
 
     fig, ax = plt.subplots(figsize=config.figsize, dpi=config.dpi)
     fig.patch.set_facecolor('white')
     ax.set_facecolor('#f8f9fa')
 
-    norm_vals = [v / max(plot_values) for v in plot_values]
+    max_val = max(plot_values)
+    norm_vals = [v / max_val for v in plot_values]
     colors = plt.cm.viridis_r(norm_vals)
     bars = ax.bar(range(len(plot_names)), plot_values, color=colors, width=0.6, edgecolor='white', linewidth=0.5)
 
-    # Value labels above bars
+    # Value labels above bars — weight is an integer count, gain/cover are floats
+    is_count = config.importance_type == 'weight'
     for bar, val in zip(bars, plot_values):
+        label = str(int(val)) if is_count else f'{val:.1f}'
         ax.text(
-            bar.get_x() + bar.get_width() / 2, bar.get_height() + max(plot_values) * 0.01,
-            f'{val:.1f}' if isinstance(val, float) else str(val),
-            ha='center', va='bottom', fontsize=7, color='#444444'
+            bar.get_x() + bar.get_width() / 2, bar.get_height() + max_val * 0.01,
+            label, ha='center', va='bottom', fontsize=7, color='#444444'
         )
 
     ax.set_xticks(range(len(plot_names)))
     ax.set_xticklabels(plot_names, rotation=45, ha='right', fontsize=8)
     ax.set_ylabel(config.importance_type.capitalize(), fontsize=11)
-    ax.set_ylim(0, max(plot_values) * 1.12)
+    ax.set_ylim(0, max_val * 1.12)
     ax.spines[['top', 'right', 'bottom']].set_visible(False)
     ax.tick_params(axis='x', length=0)
     ax.yaxis.grid(True, linestyle='--', alpha=0.6, color='white')
@@ -112,9 +85,8 @@ def plot_xgb_feature_importance(
 
     title = f"XGBoost Feature Importance ({config.importance_type.capitalize()})"
     if config.top_n is not None:
-        title += f" — Top {config.top_n}"
+        title += f" — Top {len(plot_names)}"  # actual count, not requested top_n
     ax.set_title(title, fontsize=13, fontweight='bold', pad=12)
-    plt.tight_layout()
     
     # Save figure
     output_dir = Path(config.output_path).parent
@@ -125,36 +97,35 @@ def plot_xgb_feature_importance(
 
 # ==================== Main Block ====================
 if __name__ == "__main__":
-    # Define jobs as configuration objects
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-path", required=True, help="Path to trained XGBoost model JSON")
+    args = parser.parse_args()
+
+    model_path = args.model_path
+    run_name = Path(model_path).parent.name
+    plot_dir = Path("plots") / "xgb" / run_name
+
     jobs = [
         FeatureImportanceConfig(
-            model_path="outputs/deep-spaceship-10/best_xgboost_model.json",
-            output_path="plots/xgb_feat_importance_gain.png",
+            model_path=model_path,
+            output_path=str(plot_dir / "feat_importance_gain.png"),
             importance_type="gain",
         ),
         FeatureImportanceConfig(
-            model_path="outputs/deep-spaceship-10/best_xgboost_model.json",
-            output_path="plots/xgb_feat_importance_weight.png",
+            model_path=model_path,
+            output_path=str(plot_dir / "feat_importance_weight.png"),
             importance_type="weight",
         ),
-        # Publication-friendly: top 20 features only
         FeatureImportanceConfig(
-            model_path="outputs/deep-spaceship-10/best_xgboost_model.json",
-            output_path="plots/xgb_feat_importance_gain_top20.png",
+            model_path=model_path,
+            output_path=str(plot_dir / "feat_importance_gain_top20.png"),
             importance_type="gain",
             top_n=20,
         ),
     ]
-    
-    # Create training config once
-    training_config = TrainingConfig(
-        json_path="solar_dataset.json",
-        stats_file="stats.pkl"
-    )
-    
-    # Process each job
+
     for job_config in jobs:
         try:
-            plot_xgb_feature_importance(job_config, training_config)
+            plot_xgb_feature_importance(job_config)
         except (FileNotFoundError, ValueError) as e:
             print(f"✗ Error processing {job_config.output_path}: {e}")
