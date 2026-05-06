@@ -95,7 +95,7 @@ def train_and_eval(config: TrainingConfig):
     metadata, transform, device, train_loader, val_loader = init_data(config)
 
     # Create output directory
-    output_dir = os.path.join("output", wandb.run.name)
+    output_dir = os.path.join("outputs", wandb.run.name)
     os.makedirs(output_dir, exist_ok=True)
 
     X_train, y_train = extract_stats_generator(train_loader, config)
