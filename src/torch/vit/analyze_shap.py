@@ -1,56 +1,90 @@
+"""Publication-grade analysis of KernelSHAP attributions for the ViT solar-flare model.
+
+Consumes ``shap_stats.json`` (output of ``src.torch.vit.kshap``) and produces:
+
+1. ``global_mean_abs_shap.png`` / ``.pdf`` — bar chart of mean(|SHAP|) per AIA
+   passband with bootstrap 95% CI. The headline global-importance figure.
+
+2. ``class_stratified_shap.png`` / ``.pdf`` — two-panel boxplot of *signed* SHAP
+   per channel, faceted by true class. Shows direction of contribution per class
+   and avoids the sign-cancellation issue of mixing both classes in one plot.
+
+3. ``shap_summary.csv`` — per-channel-per-class numeric summary (N, signed mean,
+   |SHAP| mean, bootstrap 95% CI, Wilcoxon signed-rank p-value, Bonferroni-
+   corrected p-value). Cite from the paper text.
+
+Filtering: by default only correctly-classified samples (``prediction == label``)
+are kept. Pass ``correct_only=False`` in the config to retain all samples.
+"""
+
+from __future__ import annotations
+
 import json
-import os
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Tuple
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
 from scipy import stats
 
 # ==================== Module Constants ====================
 DEFAULT_INPUT_JSON = "shap_stats.json"
 DEFAULT_OUTPUT_DIR = "plots/kshap/results"
-DEFAULT_FIGSIZE = (12, 7)
+DEFAULT_FIGSIZE_GLOBAL = (8, 5)
+DEFAULT_FIGSIZE_STRATIFIED = (12, 5)
 DEFAULT_DPI = 300
-DEFAULT_ALPHA = 0.3
-DEFAULT_POINT_SIZE = 4
-DEFAULT_LINE_WIDTH = 1.5
-AIA_CHANNEL_PREFIX = 'AIA_'
+DEFAULT_BOOTSTRAP_RESAMPLES = 1000
+DEFAULT_CI_LEVEL = 0.95
+DEFAULT_SEED = 42
+DEFAULT_ALPHA = 0.4
+DEFAULT_POINT_SIZE = 3
 SIGNIFICANCE_THRESHOLD = 0.05
+AIA_CHANNEL_PREFIX = "AIA_"
+# Wavelength order used to sort channels left-to-right on every figure.
+AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335]
 
-# ==================== Configuration Class ====================
+# Class label → human-readable name used in panel titles.
+CLASS_NAMES = {0: "No-flare (label=0)", 1: "Flare-positive (label=1)"}
+
+
+# ==================== Configuration ====================
 @dataclass
 class SHAPAnalysisConfig:
-    """Configuration for SHAP statistical analysis and visualization.
-    
+    """Configuration for SHAP statistical analysis and figure generation.
+
     Attributes:
-        input_json (str): Path to JSON file with pre-computed SHAP statistics
-            (output from kshap.py). Defaults to "shap_stats.json".
-        output_dir (str): Directory to save analysis plots. Defaults to "plots/kshap/results".
-        figsize (tuple): Figure size (width, height) in inches. Defaults to (12, 7).
-        dpi (int): Resolution in dots per inch. Defaults to 300.
-        alpha (float): Transparency for histogram bars [0-1]. Defaults to 0.3.
-        point_size (int): Size of scatter points in plots. Defaults to 4.
-        line_width (float): Line width for axes and reference lines. Defaults to 1.5.
-        significance_threshold (float): P-value threshold for significance. Defaults to 0.05.
+        input_json: Path to JSON produced by ``src.torch.vit.kshap``.
+        output_dir: Directory for figures and CSV summary.
+        figsize_global: Figure size for the global mean(|SHAP|) bar chart.
+        figsize_stratified: Figure size for the class-stratified boxplot.
+        dpi: Output DPI (used for both creation and savefig — keep consistent).
+        bootstrap_resamples: Number of bootstrap resamples for CI estimation.
+        ci_level: Bootstrap CI level (e.g. 0.95 for 95% CI).
+        seed: RNG seed for bootstrap reproducibility.
+        alpha: Stripplot point transparency.
+        point_size: Stripplot point size.
+        significance_threshold: Per-test alpha used to flag "Significant" rows.
+        correct_only: If True, drop records where ``prediction != label``.
+        save_pdf: If True, also export PDF (vector) versions for publication.
     """
     input_json: str = DEFAULT_INPUT_JSON
     output_dir: str = DEFAULT_OUTPUT_DIR
-    figsize: Tuple[float, float] = DEFAULT_FIGSIZE
+    figsize_global: Tuple[float, float] = DEFAULT_FIGSIZE_GLOBAL
+    figsize_stratified: Tuple[float, float] = DEFAULT_FIGSIZE_STRATIFIED
     dpi: int = DEFAULT_DPI
+    bootstrap_resamples: int = DEFAULT_BOOTSTRAP_RESAMPLES
+    ci_level: float = DEFAULT_CI_LEVEL
+    seed: int = DEFAULT_SEED
     alpha: float = DEFAULT_ALPHA
     point_size: int = DEFAULT_POINT_SIZE
-    line_width: float = DEFAULT_LINE_WIDTH
     significance_threshold: float = SIGNIFICANCE_THRESHOLD
-    
-    def __post_init__(self):
-        """Validate configuration after initialization.
-        
-        Raises:
-            FileNotFoundError: If input JSON file does not exist.
-            ValueError: If dpi, alpha, or point_size are invalid.
-        """
+    correct_only: bool = True
+    save_pdf: bool = True
+
+    def __post_init__(self) -> None:
         if not Path(self.input_json).exists():
             raise FileNotFoundError(f"Input JSON not found: {self.input_json}")
         if self.dpi <= 0:
@@ -59,246 +93,343 @@ class SHAPAnalysisConfig:
             raise ValueError(f"alpha must be in [0, 1], got {self.alpha}")
         if self.point_size <= 0:
             raise ValueError(f"point_size must be positive, got {self.point_size}")
+        if not (0.0 < self.ci_level < 1.0):
+            raise ValueError(f"ci_level must be in (0, 1), got {self.ci_level}")
+        if self.bootstrap_resamples < 100:
+            raise ValueError(
+                f"bootstrap_resamples must be >= 100, got {self.bootstrap_resamples}"
+            )
 
-# ==================== Helper Functions ====================
-def get_aia_channels(df: pd.DataFrame) -> List[str]:
-    """Extract AIA channel columns from DataFrame.
-    
-    Identifies columns that represent AIA wavelength channels by checking
-    for the AIA_* naming convention.
-    
-    Args:
-        df (pd.DataFrame): DataFrame with column names starting with 'AIA_'.
-    
-    Returns:
-        List[str]: List of AIA channel column names (e.g., ['AIA_94', 'AIA_131', ...]).
-    
-    Example:
-        >>> df = pd.DataFrame({'AIA_94': [1, 2], 'AIA_131': [3, 4], 'label': [0, 1]})
-        >>> channels = get_aia_channels(df)
-        >>> channels
-        ['AIA_94', 'AIA_131']
-    """
-    return [col for col in df.columns if col.startswith(AIA_CHANNEL_PREFIX)]
 
-def load_and_process(json_path: str) -> pd.DataFrame:
-    """Load and process KernelSHAP statistics from JSON file.
-    
-    Reads a JSON file containing SHAP attribution results (output from kshap.py),
-    flattens the nested structure, and returns as a pandas DataFrame for analysis.
-    
-    Expected JSON structure:
-    [
-        {
-            "round": int,
-            "label": int (0 or 1),
-            "importance": {
-                "AIA_94": float,
-                "AIA_131": float,
-                ...
-            }
-        },
-        ...
-    ]
-    
-    Args:
-        json_path (str): Path to the SHAP statistics JSON file.
-    
+# ==================== Loading & filtering ====================
+def channel_columns() -> List[str]:
+    """Return AIA channel column names in canonical wavelength order."""
+    return [f"{AIA_CHANNEL_PREFIX}{w}" for w in AIA_WAVELENGTHS]
+
+
+def load_and_process(config: SHAPAnalysisConfig) -> pd.DataFrame:
+    """Load ``shap_stats.json``, flatten to wide DataFrame, optionally filter.
+
+    Schema of the returned DataFrame:
+        round, label, prediction (if present), AIA_94, AIA_131, ... AIA_335
+
+    If ``config.correct_only`` is True and the JSON contains a ``prediction``
+    field, rows where ``prediction != label`` are dropped. Legacy JSONs without
+    a ``prediction`` field are accepted with a warning; no filter is applied.
+
     Returns:
-        pd.DataFrame: DataFrame with columns ['round', 'label', 'AIA_*', ...].
-    
-    Raises:
-        FileNotFoundError: If json_path does not exist.
-        json.JSONDecodeError: If JSON is malformed.
-        KeyError: If required JSON structure is missing.
-    
-    Example:
-        >>> df = load_and_process('shap_stats.json')
-        >>> df.shape
-        (50, 9)  # 50 rounds, 7 AIA channels + round + label
+        pandas.DataFrame with one row per (kept) SHAP record.
     """
-    if not Path(json_path).exists():
-        raise FileNotFoundError(f"JSON file not found: {json_path}")
-    
-    with open(json_path, 'r') as f:
+    with open(config.input_json, "r") as f:
         data = json.load(f)
 
-    # Validate structure
     if not isinstance(data, list) or len(data) == 0:
-        raise ValueError("JSON must be a non-empty list of SHAP records")
-    
-    # Flatten the nested JSON structure for Pandas
-    rows = []
+        raise ValueError("Input JSON must be a non-empty list of SHAP records.")
+
+    rows: List[Dict] = []
+    has_prediction_field = all("prediction" in entry for entry in data)
     for entry in data:
-        if 'importance' not in entry:
+        if "importance" not in entry:
             raise KeyError(f"Record missing 'importance' field: {entry}")
-        
-        row = {
-            'round': entry['round'],
-            'label': entry['label']
-        }
-        # Merge the importance dictionary into the row
-        row.update(entry['importance'])
+        row: Dict = {"round": entry["round"], "label": entry["label"]}
+        if has_prediction_field:
+            row["prediction"] = entry["prediction"]
+        row.update(entry["importance"])
         rows.append(row)
+
+    df = pd.DataFrame(rows)
+
+    total = len(df)
+    if config.correct_only:
+        if not has_prediction_field:
+            print(
+                "⚠ Legacy JSON without 'prediction' field — correct-only filter skipped. "
+                "Re-run kshap.py to regenerate."
+            )
+        else:
+            df = df[df["prediction"] == df["label"]].reset_index(drop=True)
+    print(
+        f"Loaded {total} records; kept {len(df)} after filter "
+        f"(correct_only={config.correct_only})."
+    )
+    if len(df) == 0:
+        raise ValueError("No records remain after filtering.")
+    return df
+
+
+# ==================== Statistics ====================
+def bootstrap_ci(
+    values: np.ndarray,
+    statistic,
+    n_resamples: int,
+    ci_level: float,
+    rng: np.random.Generator,
+) -> Tuple[float, float]:
+    """Percentile bootstrap CI for an arbitrary scalar statistic.
+
+    Args:
+        values: 1-D array of observed values.
+        statistic: Callable ``np.ndarray -> float``.
+        n_resamples: Number of bootstrap resamples.
+        ci_level: e.g. 0.95.
+        rng: Seeded ``numpy.random.Generator``.
+
+    Returns:
+        (low, high) percentile-method CI.
+    """
+    n = len(values)
+    if n == 0:
+        return (np.nan, np.nan)
+    boot = np.empty(n_resamples, dtype=float)
+    for i in range(n_resamples):
+        idx = rng.integers(0, n, size=n)
+        boot[i] = statistic(values[idx])
+    alpha = (1.0 - ci_level) / 2.0
+    return float(np.quantile(boot, alpha)), float(np.quantile(boot, 1.0 - alpha))
+
+
+def compute_summary(df: pd.DataFrame, config: SHAPAnalysisConfig) -> pd.DataFrame:
+    """Per-channel × per-class summary statistics.
+
+    Columns:
+        Channel, Class, N, Mean_Signed_SHAP, Mean_Abs_SHAP,
+        Abs_CI_Low, Abs_CI_High, Wilcoxon_Stat, Wilcoxon_P,
+        Wilcoxon_P_Bonferroni, Significant.
+
+    Wilcoxon signed-rank p-values are computed against a zero null per channel
+    within each class, and Bonferroni-corrected across the 7 channels per class.
+    """
+    rng = np.random.default_rng(config.seed)
+    channels = channel_columns()
+    rows: List[Dict] = []
+
+    for cls in sorted(df["label"].unique()):
+        sub = df[df["label"] == cls]
+        n_cls = len(sub)
+        per_class_pvals: List[float] = []
+
+        for ch in channels:
+            vals = sub[ch].to_numpy(dtype=float)
+            mean_signed = float(np.mean(vals)) if n_cls else np.nan
+            abs_vals = np.abs(vals)
+            mean_abs = float(np.mean(abs_vals)) if n_cls else np.nan
+            abs_low, abs_high = bootstrap_ci(
+                abs_vals, np.mean, config.bootstrap_resamples, config.ci_level, rng
+            )
+
+            # Wilcoxon needs >= 1 nonzero pair
+            try:
+                w_stat, w_p = stats.wilcoxon(vals, zero_method="wilcox")
+                w_stat = float(w_stat)
+                w_p = float(w_p)
+            except ValueError:
+                w_stat, w_p = np.nan, np.nan
+
+            per_class_pvals.append(w_p)
+            rows.append(
+                {
+                    "Channel": ch,
+                    "Class": int(cls),
+                    "N": n_cls,
+                    "Mean_Signed_SHAP": mean_signed,
+                    "Mean_Abs_SHAP": mean_abs,
+                    "Abs_CI_Low": abs_low,
+                    "Abs_CI_High": abs_high,
+                    "Wilcoxon_Stat": w_stat,
+                    "Wilcoxon_P": w_p,
+                }
+            )
+
+        # Bonferroni correction across the channels tested for this class.
+        n_tests = len(channels)
+        for j in range(n_tests):
+            p = per_class_pvals[j]
+            corrected = min(p * n_tests, 1.0) if not np.isnan(p) else np.nan
+            row_idx = len(rows) - n_tests + j
+            rows[row_idx]["Wilcoxon_P_Bonferroni"] = corrected
+            rows[row_idx]["Significant"] = (
+                False
+                if np.isnan(corrected)
+                else corrected < config.significance_threshold
+            )
 
     return pd.DataFrame(rows)
 
-def run_statistics(df: pd.DataFrame, config: SHAPAnalysisConfig) -> pd.DataFrame:
-    """Compute statistical significance of SHAP importances by channel.
-    
-    Performs one-sample t-tests to determine if mean SHAP values are
-    significantly different from zero (no importance). Prints formatted
-    results table.
-    
-    Args:
-        df (pd.DataFrame): DataFrame with SHAP statistics (output from load_and_process).
-        config (SHAPAnalysisConfig): Analysis configuration including threshold.
-    
-    Returns:
-        pd.DataFrame: Summary statistics table with columns:
-            - Channel: AIA wavelength channel
-            - Mean_SHAP: Mean SHAP attribution value
-            - Std_Err: Standard error of the mean
-            - P_Value: One-sample t-test p-value
-            - Significant: Boolean whether p_value < threshold
-    
-    Example:
-        >>> df = load_and_process('shap_stats.json')
-        >>> config = SHAPAnalysisConfig()
-        >>> stats_df = run_statistics(df, config)
-        >>> stats_df[stats_df['Significant']]  # Get significant channels
+
+def compute_global_abs_summary(
+    df: pd.DataFrame, config: SHAPAnalysisConfig
+) -> pd.DataFrame:
+    """Per-channel mean(|SHAP|) with bootstrap CI, pooled across both classes.
+
+    Columns: Channel, N, Mean_Abs_SHAP, CI_Low, CI_High.
+    Channels are returned in canonical wavelength order.
     """
-    channels = get_aia_channels(df)
+    rng = np.random.default_rng(config.seed)
+    rows: List[Dict] = []
+    n = len(df)
+    for ch in channel_columns():
+        abs_vals = np.abs(df[ch].to_numpy(dtype=float))
+        mean_abs = float(np.mean(abs_vals)) if n else np.nan
+        low, high = bootstrap_ci(
+            abs_vals, np.mean, config.bootstrap_resamples, config.ci_level, rng
+        )
+        rows.append(
+            {
+                "Channel": ch,
+                "N": n,
+                "Mean_Abs_SHAP": mean_abs,
+                "CI_Low": low,
+                "CI_High": high,
+            }
+        )
+    return pd.DataFrame(rows)
 
-    print(f"\n{'='*50}")
-    print(f"GLOBAL IMPORTANCE STATISTICS")
-    print(f"{'='*50}")
 
-    results = []
-    for ch in channels:
-        mean_val = df[ch].mean()
-        std_dev = df[ch].std()
-        stderr = stats.sem(df[ch])
+# ==================== Plotting ====================
+def _save_fig(fig: plt.Figure, output_path: Path, save_pdf: bool, dpi: int) -> None:
+    """Save figure as PNG and optionally PDF (vector) for publication."""
+    fig.savefig(str(output_path), dpi=dpi, bbox_inches="tight")
+    if save_pdf:
+        fig.savefig(str(output_path.with_suffix(".pdf")), bbox_inches="tight")
 
-        # One-sample t-test: Is the importance significantly different from 0?
-        t_stat, p_val = stats.ttest_1samp(df[ch], 0)
 
-        results.append({
-            'Channel': ch,
-            'Mean_SHAP': mean_val,
-            'Std_Err': stderr,
-            'P_Value': p_val,
-            'Significant': p_val < config.significance_threshold
-        })
-
-    stat_df = pd.DataFrame(results).sort_values(by='Mean_SHAP', ascending=False)
-    print(stat_df.to_string(index=False))
-    print(f"{'='*50}\n")
-    return stat_df
-
-def plot_results(
-    df: pd.DataFrame,
-    output_dir: str,
-    config: SHAPAnalysisConfig
+def plot_global_importance(
+    abs_summary: pd.DataFrame,
+    output_dir: Path,
+    config: SHAPAnalysisConfig,
+    n_total: int,
 ) -> None:
-    """Generate and save statistical significance visualization.
-    
-    Creates a boxplot with overlaid scatter points showing the distribution of
-    SHAP values across all AIA channels. Highlights the zero-importance line.
-    
-    Args:
-        df (pd.DataFrame): DataFrame with SHAP statistics (output from load_and_process).
-        output_dir (str): Directory to save the output plot.
-        config (SHAPAnalysisConfig): Configuration with figure parameters (figsize, dpi, etc.).
-    
-    Side effects:
-        - Creates output_dir if it does not exist
-        - Saves plot as "significance_plot.png"
-        - Prints confirmation message to stdout
-    
-    Example:
-        >>> df = load_and_process('shap_stats.json')
-        >>> config = SHAPAnalysisConfig(output_dir='plots/kshap')
-        >>> plot_results(df, config.output_dir, config)
-    """
-    channels = get_aia_channels(df)
-    df_melted = df.melt(
-        id_vars=['round', 'label'],
-        value_vars=channels,
-        var_name='Passband',
-        value_name='SHAP_Value'
-    )
-
-    plt.figure(figsize=config.figsize, dpi=150)  # DPI for interactive display
+    """Bar chart of mean(|SHAP|) per channel with bootstrap 95% CI."""
     sns.set_style("whitegrid")
-
-    # Boxplot shows distribution and medians
-    sns.boxplot(
-        data=df_melted,
-        x='Passband',
-        y='SHAP_Value',
-        palette='flare',
-        showfliers=False
+    fig, ax = plt.subplots(
+        figsize=config.figsize_global, dpi=config.dpi, layout="constrained"
     )
 
-    # Stripplot overlays individual points to see all samples
-    sns.stripplot(
-        data=df_melted,
-        x='Passband',
-        y='SHAP_Value',
-        color='black',
-        alpha=config.alpha,
-        size=config.point_size,
-        jitter=True
+    channels = abs_summary["Channel"].tolist()
+    means = abs_summary["Mean_Abs_SHAP"].to_numpy()
+    err_low = means - abs_summary["CI_Low"].to_numpy()
+    err_high = abs_summary["CI_High"].to_numpy() - means
+    yerr = np.vstack([err_low, err_high])
+
+    palette = sns.color_palette("colorblind", n_colors=len(channels))
+    ax.bar(
+        channels,
+        means,
+        yerr=yerr,
+        color=palette,
+        edgecolor="black",
+        linewidth=0.6,
+        capsize=4,
     )
-
-    # Reference line at zero (no importance)
-    plt.axhline(0, color='red', linestyle='--', linewidth=config.line_width)
-    plt.title(
-        f'Statistical Significance of Passband Importance (N={len(df)})',
-        fontsize=14
+    ax.set_xlabel("AIA passband")
+    ax.set_ylabel(r"Mean $|\mathrm{SHAP}|$ (per channel)")
+    ax.set_title(
+        f"Global passband importance — mean(|SHAP|) ± {int(config.ci_level * 100)}% bootstrap CI "
+        f"(N={n_total})"
     )
-    plt.ylabel('Mean SHAP Attribution (Importance Score)')
-    plt.xlabel('Solar Passband (AIA)')
+    ax.tick_params(axis="x", rotation=0)
 
-    plt.tight_layout()
-    
-    # Create output directory
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Save figure at higher DPI for publication
-    save_file = output_path / "significance_plot.png"
-    plt.savefig(str(save_file), dpi=config.dpi, bbox_inches='tight')
-    plt.close()
-    print(f"✓ Plot saved to {save_file}")
+    output_path = output_dir / "global_mean_abs_shap.png"
+    _save_fig(fig, output_path, config.save_pdf, config.dpi)
+    plt.close(fig)
+    print(f"✓ Saved {output_path}")
 
-# ==================== Main Block ====================
+
+def plot_class_stratified(
+    df: pd.DataFrame,
+    output_dir: Path,
+    config: SHAPAnalysisConfig,
+) -> None:
+    """Two-panel signed-SHAP boxplot, faceted by true class."""
+    sns.set_style("whitegrid")
+    classes = sorted(df["label"].unique())
+    fig, axes = plt.subplots(
+        1,
+        len(classes),
+        figsize=config.figsize_stratified,
+        dpi=config.dpi,
+        sharey=True,
+        layout="constrained",
+    )
+    if len(classes) == 1:
+        axes = [axes]
+
+    channels = channel_columns()
+    palette = sns.color_palette("colorblind", n_colors=len(channels))
+
+    for ax, cls in zip(axes, classes):
+        sub = df[df["label"] == cls]
+        melted = sub.melt(
+            id_vars=["round", "label"],
+            value_vars=channels,
+            var_name="Passband",
+            value_name="SHAP",
+        )
+        melted["Passband"] = pd.Categorical(
+            melted["Passband"], categories=channels, ordered=True
+        )
+
+        sns.boxplot(
+            data=melted,
+            x="Passband",
+            y="SHAP",
+            hue="Passband",
+            palette=palette,
+            showfliers=False,
+            legend=False,
+            ax=ax,
+        )
+        sns.stripplot(
+            data=melted,
+            x="Passband",
+            y="SHAP",
+            color="black",
+            alpha=config.alpha,
+            size=config.point_size,
+            jitter=True,
+            ax=ax,
+        )
+        ax.axhline(0, color="red", linestyle="--", linewidth=1.0)
+        ax.set_title(f"{CLASS_NAMES.get(cls, f'Class {cls}')} (N={len(sub)})")
+        ax.set_xlabel("AIA passband")
+        ax.set_ylabel("Signed SHAP attribution")
+
+    fig.suptitle(
+        "Signed SHAP attributions by true class — positive values push toward the true class",
+        fontsize=12,
+    )
+    output_path = output_dir / "class_stratified_shap.png"
+    _save_fig(fig, output_path, config.save_pdf, config.dpi)
+    plt.close(fig)
+    print(f"✓ Saved {output_path}")
+
+
+# ==================== Entrypoint ====================
+def main() -> None:
+    config = SHAPAnalysisConfig()
+    print(f"Loading SHAP statistics from {config.input_json}...")
+
+    df = load_and_process(config)
+
+    output_dir = Path(config.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Per-channel × per-class summary table for paper text.
+    summary = compute_summary(df, config)
+    summary_path = output_dir / "shap_summary.csv"
+    summary.to_csv(summary_path, index=False, float_format="%.6g")
+    print(f"✓ Saved {summary_path}")
+    print(summary.to_string(index=False))
+
+    # Global mean(|SHAP|) bar chart.
+    abs_summary = compute_global_abs_summary(df, config)
+    plot_global_importance(abs_summary, output_dir, config, n_total=len(df))
+
+    # Class-stratified signed-SHAP boxplot.
+    plot_class_stratified(df, output_dir, config)
+
+    print("✓ SHAP analysis complete")
+
+
 if __name__ == "__main__":
-    try:
-        # Load configuration
-        config = SHAPAnalysisConfig()
-        print(f"Loading SHAP statistics from {config.input_json}...")
-        
-        # Load and parse data
-        dataframe = load_and_process(config.input_json)
-        print(f"✓ Loaded {len(dataframe)} SHAP records")
-        
-        # Run statistical analysis
-        print("Running statistical significance tests...")
-        run_statistics(dataframe, config)
-        
-        # Generate visualization
-        print(f"Generating plots and saving to {config.output_dir}...")
-        plot_results(dataframe, config.output_dir, config)
-        
-        print("✓ SHAP analysis complete")
-        
-    except FileNotFoundError as e:
-        print(f"✗ File error: {e}")
-    except json.JSONDecodeError as e:
-        print(f"✗ JSON parsing error: {e}")
-    except (ValueError, KeyError) as e:
-        print(f"✗ Data validation error: {e}")
-    except Exception as e:
-        print(f"✗ Unexpected error: {type(e).__name__}: {e}")
+    main()

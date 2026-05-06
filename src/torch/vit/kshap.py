@@ -21,7 +21,7 @@ from typing import Dict, List, Tuple
 import warnings
 
 # Data loading imports
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, WeightedRandomSampler, SubsetRandomSampler
 import pickle
 from collections import Counter
 import math
@@ -51,8 +51,9 @@ DEFAULT_OUTPUT_JSON: str = "shap_stats.json"
 # KernelSHAP configuration
 DEFAULT_N_SAMPLES: int = 500
 DEFAULT_MAX_SAMPLES: int = 50
+DEFAULT_SEED: int = 42
 
-# Data augmentation
+# Data augmentation (unused — augmentation is disabled during attribution; see get_data_loader)
 DEFAULT_FLIP_PROBABILITY: float = 0.5
 
 # Channel label formatting
@@ -95,11 +96,12 @@ class KShapConfig:
     n_samples: int = DEFAULT_N_SAMPLES
     max_samples: int = DEFAULT_MAX_SAMPLES
     output_json: str = DEFAULT_OUTPUT_JSON
+    seed: int = DEFAULT_SEED
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         import os
-        
+
         if not os.path.exists(self.json_path):
             raise ValueError(f"JSON dataset file not found: {self.json_path}")
         if not os.path.exists(self.stats_file):
@@ -108,6 +110,8 @@ class KShapConfig:
             raise ValueError(f"n_samples must be >= 100, got {self.n_samples}")
         if self.max_samples < 1:
             raise ValueError(f"max_samples must be >= 1, got {self.max_samples}")
+        if self.max_samples % 2 != 0:
+            raise ValueError(f"max_samples must be even for stratified sampling, got {self.max_samples}")
         if len(self.aia_channels) != self.n_passbands:
             raise ValueError(
                 f"aia_channels length ({len(self.aia_channels)}) "
@@ -194,50 +198,99 @@ def get_model(config: KShapConfig, device: torch.device) -> torch.nn.Module:
         raise FileNotFoundError(f"Model checkpoint not found: {config.trained_model_path}") from e
 
 
+def get_stratified_indices(
+    labels: List[int],
+    max_samples: int,
+    seed: int,
+) -> List[int]:
+    """Pick a class-balanced, deterministic, without-replacement subset of dataset indices.
+
+    Splits ``max_samples`` evenly between class 0 and class 1 and draws each half
+    without replacement using a seeded RNG. The resulting index list is shuffled
+    so iteration order is not class-blocked.
+
+    Args:
+        labels: List of integer class labels for each dataset item (0 or 1).
+        max_samples: Total number of indices to draw. Must be even.
+        seed: RNG seed for reproducibility.
+
+    Returns:
+        List of dataset indices of length ``max_samples``.
+
+    Raises:
+        ValueError: If either class has fewer than ``max_samples // 2`` items.
+    """
+    labels_arr = np.asarray(labels)
+    per_class = max_samples // 2
+
+    pos_pool = np.where(labels_arr == 1)[0]
+    neg_pool = np.where(labels_arr == 0)[0]
+
+    if len(pos_pool) < per_class or len(neg_pool) < per_class:
+        raise ValueError(
+            f"Stratified sampling requires {per_class} per class; "
+            f"got {len(pos_pool)} positive, {len(neg_pool)} negative."
+        )
+
+    rng = np.random.default_rng(seed)
+    pos_idx = rng.choice(pos_pool, size=per_class, replace=False)
+    neg_idx = rng.choice(neg_pool, size=per_class, replace=False)
+    indices = np.concatenate([pos_idx, neg_idx])
+    rng.shuffle(indices)
+    return indices.tolist()
+
+
 def get_data_loader(
     config: KShapConfig,
     means: List[float],
     stds: List[float]
 ) -> DataLoader:
-    """Create weighted DataLoader for training dataset.
-    
-    Applies log-transform normalization and augmentation (horizontal/vertical flips).
-    Uses WeightedRandomSampler for class-balanced batches.
-    
+    """Create deterministic, class-balanced DataLoader for the training dataset.
+
+    Applies only the log-normalization transform (no augmentation): explainability
+    inputs must be deterministic. Uses :func:`get_stratified_indices` to draw an
+    exact, without-replacement, class-balanced subset of size ``config.max_samples``.
+
     Args:
-        config: KShapConfig instance with batch_size, json_path, etc.
+        config: KShapConfig instance with batch_size, json_path, max_samples, seed.
         means: Per-channel normalization means.
         stds: Per-channel normalization standard deviations.
-    
+
     Returns:
-        torch.utils.data.DataLoader for training subset.
-    
+        torch.utils.data.DataLoader iterating over exactly ``config.max_samples``
+        unique training samples (half positive, half negative).
+
     Raises:
         FileNotFoundError: If json_path not found.
-        ValueError: If means/stds length != n_passbands.
+        ValueError: If means/stds length != n_passbands, or if a class has fewer
+            than ``max_samples // 2`` items available.
     """
     if len(means) != config.n_passbands or len(stds) != config.n_passbands:
         raise ValueError(
             f"means/stds length ({len(means)}) must match "
             f"n_passbands ({config.n_passbands})"
         )
-    
+
     train_dataset = aia_euv(
         config.json_path,
         subset='training',
-        transform=v2.Compose([
-            AIALogTransform(means, stds),
-            v2.RandomHorizontalFlip(p=DEFAULT_FLIP_PROBABILITY),
-            v2.RandomVerticalFlip(p=DEFAULT_FLIP_PROBABILITY)
-        ])
+        transform=AIALogTransform(means, stds),
     )
-    
+
+    indices = get_stratified_indices(
+        labels=train_dataset.labels,
+        max_samples=config.max_samples,
+        seed=config.seed,
+    )
+
+    # batch_size=1: KernelShap operates per-image, and the main loop processes
+    # one sample per iteration. A larger batch would silently drop all but x[0].
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config.batch_size,
-        sampler=get_weighted_sampler(train_dataset)
+        batch_size=1,
+        sampler=SubsetRandomSampler(indices),
     )
-    
+
     return train_loader
 
 
@@ -344,7 +397,7 @@ def do_kernel_shap(
         baselines=baseline_zero,
         feature_mask=feature_mask,
         n_samples=config.n_samples,
-        target=true_label,
+        target=1,
         show_progress=True
     )
     
@@ -404,27 +457,31 @@ def main() -> None:
     train_loader = get_data_loader(config, means, stds)
     transform = AIALogTransform(means, stds)
     
-    # Process training samples
+    # Process training samples (loader yields exactly config.max_samples batches of size 1)
     all_results = []
-    
+
     for i, (x, y) in enumerate(train_loader):
-        if i >= config.max_samples:
-            break
-        
-        image = x[0].unsqueeze(0).to(device)
+        image = x.to(device)  # already shape (1, C, H, W) since batch_size=1
         baseline_zero = transform(torch.zeros_like(image)).to(device)
-        
+
         # Save visualization images
         save_images(image, baseline_zero, means, stds, f"image_{i}", config)
-        
-        # Compute KernelSHAP attributions
-        true_label = y[0].unsqueeze(0).item()
+
+        true_label = int(y.item())
+
+        # Forward pass to record the model's prediction for this sample.
+        # Saved alongside the SHAP record so analyze_shap.py can filter to
+        # correctly-classified samples without recomputing.
+        with torch.no_grad():
+            prediction = int(model(image).argmax(dim=1).item())
+
+        # Compute KernelSHAP attributions w.r.t. the true class
         mean_scores, se_scores = do_kernel_shap(config, image, baseline_zero, true_label, model)
-        
-        # Create record mapping channel indices to AIA wavelengths
+
         record = {
             "round": i,
             "label": true_label,
+            "prediction": prediction,
             "importance": {
                 f"{AIA_CHANNEL_PREFIX}{config.aia_channels[c]}": score
                 for c, score in mean_scores.items()
@@ -435,8 +492,8 @@ def main() -> None:
             }
         }
         all_results.append(record)
-        
-        print(f"Processed sample {i+1}/{config.max_samples}")
+
+        print(f"Processed sample {i+1}/{config.max_samples} (label={true_label}, pred={prediction})")
     
     # Save all results to JSON
     output_path = f"{config.output_dir}/{config.output_json}"
