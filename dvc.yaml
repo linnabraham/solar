@@ -178,7 +178,7 @@ stages:
         cache: false
 
   kshap-stats:
-    cmd: python -m src.torch.vit.kshap
+    cmd: python -m src.torch.vit.kshap --subset test
     deps:
     - src/torch/vit/kshap.py
     - aarp_ml/torch/dataset.py
@@ -188,9 +188,7 @@ stages:
     - src/torch/vit/utils.py
     - stats.pkl
     outs:
-    - shap_stats.json
-    - plots/kshap/images:
-        cache: false
+    - shap_stats_test.json
 
   kshap-analyze:
     cmd: python -m src.torch.vit.analyze_shap
