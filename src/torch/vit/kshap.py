@@ -18,7 +18,9 @@ import vit_pytorch
 import torch
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
+import time
 import warnings
+from tqdm import tqdm
 
 # Data loading imports
 from torch.utils.data import DataLoader, WeightedRandomSampler, SubsetRandomSampler
@@ -44,9 +46,10 @@ DEFAULT_AIA_CHANNELS: List[int] = [94, 131, 171, 193, 211, 304, 335]
 DEFAULT_JSON_PATH: str = "solar_dataset.json"
 DEFAULT_STATS_FILE: str = "stats.pkl"
 DEFAULT_OUTPUT_DIR: str = "."
-DEFAULT_IMAGES_DIR: str = "plots/kshap/images"
 DEFAULT_TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
-DEFAULT_OUTPUT_JSON: str = "shap_stats.json"
+# Output paths are derived from subset in KShapConfig.__post_init__ when left empty.
+DEFAULT_OUTPUT_JSON: str = ""
+DEFAULT_IMAGES_DIR: str = ""
 
 # KernelSHAP configuration
 DEFAULT_N_SAMPLES: int = 500
@@ -55,6 +58,8 @@ DEFAULT_SEED: int = 42
 
 # Data augmentation (unused — augmentation is disabled during attribution; see get_data_loader)
 DEFAULT_FLIP_PROBABILITY: float = 0.5
+
+DEFAULT_SAVE_IMAGES: bool = False
 
 # Channel label formatting
 AIA_CHANNEL_PREFIX: str = "AIA_"
@@ -97,10 +102,18 @@ class KShapConfig:
     max_samples: int = DEFAULT_MAX_SAMPLES
     output_json: str = DEFAULT_OUTPUT_JSON
     seed: int = DEFAULT_SEED
+    subset: str = 'training'
+    save_images: bool = DEFAULT_SAVE_IMAGES
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         import os
+
+        # Derive output paths from subset when not explicitly set.
+        if not self.output_json:
+            self.output_json = f"shap_stats_{self.subset}.json"
+        if not self.images_dir:
+            self.images_dir = f"plots/kshap/{self.subset}/images"
 
         if not os.path.exists(self.json_path):
             raise ValueError(f"JSON dataset file not found: {self.json_path}")
@@ -108,17 +121,16 @@ class KShapConfig:
             raise ValueError(f"Statistics file not found: {self.stats_file}")
         if self.n_samples < 100:
             raise ValueError(f"n_samples must be >= 100, got {self.n_samples}")
-        if self.max_samples < 1:
-            raise ValueError(f"max_samples must be >= 1, got {self.max_samples}")
-        if self.max_samples % 2 != 0:
+        if self.max_samples < 0:
+            raise ValueError(f"max_samples must be >= 0 (0 = all available balanced), got {self.max_samples}")
+        if self.max_samples > 0 and self.max_samples % 2 != 0:
             raise ValueError(f"max_samples must be even for stratified sampling, got {self.max_samples}")
         if len(self.aia_channels) != self.n_passbands:
             raise ValueError(
                 f"aia_channels length ({len(self.aia_channels)}) "
                 f"must match n_passbands ({self.n_passbands})"
             )
-        
-        # Create images directory if it doesn't exist
+
         os.makedirs(self.images_dir, exist_ok=True)
 
 
@@ -221,10 +233,14 @@ def get_stratified_indices(
         ValueError: If either class has fewer than ``max_samples // 2`` items.
     """
     labels_arr = np.asarray(labels)
-    per_class = max_samples // 2
-
     pos_pool = np.where(labels_arr == 1)[0]
     neg_pool = np.where(labels_arr == 0)[0]
+
+    # max_samples == 0 means use all available samples (balanced on minority class).
+    if max_samples == 0:
+        per_class = min(len(pos_pool), len(neg_pool))
+    else:
+        per_class = max_samples // 2
 
     if len(pos_pool) < per_class or len(neg_pool) < per_class:
         raise ValueError(
@@ -273,7 +289,7 @@ def get_data_loader(
 
     train_dataset = aia_euv(
         config.json_path,
-        subset='training',
+        subset=config.subset,
         transform=AIALogTransform(means, stds),
     )
 
@@ -433,7 +449,25 @@ def main() -> None:
         FileNotFoundError: If required files (model, dataset, stats) not found.
         RuntimeError: If GPU memory or computation errors occur.
     """
-    config = KShapConfig()
+    import argparse
+    parser = argparse.ArgumentParser(description="KernelSHAP attribution for ViT solar-flare model")
+    parser.add_argument("--max-samples", type=int, default=DEFAULT_MAX_SAMPLES,
+                        help="Samples to process (must be even); 0 = all available, balanced on minority class")
+    parser.add_argument("--subset", type=str, default="training",
+                        choices=["training", "validation", "test"],
+                        help="Dataset subset to draw samples from")
+    parser.add_argument("--output-json", type=str, default="",
+                        help="Output JSON path (default: shap_stats_{subset}.json)")
+    parser.add_argument("--save-images", action="store_true",
+                        help="Save per-sample visualization PNGs (disabled by default)")
+    args = parser.parse_args()
+
+    config = KShapConfig(
+        max_samples=args.max_samples,
+        subset=args.subset,
+        output_json=args.output_json,
+        save_images=args.save_images,
+    )
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"Device: {device}")
@@ -454,18 +488,20 @@ def main() -> None:
     
     # Load model and data
     model = get_model(config, device)
-    train_loader = get_data_loader(config, means, stds)
+    data_loader = get_data_loader(config, means, stds)
     transform = AIALogTransform(means, stds)
-    
-    # Process training samples (loader yields exactly config.max_samples batches of size 1)
-    all_results = []
 
-    for i, (x, y) in enumerate(train_loader):
+    # Process samples — loader yields exactly as many batches as indices selected.
+    all_results = []
+    n_total = len(data_loader)
+    t_loop_start = time.perf_counter()
+
+    for i, (x, y) in enumerate(tqdm(data_loader, desc="KernelSHAP", unit="sample")):
         image = x.to(device)  # already shape (1, C, H, W) since batch_size=1
         baseline_zero = transform(torch.zeros_like(image)).to(device)
 
-        # Save visualization images
-        save_images(image, baseline_zero, means, stds, f"image_{i}", config)
+        if config.save_images:
+            save_images(image, baseline_zero, means, stds, f"image_{i}", config)
 
         true_label = int(y.item())
 
@@ -493,7 +529,10 @@ def main() -> None:
         }
         all_results.append(record)
 
-        print(f"Processed sample {i+1}/{config.max_samples} (label={true_label}, pred={prediction})")
+        elapsed = time.perf_counter() - t_loop_start
+        per_sample = elapsed / (i + 1)
+        print(f"  sample {i+1}/{n_total} | {per_sample:.1f}s/sample | "
+              f"label={true_label} pred={prediction}")
     
     # Save all results to JSON
     output_path = f"{config.output_dir}/{config.output_json}"
