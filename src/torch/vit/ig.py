@@ -59,9 +59,9 @@ class single_aarp:
                 ob_idx +=1
         return images
 
-def do_ig(features, baseline, label, ib_size=1, model=None):
+def do_ig(features, baseline, label, ib_size=1, model=None, multiply_by_inputs=True):
     model.eval()
-    ig = IntegratedGradients(model, multiply_by_inputs=True)
+    ig = IntegratedGradients(model, multiply_by_inputs=multiply_by_inputs)
     labels  = torch.tensor(label, dtype=torch.int32)
     ig_b0, _ = ig.attribute(features, baseline, target=labels, n_steps=100, internal_batch_size=ib_size,
                                         return_convergence_delta=True)

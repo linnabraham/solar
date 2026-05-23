@@ -19,7 +19,7 @@ __all__ = [
     "get_intensities_using_attributions",
         ]
 
-def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
+def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True):
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
     s_images = s_aarp.get_images()
@@ -38,7 +38,8 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device):
             batch = batch.to(device)
             baseline_zero = transform(torch.zeros_like(batch))
             baseline_zero = baseline_zero.to(device)
-            ig_b0 = do_ig(batch, baseline_zero, label=label, ib_size=ib_size, model=model)
+            ig_b0 = do_ig(batch, baseline_zero, label=label, ib_size=ib_size, model=model,
+                          multiply_by_inputs=multiply_by_inputs)
             attributions.append(ig_b0)
             del batch, ig_b0
             torch.cuda.empty_cache()
