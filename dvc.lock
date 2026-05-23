@@ -506,7 +506,7 @@ stages:
       md5: 4a3ca76ffb3545d29706981fc3588de8
       size: 22428583812
   kshap-stats:
-    cmd: python -m src.torch.vit.kshap
+    cmd: python -m src.torch.vit.kshap --subset test
     deps:
     - path: aarp_ml/torch/dataset.py
       hash: md5
@@ -526,8 +526,8 @@ stages:
       size: 42253014
     - path: src/torch/vit/kshap.py
       hash: md5
-      md5: 38fb43eb07a0bf695bd4f49467cbbff2
-      size: 16159
+      md5: 4019218abf1cedfb4a39c71e2be85922
+      size: 20452
     - path: src/torch/vit/utils.py
       hash: md5
       md5: b6a766d682c31543d9d20eafb7d28c1a
@@ -537,15 +537,10 @@ stages:
       md5: fe8e2d59c30489c29ec6e44ff8afb493
       size: 500
     outs:
-    - path: plots/kshap/images
+    - path: shap_stats_test.json
       hash: md5
-      md5: 4ed058b3e31cd24b17c3524049b634ee.dir
-      size: 425132731
-      nfiles: 150
-    - path: shap_stats.json
-      hash: md5
-      md5: a5534b714e9be37ef3191d06829044c1
-      size: 30942
+      md5: 126562df2efd8aab7b0f4c5c0ed9fb36
+      size: 1316677
   kshap-analyze:
     cmd: python -m src.torch.vit.analyze_shap
     deps:
