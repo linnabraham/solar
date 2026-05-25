@@ -272,8 +272,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Raw intensity + attribution quantile timeseries per AARP"
     )
-    parser.add_argument("--json-path", default="solar_dataset.json")
-    parser.add_argument("--output-dir", default=OUTPUT_HOME)
+    parser.add_argument("--json-path",  default="solar_dataset.json")
+    parser.add_argument("--model-path", default=TRAINED_MODEL_PATH,
+                        help="Path to trained ViT model checkpoint.")
+    parser.add_argument("--output-dir", default=None,
+                        help="Root directory for output plots. Defaults to "
+                             "plots/intensity_boxplots/<run-id> derived from --model-path.")
     parser.add_argument("--aarp-id", type=int, nargs="+", default=None,
                         help="One or more AARP IDs to process (space-separated). "
                              "Omit to process the full test+val set.")
@@ -282,11 +286,16 @@ def main():
                              "Output written to a separate directory for side-by-side comparison.")
     args = parser.parse_args()
 
+    from pathlib import Path
     multiply_by_inputs = not args.no_input_mult
-    output_dir = args.output_dir if multiply_by_inputs else args.output_dir.rstrip("/") + "_no_input_mult"
+    base_dir = args.output_dir
+    if base_dir is None:
+        run_id = Path(args.model_path).parent.name
+        base_dir = f"plots/intensity_boxplots/{run_id}"
+    output_dir = base_dir if multiply_by_inputs else base_dir.rstrip("/") + "_no_input_mult"
 
     config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
-    config.trained_model_path = TRAINED_MODEL_PATH
+    config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
     model = model.to(device)
     _, val_df, test_df = dfs_from_metadata(metadata)

@@ -105,12 +105,14 @@ if __name__=="__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--json-path",      default="solar_dataset.json")
+    parser.add_argument("--model-path",     default="outputs/glad-shape-197/trained_model.pth",
+                        help="Path to trained ViT model checkpoint.")
     parser.add_argument("--output-neg",     default="data/intermediate-outs/attributions_neg.pt")
     parser.add_argument("--output-pos",     default="data/intermediate-outs/attributions_pos.pt")
     args = parser.parse_args()
 
     # Load Data and Model
-    trained_model_path = "outputs/glad-shape-197/trained_model.pth"
+    trained_model_path = args.model_path
     with open(args.json_path, 'r') as json_file:
         metadata = json.load(json_file)
 

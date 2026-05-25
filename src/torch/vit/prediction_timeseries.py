@@ -117,15 +117,24 @@ def main():
     parser = argparse.ArgumentParser(
         description="GOES + flare score timeseries (no IG)"
     )
-    parser.add_argument("--json-path", default="solar_dataset.json")
-    parser.add_argument("--output-dir", default=OUTPUT_HOME)
+    parser.add_argument("--json-path",  default="solar_dataset.json")
+    parser.add_argument("--model-path", default=TRAINED_MODEL_PATH,
+                        help="Path to trained ViT model checkpoint.")
+    parser.add_argument("--output-dir", default=None,
+                        help="Root directory for output plots. Defaults to "
+                             "plots/prediction_timeseries/<run-id> derived from --model-path.")
     parser.add_argument("--aarp-id", type=int, nargs="+", default=None,
                         help="One or more AARP IDs (space-separated). "
                              "Omit to process the full test+val set.")
     args = parser.parse_args()
 
+    from pathlib import Path
+    if args.output_dir is None:
+        run_id = Path(args.model_path).parent.name
+        args.output_dir = f"plots/prediction_timeseries/{run_id}"
+
     config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
-    config.trained_model_path = TRAINED_MODEL_PATH
+    config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
     model = model.to(device)
     _, val_df, test_df = dfs_from_metadata(metadata)

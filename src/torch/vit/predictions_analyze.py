@@ -46,6 +46,7 @@ FLARE_CLASS_LOG_RANGE: tuple = (-6.5, -3.5)
 # Output paths and filenames
 DEFAULT_OUTPUT_HOME: str = "plots/predictions"
 PREDICTION_OUTPUT_FILENAME: str = "goes_with_predictions.png"
+DEFAULT_TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
 
 # Training parameters
 DEFAULT_LEARNING_RATE: float = 0.001
@@ -360,18 +361,27 @@ def main():
     generates GOES plots with overlaid predictions, and saves output.
     """
     import argparse
+    from pathlib import Path
     parser = argparse.ArgumentParser()
-    parser.add_argument("--json-path", default="solar_dataset.json")
-    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_HOME)
+    parser.add_argument("--json-path",  default="solar_dataset.json")
+    parser.add_argument("--model-path", default=DEFAULT_TRAINED_MODEL_PATH,
+                        help="Path to trained ViT model checkpoint.")
+    parser.add_argument("--output-dir", default=None,
+                        help="Root directory for output plots. Defaults to "
+                             "plots/predictions/<run-id> derived from --model-path.")
     args = parser.parse_args()
 
+    if args.output_dir is None:
+        run_id = Path(args.model_path).parent.name
+        args.output_dir = f"plots/predictions/{run_id}"
+
     config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
-    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
+    config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint = torch.load(config.trained_model_path, map_location=device)
+    checkpoint = torch.load(args.model_path, map_location=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=DEFAULT_LEARNING_RATE)
     if isinstance(checkpoint, dict):
         if 'model_state_dict' in checkpoint:

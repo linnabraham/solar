@@ -83,14 +83,22 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--json-path",  default="solar_dataset.json")
-    parser.add_argument("--output-dir", default="plots/contour_grid_movies")
+    parser.add_argument("--model-path", default="outputs/glad-shape-197/trained_model.pth",
+                        help="Path to trained ViT model checkpoint.")
+    parser.add_argument("--output-dir", default=None,
+                        help="Directory for output movies. Defaults to "
+                             "plots/contour_grid_movies/<run-id> derived from --model-path.")
     parser.add_argument("--fps",        type=int, default=DEFAULT_FPS)
     parser.add_argument("--splits",     nargs="+", default=["validation", "test"],
                         choices=["training", "validation", "test"])
     args = parser.parse_args()
 
+    if args.output_dir is None:
+        run_id = Path(args.model_path).parent.name
+        args.output_dir = f"plots/contour_grid_movies/{run_id}"
+
     config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
-    config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
+    config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 

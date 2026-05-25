@@ -168,16 +168,25 @@ def plot_aia_image_grid(
 # ==================== Main Block ====================
 if __name__ == "__main__":
     import argparse
+    from pathlib import Path as _Path
     parser = argparse.ArgumentParser()
     parser.add_argument("--json-path",   default="solar_dataset.json")
+    parser.add_argument("--model-path",  default="outputs/glad-shape-197/trained_model.pth",
+                        help="Path to trained ViT model checkpoint.")
     parser.add_argument("--aarp-id",     type=int, default=3563)
-    parser.add_argument("--output-path", default="plots/attribution_contour_grid.png")
+    parser.add_argument("--output-path", default=None,
+                        help="Output PNG path. Defaults to "
+                             "plots/attribution_contour_grid/<run-id>.png derived from --model-path.")
     args = parser.parse_args()
+
+    if args.output_path is None:
+        run_id = _Path(args.model_path).parent.name
+        args.output_path = f"plots/attribution_contour_grid/{run_id}.png"
 
     try:
         # Load configuration and data
         config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
-        config.trained_model_path = "outputs/glad-shape-197/trained_model.pth"
+        config.trained_model_path = args.model_path
         metadata, model, transform, device = get_data_model(config)
         training_df, val_df, test_df = dfs_from_metadata(metadata)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

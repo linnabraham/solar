@@ -15,7 +15,6 @@ import gc
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from torch.utils.data import TensorDataset
 from src.torch.vit.utils import get_data_model, dfs_from_metadata
 from src.torch.vit.predictions_analyze import get_aarp_seq_dataset
 from src.torch.vit.train import TrainingConfig
@@ -46,11 +45,12 @@ OUTPUT_DPI: int = 150
 DEFAULT_LEARNING_RATE: float = 0.001
 """Adam optimizer learning rate."""
 
-TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
+DEFAULT_TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
 """Path to trained ViT model checkpoint."""
 
-OUTPUT_HOME: str = "plots/predictions"
-"""Root directory for attribution output plots."""
+DEFAULT_OUTPUT_HOME: str = "plots/attributions"
+"""Root directory for attribution output plots (used when --output-dir is not given and
+run-id cannot be derived from --model-path)."""
 
 def create_plots(
     aarp_id: int,
@@ -58,7 +58,7 @@ def create_plots(
     transform,
     model: torch.nn.Module,
     device: torch.device,
-    output_home: str = OUTPUT_HOME,
+    output_home: str = DEFAULT_OUTPUT_HOME,
 ) -> None:
     """Generate and save attribution analysis plots for a single AARP event.
 
@@ -127,19 +127,28 @@ def main() -> None:
         RuntimeError: If model loading or initialization fails
     """
     import argparse
+    from pathlib import Path
     parser = argparse.ArgumentParser()
-    parser.add_argument("--json-path",   default="solar_dataset.json")
-    parser.add_argument("--output-dir",  default=OUTPUT_HOME)
+    parser.add_argument("--json-path",    default="solar_dataset.json")
+    parser.add_argument("--model-path",   default=DEFAULT_TRAINED_MODEL_PATH,
+                        help="Path to trained ViT model checkpoint.")
+    parser.add_argument("--output-dir",   default=None,
+                        help="Root directory for output plots. Defaults to "
+                             "plots/attributions/<run-id> derived from --model-path.")
     args = parser.parse_args()
+
+    if args.output_dir is None:
+        run_id = Path(args.model_path).parent.name
+        args.output_dir = f"plots/attributions/{run_id}"
 
     # Load Data and Model
     config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
-    config.trained_model_path = TRAINED_MODEL_PATH
+    config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint = torch.load(TRAINED_MODEL_PATH, map_location=device)
+    checkpoint = torch.load(args.model_path, map_location=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=DEFAULT_LEARNING_RATE)
     if isinstance(checkpoint, dict):
         if 'model_state_dict' in checkpoint:
