@@ -50,21 +50,20 @@ DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ==================== Model loading ====================
 
 def build_pretrained_vit(n_channels: int = N_CHANNELS,
-                         n_classes: int = N_CLASSES,
-                         dropout_prob: float = 0.3) -> torch.nn.Module:
-    """Reconstruct the torchvision vit_l_16 architecture used by VIT_Pretrained.
+                         n_classes: int = N_CLASSES) -> torch.nn.Module:
+    """Reconstruct the torchvision vit_l_16 architecture used during training.
 
-    Mirrors the modifications made in VIT_Pretrained.__init__:
-      - conv_proj replaced to accept n_channels input channels
-      - heads replaced with Dropout + Linear for n_classes outputs
+    Applies the same two modifications made when the model was trained:
+      - conv_proj replaced to accept n_channels input channels (7 AIA passbands)
+      - heads.head replaced with a new Linear layer for n_classes outputs
+        (preserving the 'heads.head' key name used in the saved checkpoint)
 
     Args:
         n_channels: Number of AIA passband channels (default 7).
         n_classes: Number of output classes (default 2).
-        dropout_prob: Dropout probability applied before the final linear layer.
 
     Returns:
-        The modified torchvision VisionTransformer (the .model attribute).
+        The modified torchvision VisionTransformer.
     """
     model = torchvision.models.vit_l_16(weights=None)    # no pretrained weights; we load from ckpt
 
@@ -76,11 +75,12 @@ def build_pretrained_vit(n_channels: int = N_CHANNELS,
         stride=(16, 16),
     )
 
+    # Replace only the final linear layer in-place, preserving the 'heads.head'
+    # key name used by the original torchvision VisionTransformer.  The training
+    # code saved the checkpoint with this structure rather than replacing the
+    # entire heads module with an nn.Sequential (which would produce 'heads.1').
     lin_in = model.heads.head.in_features
-    model.heads = nn.Sequential(
-        nn.Dropout(p=dropout_prob, inplace=True),
-        nn.Linear(in_features=lin_in, out_features=n_classes, bias=True),
-    )
+    model.heads.head = nn.Linear(in_features=lin_in, out_features=n_classes, bias=True)
     return model
 
 
