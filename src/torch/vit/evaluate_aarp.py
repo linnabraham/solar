@@ -28,10 +28,13 @@ Supported models
 
 Outputs (all under --output-dir/<run-id>/<subset-label>/)
 ----------------------------------------------------------
-  cm_max.png          AARP-level confusion matrix using max aggregation
-  cm_mean.png         AARP-level confusion matrix using mean aggregation
-  aarp_metrics.csv    Per-AARP table: true label, n_frames, max/mean prob, predictions
-  skill_scores.csv    Summary: TSS, HSS, F1, precision, recall, FAR, accuracy
+  image_level_curves.png  ROC + PR curves (frame level, labels inherited from AR)
+  cm_max.png              AR-level CM using max aggregation
+  cm_mean.png             AR-level CM using mean aggregation
+  aarp_metrics.csv        Per-AARP table: true label, n_frames, max/mean prob, predictions
+  skill_scores.csv        Model (max+mean) + always-positive baseline:
+                          precision, recall, specificity, F1, MCC, TSS, HSS,
+                          ROC-AUC, average precision, log-loss
 
 Usage
 -----
@@ -71,7 +74,15 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import (
+    confusion_matrix,
+    matthews_corrcoef,
+    roc_auc_score,
+    roc_curve,
+    precision_recall_curve,
+    average_precision_score,
+    log_loss,
+)
 from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import v2
 from tqdm import tqdm
@@ -98,35 +109,43 @@ VALID_MODEL_TYPES = {"vit", "vit-pretrained", "xgb"}
 # Skill scores
 # ---------------------------------------------------------------------------
 
-def compute_skill_scores(cm: np.ndarray, y_true: np.ndarray,
-                         y_prob: np.ndarray) -> Dict[str, float]:
+def compute_skill_scores(cm: np.ndarray,
+                         y_true: np.ndarray,
+                         y_prob: np.ndarray,
+                         y_pred: np.ndarray) -> Dict[str, float]:
     """Compute a full set of binary-classification skill scores from a 2×2 CM.
 
-    Includes TSS and HSS which are standard in solar-flare prediction papers.
+    Uses sklearn.metrics throughout.  Includes TSS and HSS (standard in
+    solar-flare prediction literature), MCC, and specificity.
 
     Args:
         cm:     2×2 confusion matrix [[TN, FP], [FN, TP]].
         y_true: Ground-truth binary labels (AARP level).
-        y_prob: Continuous probabilities for the positive class (for log-loss).
+        y_prob: Continuous P(flare) probabilities (for log-loss).
+        y_pred: Thresholded binary predictions (for MCC).
 
     Returns:
-        Dict with keys: TP, FP, FN, TN, precision, recall, FAR, F1, accuracy,
-        TSS, HSS.  Undefined ratios (0/0) return 0.0.
+        Dict with keys: TP, FP, FN, TN, precision, recall, specificity,
+        FAR, F1, MCC, accuracy, TSS, HSS, log_loss.
+        Undefined ratios (0/0) return 0.0.
     """
-    from sklearn.metrics import log_loss
     TN, FP, FN, TP = cm.ravel()
 
-    precision = TP / (TP + FP) if (TP + FP) > 0 else 0.0
-    recall    = TP / (TP + FN) if (TP + FN) > 0 else 0.0
-    far       = FP / (FP + TN) if (FP + TN) > 0 else 0.0
-    f1        = (2 * precision * recall / (precision + recall)
-                 if (precision + recall) > 0 else 0.0)
-    accuracy  = (TP + TN) / len(y_true) if len(y_true) > 0 else 0.0
-    tss       = recall - far
+    precision   = TP / (TP + FP) if (TP + FP) > 0 else 0.0
+    recall      = TP / (TP + FN) if (TP + FN) > 0 else 0.0
+    specificity = TN / (TN + FP) if (TN + FP) > 0 else 0.0   # true-negative rate
+    far         = 1.0 - specificity                             # FP / (FP + TN)
+    f1          = (2 * precision * recall / (precision + recall)
+                   if (precision + recall) > 0 else 0.0)
+    accuracy    = (TP + TN) / len(y_true) if len(y_true) > 0 else 0.0
+    tss         = recall - far
 
     # HSS = 2(TP·TN − FP·FN) / ((TP+FN)(FN+TN) + (TP+FP)(FP+TN))
     hss_denom = (TP + FN) * (FN + TN) + (TP + FP) * (FP + TN)
     hss       = 2 * (TP * TN - FP * FN) / hss_denom if hss_denom > 0 else 0.0
+
+    # MCC via sklearn (handles edge cases cleanly)
+    mcc = matthews_corrcoef(y_true, y_pred)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -137,14 +156,16 @@ def compute_skill_scores(cm: np.ndarray, y_true: np.ndarray,
 
     return {
         "TP": int(TP), "FP": int(FP), "FN": int(FN), "TN": int(TN),
-        "precision": precision,
-        "recall":    recall,
-        "FAR":       far,
-        "F1":        f1,
-        "accuracy":  accuracy,
-        "TSS":       tss,
-        "HSS":       hss,
-        "log_loss":  bce,
+        "precision":   precision,
+        "recall":      recall,
+        "specificity": specificity,
+        "FAR":         far,
+        "F1":          f1,
+        "MCC":         float(mcc),
+        "accuracy":    accuracy,
+        "TSS":         tss,
+        "HSS":         hss,
+        "log_loss":    bce,
     }
 
 
@@ -342,22 +363,121 @@ def run_xgb_inference(
 # Output helpers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Image-level ROC + PR curves
+# ---------------------------------------------------------------------------
+
+def plot_image_level_curves(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    output_dir: Path,
+    label: str = "",
+) -> Dict[str, float]:
+    """Compute and save ROC and Precision-Recall curves at the image level.
+
+    Labels are inherited from the AR: every frame of a flare AR gets label=1,
+    every frame of a non-flare AR gets label=0.  This makes the curves
+    informative about frame-level discriminability but does NOT reflect
+    AR-level performance (use AR-level CM for that).
+
+    Args:
+        y_true:     Per-frame ground-truth labels.
+        y_prob:     Per-frame P(flare) probabilities.
+        output_dir: Directory to write PNG files.
+        label:      Subtitle string for the plots.
+
+    Returns:
+        Dict with roc_auc and average_precision.
+    """
+    roc_auc = roc_auc_score(y_true, y_prob)
+    ap      = average_precision_score(y_true, y_prob)
+
+    fpr, tpr, _         = roc_curve(y_true, y_prob)
+    prec, rec, _        = precision_recall_curve(y_true, y_prob)
+    baseline_prevalence = y_true.mean()
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    fig.suptitle(f"Image-level curves  {label}", fontsize=10)
+
+    # ROC
+    ax = axes[0]
+    ax.plot(fpr, tpr, lw=1.5, label=f"AUC = {roc_auc:.3f}")
+    ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="Random")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("ROC curve")
+    ax.legend(loc="lower right")
+    ax.set_xlim([0, 1]); ax.set_ylim([0, 1])
+
+    # PR
+    ax = axes[1]
+    ax.plot(rec, prec, lw=1.5, label=f"AP = {ap:.3f}")
+    ax.axhline(baseline_prevalence, color="k", ls="--", lw=0.8,
+               label=f"Baseline (prevalence = {baseline_prevalence:.2f})")
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Precision-Recall curve")
+    ax.legend(loc="upper right")
+    ax.set_xlim([0, 1]); ax.set_ylim([0, 1])
+
+    plt.tight_layout()
+    out_path = Path(output_dir) / "image_level_curves.png"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+    print(f"  ✓ Image-level curves → {out_path}")
+    print(f"    ROC-AUC = {roc_auc:.4f}   Average Precision = {ap:.4f}")
+
+    return {"roc_auc": roc_auc, "average_precision": ap}
+
+
+# ---------------------------------------------------------------------------
+# Always-positive baseline
+# ---------------------------------------------------------------------------
+
+def compute_baseline_metrics(agg: pd.DataFrame) -> Dict[str, float]:
+    """Metrics for an always-positive (majority-class) baseline classifier.
+
+    Predicts flare=1 for every AR regardless of input.  Contextualises model
+    performance: any metric the model cannot beat over this baseline is not
+    useful.
+
+    Args:
+        agg: Per-AARP aggregation DataFrame with 'true_label' column.
+
+    Returns:
+        Same keys as compute_skill_scores, prefixed context for printing.
+    """
+    n   = len(agg)
+    y_t = agg["true_label"].values
+    y_p = np.ones(n, dtype=int)          # always predict positive
+    y_s = np.ones(n, dtype=float)        # probability = 1.0 always
+
+    cm  = confusion_matrix(y_t, y_p, labels=CONFUSION_MATRIX_CLASSES)
+    return compute_skill_scores(cm, y_t, y_s, y_p)
+
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+
 def _print_scores(label: str, agg_method: str, scores: Dict) -> None:
     sep = "=" * 58
-    n = len(label) + len(agg_method) + 4
     print(f"\n{sep}")
     print(f"  {label}  [{agg_method} aggregation]")
     print(sep)
     print(f"  TP: {scores['TP']:4d}   FP: {scores['FP']:4d}")
     print(f"  FN: {scores['FN']:4d}   TN: {scores['TN']:4d}")
-    print(f"  Precision : {scores['precision']:.4f}")
-    print(f"  Recall    : {scores['recall']:.4f}")
-    print(f"  FAR       : {scores['FAR']:.4f}")
-    print(f"  F1        : {scores['F1']:.4f}")
-    print(f"  Accuracy  : {scores['accuracy']:.4f}")
-    print(f"  TSS       : {scores['TSS']:.4f}  (Recall − FAR)")
-    print(f"  HSS       : {scores['HSS']:.4f}  (Heidke Skill Score)")
-    print(f"  Log-loss  : {scores['log_loss']:.4f}")
+    print(f"  Precision   : {scores['precision']:.4f}")
+    print(f"  Recall      : {scores['recall']:.4f}")
+    print(f"  Specificity : {scores['specificity']:.4f}")
+    print(f"  FAR         : {scores['FAR']:.4f}")
+    print(f"  F1          : {scores['F1']:.4f}")
+    print(f"  MCC         : {scores['MCC']:.4f}")
+    print(f"  Accuracy    : {scores['accuracy']:.4f}")
+    print(f"  TSS         : {scores['TSS']:.4f}  (Recall − FAR)")
+    print(f"  HSS         : {scores['HSS']:.4f}  (Heidke Skill Score)")
+    print(f"  Log-loss    : {scores['log_loss']:.4f}")
     print(sep)
 
 
@@ -385,21 +505,38 @@ def _save_cm(cm: np.ndarray, title: str, out_path: Path) -> None:
 
 
 def save_all_outputs(
-    agg:         pd.DataFrame,
+    agg:          pd.DataFrame,
     subset_label: str,
     model_label:  str,
-    output_dir:  str,
-    threshold:   float,
+    output_dir:   str,
+    threshold:    float,
+    frame_y_true: np.ndarray,
+    frame_y_prob: np.ndarray,
 ) -> None:
-    """Save per-AARP CSV, both CM plots, and skill-scores CSV."""
+    """Save all evaluation outputs.
+
+    Produces:
+      image_level_curves.png  — ROC and PR curves at the frame level
+      cm_max.png / cm_mean.png — AR-level CMs for each aggregation method
+      aarp_metrics.csv         — per-AARP table
+      skill_scores.csv         — model + baseline metrics side-by-side
+    """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    # Per-AARP CSV
+    # 1. Image-level ROC + PR curves
+    print("\n── Image-level curves ──────────────────────────────────────")
+    img_scores = plot_image_level_curves(
+        frame_y_true, frame_y_prob, out,
+        label=f"({model_label} | {subset_label})"
+    )
+
+    # 2. Per-AARP CSV
     csv_path = out / "aarp_metrics.csv"
     agg.to_csv(csv_path, index=False)
     print(f"  ✓ Per-AARP table → {csv_path}")
 
+    # 3. AR-level CMs + skill scores (model)
     skill_rows = []
     for method, pred_col, prob_col in [
         ("max",  "pred_max",  "max_prob"),
@@ -409,7 +546,10 @@ def save_all_outputs(
             agg["true_label"], agg[pred_col], labels=CONFUSION_MATRIX_CLASSES
         )
         scores = compute_skill_scores(
-            cm, agg["true_label"].values, agg[prob_col].values
+            cm,
+            agg["true_label"].values,
+            agg[prob_col].values,
+            agg[pred_col].values,
         )
         _print_scores(f"{model_label} | {subset_label}", method, scores)
 
@@ -420,16 +560,31 @@ def save_all_outputs(
         )
 
         skill_rows.append({
-            "model": model_label,
-            "subset": subset_label,
+            "classifier": model_label,
+            "subset":     subset_label,
             "aggregation": method,
-            "n_aarp": len(agg),
+            "n_aarp":     len(agg),
+            "roc_auc":    img_scores["roc_auc"],
+            "avg_precision": img_scores["average_precision"],
             **scores,
         })
 
+    # 4. Always-positive baseline
+    baseline = compute_baseline_metrics(agg)
+    _print_scores(f"BASELINE (always-positive) | {subset_label}", "—", baseline)
+    skill_rows.append({
+        "classifier": "always_positive",
+        "subset":     subset_label,
+        "aggregation": "—",
+        "n_aarp":     len(agg),
+        "roc_auc":    float("nan"),
+        "avg_precision": float("nan"),
+        **baseline,
+    })
+
     skill_path = out / "skill_scores.csv"
     pd.DataFrame(skill_rows).to_csv(skill_path, index=False)
-    print(f"  ✓ Skill scores  → {skill_path}")
+    print(f"\n  ✓ Skill scores  → {skill_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +740,15 @@ def main() -> None:
 
     # Save outputs
     print("\nSaving outputs…")
-    save_all_outputs(agg, subset_label, model_label, args.output_dir, args.threshold)
+    save_all_outputs(
+        agg=agg,
+        subset_label=subset_label,
+        model_label=model_label,
+        output_dir=args.output_dir,
+        threshold=args.threshold,
+        frame_y_true=all_y_true,
+        frame_y_prob=all_y_prob,
+    )
 
 
 if __name__ == "__main__":
