@@ -211,16 +211,14 @@ def load_vit(model_path: str,
              stats_file: str) -> Tuple[torch.nn.Module, AIALogTransform, torch.device]:
     """Load a DeepFlare_ViT checkpoint."""
     from aarp_ml.torch.model import DeepFlare_ViT
-    from src.torch.vit.train import TrainingConfig
 
     transform = _load_transform(stats_file)
     device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    config = TrainingConfig(stats_file=stats_file)
-    model  = DeepFlare_ViT(
-        height=config.image_height,
-        n_classes=config.n_classes,
-        n_passbands=config.n_channels,
+    model = DeepFlare_ViT(
+        height=512,            # fixed AIA image height
+        n_classes=N_CLASSES,
+        n_passbands=N_CHANNELS,
     ).model
 
     ckpt = torch.load(model_path, map_location=device, weights_only=False)
