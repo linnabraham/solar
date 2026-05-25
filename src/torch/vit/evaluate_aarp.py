@@ -474,18 +474,34 @@ def main() -> None:
         help="Output directory. Defaults to "
              "plots/aarp_eval/<run-id>/<subset-label>/.",
     )
+    parser.add_argument(
+        "--exclude-aarp", nargs="+", type=int, default=None,
+        metavar="AARP_ID",
+        help="One or more AARP IDs to exclude from evaluation "
+             "(e.g. --exclude-aarp 1275 3153). Excluded AARPs are dropped "
+             "after aggregation so inference still runs on the full dataset. "
+             "The output directory gets an '_excl' suffix to avoid "
+             "overwriting non-excluded results.",
+    )
     args = parser.parse_args()
 
     run_id       = Path(args.model_path).parent.name
     subset_label = "+".join(args.subset)
     model_label  = f"{args.model_type}/{run_id}"
 
+    excl_suffix = (
+        "_excl" + "-".join(str(a) for a in sorted(args.exclude_aarp))
+        if args.exclude_aarp else ""
+    )
+
     if args.output_dir is None:
-        args.output_dir = f"{DEFAULT_OUTPUT_DIR}/{run_id}/{subset_label}"
+        args.output_dir = f"{DEFAULT_OUTPUT_DIR}/{run_id}/{subset_label}{excl_suffix}"
 
     print(f"Model      : {args.model_path}  [{args.model_type}]")
     print(f"Subset(s)  : {subset_label}")
     print(f"Threshold  : {args.threshold}")
+    if args.exclude_aarp:
+        print(f"Excluding  : {args.exclude_aarp}")
     print(f"Output dir : {args.output_dir}")
 
     # ── Load model ────────────────────────────────────────────────────────
@@ -551,6 +567,13 @@ def main() -> None:
     # ── Aggregate & evaluate ───────────────────────────────────────────────
     agg = aggregate_per_aarp(all_aarp_ids, all_y_true, all_y_prob,
                               threshold=args.threshold)
+
+    if args.exclude_aarp:
+        before = len(agg)
+        agg = agg[~agg["aarp_id"].isin(args.exclude_aarp)].reset_index(drop=True)
+        dropped = before - len(agg)
+        print(f"\nExcluded {dropped} AARP(s): {args.exclude_aarp}  "
+              f"({len(agg)} AARPs remain)")
 
     # Per-AARP table to stdout
     pd.set_option("display.max_rows", None)
