@@ -204,6 +204,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--trained-model",
+        "--model-path",
         default="outputs/glad-shape-197/trained_model.pth",
         help="Path to trained model checkpoint"
     )
@@ -219,7 +220,12 @@ if __name__ == "__main__":
     )
     
     args = parser.parse_args()
-    
+
+    if args.output_path is None:
+        from pathlib import Path
+        run_id = Path(args.trained_model).parent.name
+        args.output_path = f"plots/cm_{run_id}_{args.subset}.png"
+
     try:
         # Load configuration
         print(f"Loading model from {args.trained_model}...")
