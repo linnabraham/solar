@@ -6,7 +6,7 @@ import argparse
 import time
 from dataclasses import dataclass
 from typing import Tuple, Dict, List, Optional
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from sklearn.metrics import confusion_matrix
 from aarp_ml.torch.dataset import aia_euv
 from tqdm import tqdm
@@ -41,12 +41,18 @@ class ConfusionMatrixConfig:
     def __post_init__(self):
         """Validate configuration after initialization.
 
+        Accepts single subset names ('test', 'validation', 'training') or
+        combined labels like 'validation+test' produced when multiple subsets
+        are concatenated.
+
         Raises:
-            ValueError: If subset is not valid.
+            ValueError: If any component of the subset label is not valid.
         """
-        if self.subset not in VALID_SUBSETS:
+        components = self.subset.split("+")
+        invalid = [c for c in components if c not in VALID_SUBSETS]
+        if invalid:
             raise ValueError(
-                f"subset must be one of {VALID_SUBSETS}, got '{self.subset}'"
+                f"subset components must be one of {VALID_SUBSETS}, got {invalid}"
             )
         if self.output_path is None:
             self.output_path = OUTPUT_PATH.format(subset=self.subset)
@@ -188,8 +194,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--subset",
         required=True,
+        nargs="+",
         choices=list(VALID_SUBSETS),
-        help="Data subset to evaluate: training, validation, or test"
+        help="One or more subsets to evaluate: training, validation, test. "
+             "Pass multiple to combine them (e.g. --subset validation test)."
     )
     parser.add_argument(
         "--batch-size",
@@ -221,10 +229,12 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
+    # Build a single label from the subset list, e.g. "validation+test"
+    subset_label = "+".join(args.subset)
+
     if args.output_path is None:
-        from pathlib import Path
         run_id = Path(args.trained_model).parent.name
-        args.output_path = f"plots/cm_{run_id}_{args.subset}.png"
+        args.output_path = f"plots/cm_{run_id}_{subset_label}.png"
 
     try:
         # Load configuration
@@ -234,31 +244,32 @@ if __name__ == "__main__":
             stats_file=args.stats_file
         )
         config.trained_model_path = args.trained_model
-        
+
         # Load model and transform
         metadata, model, transform, device = get_data_model(config)
-        device = torch.device(args.device if 'device' in args else DEFAULT_DEVICE)
+        device = torch.device(DEFAULT_DEVICE)
         model.to(device)
         print(f"Using device: {device}")
-        
-        # Load dataset
-        print(f"Loading {args.subset} dataset...")
-        dataset = aia_euv(
-            args.json_path,
-            subset=args.subset,
-            transform=v2.Compose([transform])
-        )
+
+        # Load dataset — combine with ConcatDataset when multiple subsets given
+        print(f"Loading {subset_label} dataset...")
+        datasets = [
+            aia_euv(args.json_path, subset=s, transform=v2.Compose([transform]))
+            for s in args.subset
+        ]
+        dataset = datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
         data_loader = DataLoader(
             dataset,
             batch_size=args.batch_size,
             shuffle=False
         )
-        
+        print(f"  {len(dataset)} samples total")
+
         # Create confusion matrix config
         cm_config = ConfusionMatrixConfig(
             batch_size=args.batch_size,
             output_path=args.output_path,
-            subset=args.subset,
+            subset=subset_label,
             device=str(device)
         )
         
