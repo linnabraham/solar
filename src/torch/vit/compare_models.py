@@ -338,8 +338,9 @@ def main() -> None:
     parser.add_argument("--threshold",  type=float, default=DEFAULT_THRESHOLD,
                         help=f"AR-level decision threshold (default: {DEFAULT_THRESHOLD}).")
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
-    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR,
-                        help=f"Output directory (default: {DEFAULT_OUTPUT_DIR}).")
+    parser.add_argument("--output-dir", default=None,
+                        help="Output directory. Defaults to "
+                             "plots/model_comparison/<vit-run-id>_vs_<xgb-run-id>/<subset>/.")
     parser.add_argument("--exclude-aarp", nargs="+", type=int, default=None,
                         metavar="AARP_ID",
                         help="AARP IDs to exclude from AR-level evaluation.")
@@ -348,6 +349,19 @@ def main() -> None:
     args = parser.parse_args()
 
     subset_label = "+".join(args.subset)
+    vit_run_id   = Path(args.vit_path).parent.name
+    xgb_run_id   = Path(args.xgb_path).parent.name
+    excl_suffix  = (
+        "_excl" + "-".join(str(a) for a in sorted(args.exclude_aarp))
+        if args.exclude_aarp else ""
+    )
+
+    if args.output_dir is None:
+        args.output_dir = (
+            f"{DEFAULT_OUTPUT_DIR}/{vit_run_id}_vs_{xgb_run_id}"
+            f"/{subset_label}{excl_suffix}"
+        )
+
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
