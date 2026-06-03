@@ -27,7 +27,7 @@ import torch.nn as nn
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from torchvision.transforms import v2
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
@@ -204,8 +204,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--subset", required=True,
+        nargs="+",
         choices=["training", "validation", "test"],
-        help="Data split to evaluate.",
+        help="One or more splits to evaluate. Pass multiple to combine "
+             "(e.g. --subset validation test).",
     )
     parser.add_argument(
         "--model-path", default=DEFAULT_TRAINED_MODEL_PATH,
@@ -230,15 +232,16 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    subset_label = "+".join(args.subset)
     run_id = Path(args.model_path).parent.name
     if args.output_path is None:
-        args.output_path = f"plots/cm_{run_id}_{args.subset}.png"
+        args.output_path = f"plots/cm_{run_id}_{subset_label}.png"
 
     try:
         device = torch.device(DEFAULT_DEVICE)
         print(f"Device      : {device}")
         print(f"Model       : {args.model_path}")
-        print(f"Subset      : {args.subset}")
+        print(f"Subset      : {subset_label}")
         print(f"Output      : {args.output_path}")
 
         # Load normalisation stats
@@ -248,9 +251,13 @@ if __name__ == "__main__":
         stds  = [stats["std"][f"channel_{i}"]  for i in range(N_CHANNELS)]
         transform = AIALogTransform(means=means, stds=stds)
 
-        # Load dataset
-        print(f"\nLoading {args.subset} dataset...")
-        dataset = aia_euv(args.json_path, subset=args.subset, transform=transform)
+        # Load dataset — combine with ConcatDataset when multiple subsets given
+        print(f"\nLoading {subset_label} dataset...")
+        datasets = [
+            aia_euv(args.json_path, subset=s, transform=transform)
+            for s in args.subset
+        ]
+        dataset = datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
         data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
         print(f"  {len(dataset)} samples")
 
@@ -262,7 +269,7 @@ if __name__ == "__main__":
 
         # Evaluate
         start = time.time()
-        evaluate(model, data_loader, device, args.subset, args.output_path)
+        evaluate(model, data_loader, device, subset_label, args.output_path)
         print(f"Total time: {(time.time() - start) / 60:.1f} minutes")
 
     except FileNotFoundError as e:
