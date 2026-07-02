@@ -8,7 +8,7 @@
 
 ## Related Stages
 
-- [attribution_analyzis](../stages/attribution_analyzis.md) — full dataset (test + validation)
+- [attribution_analysis](../stages/attribution_analysis.md) — full dataset (test + validation)
 - [subset-attribution-analysis](../stages/subset-attribution-analysis.md) — 7-AARP subset
 
 Generates per-AARP attribution percentile and filtered intensity plots.

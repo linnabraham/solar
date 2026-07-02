@@ -20,7 +20,7 @@ dvc repro
 
 - [create_movie](stages/create_movie.md)
 
-- [attribution_analyzis](stages/attribution_analyzis.md)
+- [attribution_analysis](stages/attribution_analysis.md)
 
 - [confusion-matrix-val](stages/confusion-matrix-val.md)
 

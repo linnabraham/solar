@@ -33,7 +33,7 @@ nav:
     - prediction-plots: stages/prediction-plots.md
     - plot-class-dist: stages/plot-class-dist.md
     - plot_contour_image_grid: stages/plot_contour_image_grid.md
-    - attribution_analyzis: stages/attribution_analyzis.md
+    - attribution_analysis: stages/attribution_analysis.md
     - create_movie: stages/create_movie.md
     - xgb-feat-importance: stages/xgb-feat-importance.md
     - kshap-stats: stages/kshap-stats.md
