@@ -31,8 +31,10 @@ import seaborn as sns
 from scipy import stats
 
 # ==================== Module Constants ====================
-DEFAULT_INPUT_JSON = "shap_stats.json"
-DEFAULT_OUTPUT_DIR = "plots/kshap/results"
+DEFAULT_SUBSET = "test"
+# Input JSON and output dir are derived from subset in SHAPAnalysisConfig.__post_init__ when empty.
+DEFAULT_INPUT_JSON = ""
+DEFAULT_OUTPUT_DIR = ""
 DEFAULT_FIGSIZE_GLOBAL = (8, 5)
 DEFAULT_FIGSIZE_STRATIFIED = (12, 5)
 DEFAULT_DPI = 300
@@ -56,8 +58,12 @@ class SHAPAnalysisConfig:
     """Configuration for SHAP statistical analysis and figure generation.
 
     Attributes:
+        subset: Dataset subset the SHAP stats were computed on. Used to
+            derive default ``input_json`` and ``output_dir`` paths.
         input_json: Path to JSON produced by ``src.torch.vit.kshap``.
+            Defaults to ``shap_stats_{subset}.json``.
         output_dir: Directory for figures and CSV summary.
+            Defaults to ``plots/kshap/{subset}/results``.
         figsize_global: Figure size for the global mean(|SHAP|) bar chart.
         figsize_stratified: Figure size for the class-stratified boxplot.
         dpi: Output DPI (used for both creation and savefig — keep consistent).
@@ -70,6 +76,7 @@ class SHAPAnalysisConfig:
         correct_only: If True, drop records where ``prediction != label``.
         save_pdf: If True, also export PDF (vector) versions for publication.
     """
+    subset: str = DEFAULT_SUBSET
     input_json: str = DEFAULT_INPUT_JSON
     output_dir: str = DEFAULT_OUTPUT_DIR
     figsize_global: Tuple[float, float] = DEFAULT_FIGSIZE_GLOBAL
@@ -85,6 +92,10 @@ class SHAPAnalysisConfig:
     save_pdf: bool = True
 
     def __post_init__(self) -> None:
+        if not self.input_json:
+            self.input_json = f"shap_stats_{self.subset}.json"
+        if not self.output_dir:
+            self.output_dir = f"plots/kshap/{self.subset}/results"
         if not Path(self.input_json).exists():
             raise FileNotFoundError(f"Input JSON not found: {self.input_json}")
         if self.dpi <= 0:
@@ -406,7 +417,22 @@ def plot_class_stratified(
 
 # ==================== Entrypoint ====================
 def main() -> None:
-    config = SHAPAnalysisConfig()
+    import argparse
+    parser = argparse.ArgumentParser(description="SHAP attribution analysis for ViT solar-flare model")
+    parser.add_argument("--subset", type=str, default=DEFAULT_SUBSET,
+                        choices=["training", "validation", "test"],
+                        help="Subset the SHAP stats were computed on (drives default paths)")
+    parser.add_argument("--input-json", type=str, default="",
+                        help="Input JSON path (default: shap_stats_{subset}.json)")
+    parser.add_argument("--output-dir", type=str, default="",
+                        help="Output directory for plots and CSV (default: plots/kshap/{subset}/results)")
+    args = parser.parse_args()
+
+    config = SHAPAnalysisConfig(
+        subset=args.subset,
+        input_json=args.input_json,
+        output_dir=args.output_dir,
+    )
     print(f"Loading SHAP statistics from {config.input_json}...")
 
     df = load_and_process(config)

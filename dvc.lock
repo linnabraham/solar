@@ -542,22 +542,22 @@ stages:
       md5: 126562df2efd8aab7b0f4c5c0ed9fb36
       size: 1316677
   kshap-analyze:
-    cmd: python -m src.torch.vit.analyze_shap
+    cmd: python -m src.torch.vit.analyze_shap --subset test
     deps:
-    - path: shap_stats.json
+    - path: shap_stats_test.json
       hash: md5
-      md5: a5534b714e9be37ef3191d06829044c1
-      size: 30942
+      md5: 126562df2efd8aab7b0f4c5c0ed9fb36
+      size: 1316677
     - path: src/torch/vit/analyze_shap.py
       hash: md5
-      md5: b8987d24609d2bcf3f550f9743af757d
-      size: 10558
+      md5: e9f41171c4358c425159b89872060eb0
+      size: 16747
     outs:
-    - path: plots/kshap/results
+    - path: plots/kshap/test/results
       hash: md5
-      md5: b92b7e92ba811a32a30f29e06f627a31.dir
-      size: 201834
-      nfiles: 1
+      md5: b8f54061d18ddcccc96e1eb27fbecd23.dir
+      size: 414383
+      nfiles: 5
   subset-data:
     cmd: python -m src.aarp_subset_pipeline --process --json
     deps:

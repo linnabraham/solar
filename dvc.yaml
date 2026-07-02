@@ -191,12 +191,12 @@ stages:
     - shap_stats_test.json
 
   kshap-analyze:
-    cmd: python -m src.torch.vit.analyze_shap
+    cmd: python -m src.torch.vit.analyze_shap --subset test
     deps:
     - src/torch/vit/analyze_shap.py
-    - shap_stats.json
+    - shap_stats_test.json
     outs:
-    - plots/kshap/results
+    - plots/kshap/test/results
 
   # ── Subset pipeline stages ────────────────────────────────────────────────
   # Operates on a small locally-downloaded AARP subset (see src/aarp_subset_pipeline.py).
