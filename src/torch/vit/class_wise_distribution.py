@@ -19,10 +19,12 @@ __all__ = [
     "get_intensities_using_attributions",
         ]
 
-def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True):
+def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True, stride=1, target_mode='true_label', baseline_image=None):
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
     s_images = s_aarp.get_images()
+    if stride > 1:
+        s_images = s_images[::stride]
     # Use the model to make predictions
     tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
     tensor_data = transform(tensor_images)
@@ -33,13 +35,21 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_
     label = s_aarp.label
     ib_size = 1
     n_images = s_images.shape[0]
+
+    if baseline_image is not None:
+        # Fixed baseline (e.g. channel-mean image), transformed once and reused for every frame.
+        baseline_fixed = transform(torch.from_numpy(baseline_image).to(torch.float32).unsqueeze(0)).to(device)
+
     with torch.no_grad():
         for (batch,) in tqdm(islice(loader, n_images), total=n_images, desc=f"IG aarp={aarp_id}"):
             batch = batch.to(device)
-            baseline_zero = transform(torch.zeros_like(batch))
-            baseline_zero = baseline_zero.to(device)
-            ig_b0 = do_ig(batch, baseline_zero, label=label, ib_size=ib_size, model=model,
-                          multiply_by_inputs=multiply_by_inputs)
+            if baseline_image is not None:
+                baseline = baseline_fixed
+            else:
+                baseline = transform(torch.zeros_like(batch))
+                baseline = baseline.to(device)
+            ig_b0 = do_ig(batch, baseline, label=label, ib_size=ib_size, model=model,
+                          multiply_by_inputs=multiply_by_inputs, target_mode=target_mode)
             attributions.append(ig_b0)
             del batch, ig_b0
             torch.cuda.empty_cache()
@@ -109,6 +119,11 @@ if __name__=="__main__":
                         help="Path to trained ViT model checkpoint.")
     parser.add_argument("--output-neg",     default="data/intermediate-outs/attributions_neg.pt")
     parser.add_argument("--output-pos",     default="data/intermediate-outs/attributions_pos.pt")
+    parser.add_argument("--stride",         type=int, default=1,
+                        help="Use every Nth frame per AARP for IG (validated up to stride=4 with negligible histogram distortion).")
+    parser.add_argument("--target-mode",    default="true_label", choices=["true_label", "flare", "margin"],
+                        help="Which output IG attributes to: 'true_label' (this AARP's own class, default), "
+                             "'flare' (always the flare logit), or 'margin' (logit_flare - logit_nonflare).")
     args = parser.parse_args()
 
     # Load Data and Model
@@ -149,7 +164,7 @@ if __name__=="__main__":
 
     for aarp_id in test_df.query('label == 1').aarp_id.unique():
         print(aarp_id)
-        s_images, attributions= run_pred_and_ig(aarp_id, test_df, transform, model, device)
+        s_images, attributions= run_pred_and_ig(aarp_id, test_df, transform, model, device, stride=args.stride, target_mode=args.target_mode)
         print(f"{s_images.shape=}")
         print(f"{len(attributions)=}")
         attributions_list_pos.append(attributions)
@@ -160,7 +175,7 @@ if __name__=="__main__":
 
     for aarp_id in test_df.query('label == 0').aarp_id.unique():
         print(aarp_id)
-        s_images, attributions= run_pred_and_ig(aarp_id, test_df, transform, model, device)
+        s_images, attributions= run_pred_and_ig(aarp_id, test_df, transform, model, device, stride=args.stride, target_mode=args.target_mode)
         print(f"{s_images.shape=}")
         print(f"{len(attributions)=}")
         attributions_list_neg.append(attributions)

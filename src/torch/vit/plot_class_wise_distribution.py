@@ -79,26 +79,29 @@ def configure_plot_style(font_size: int = DEFAULT_FONT_SIZE) -> None:
     sns.set_theme()
 
 # ==================== Main Functions ====================
-def load_images_for_label(df, label: int, verbose: bool = True) -> List[np.ndarray]:
+def load_images_for_label(df, label: int, verbose: bool = True, stride: int = 1) -> List[np.ndarray]:
     """Load and stack all AIA images for a specific class label.
-    
+
     Iterates through all unique AARP instances with the given label,
     loads their image sequences, and returns them as a list.
-    
+
     Args:
         df: Pandas DataFrame with columns including 'label', 'aarp_id', and wavelength columns.
         label (int): Class label to filter on (0=non-flare, 1=flare).
         verbose (bool): If True, print AARP ID for each loaded instance. Defaults to True.
-    
+        stride (int): Use every Nth frame per AARP. Must match the stride used when the
+            corresponding attributions were computed, since frames are zipped elementwise.
+            Defaults to 1.
+
     Returns:
         List[np.ndarray]: List of image arrays, each of shape [n_timesteps, n_channels, H, W].
-    
+
     Raises:
         ValueError: If label is not 0 or 1.
     """
     if label not in [0, 1]:
         raise ValueError(f"label must be 0 or 1, got {label}")
-    
+
     images_list = []
     for aarp_id in df.query(f'label == {label}').aarp_id.unique():
         if verbose:
@@ -106,6 +109,8 @@ def load_images_for_label(df, label: int, verbose: bool = True) -> List[np.ndarr
         aarp_id_df = df.query(f'aarp_id == {aarp_id}')
         s_aarp = single_aarp(aarp_id, aarp_id_df)
         s_images = s_aarp.get_images()
+        if stride > 1:
+            s_images = s_images[::stride]
         images_list.append(s_images)
     return images_list
 
@@ -278,6 +283,9 @@ if __name__ == "__main__":
     parser.add_argument("--attributions-pos", default="data/intermediate-outs/attributions_pos.pt")
     parser.add_argument("--output-dir",       default="plots/distribution")
     parser.add_argument("--output-format",    default="png", choices=["pdf", "png", "jpg"])
+    parser.add_argument("--stride",           type=int, default=1,
+                        help="Must match the --stride used when computing the attributions, "
+                             "since images and attributions are zipped elementwise per AARP.")
     args = parser.parse_args()
 
     try:
@@ -297,9 +305,9 @@ if __name__ == "__main__":
 
         # Load images
         print("Loading test images for positive (flare) class...")
-        images_list_pos = load_images_for_label(test_df, label=1, verbose=False)
+        images_list_pos = load_images_for_label(test_df, label=1, verbose=False, stride=args.stride)
         print("Loading test images for negative (non-flare) class...")
-        images_list_neg = load_images_for_label(test_df, label=0, verbose=False)
+        images_list_neg = load_images_for_label(test_df, label=0, verbose=False, stride=args.stride)
 
         images = (images_list_neg, images_list_pos)
         attributions = (attributions_list_neg, attributions_list_pos)

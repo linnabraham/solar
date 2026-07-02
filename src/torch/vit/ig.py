@@ -59,11 +59,38 @@ class single_aarp:
                 ob_idx +=1
         return images
 
-def do_ig(features, baseline, label, ib_size=1, model=None, multiply_by_inputs=True):
+class _MarginWrapper(torch.nn.Module):
+    """Wraps a 2-class logit model to return the decision margin (logit_1 - logit_0).
+
+    Used for target_mode='margin' in do_ig: IG on a single class logit can pick up
+    common-mode variation that shifts both logits together without changing the
+    softmax decision. The margin is invariant to that and reflects what actually
+    drives the classification.
+    """
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        logits = self.model(x)
+        return logits[:, 1] - logits[:, 0]
+
+def do_ig(features, baseline, label, ib_size=1, model=None, multiply_by_inputs=True, target_mode='true_label'):
     model.eval()
-    ig = IntegratedGradients(model, multiply_by_inputs=multiply_by_inputs)
-    labels  = torch.tensor(label, dtype=torch.int32)
-    ig_b0, _ = ig.attribute(features, baseline, target=labels, n_steps=100, internal_batch_size=ib_size,
+    if target_mode == 'true_label':
+        forward_func = model
+        target = torch.tensor(label, dtype=torch.int32)
+    elif target_mode == 'flare':
+        forward_func = model
+        target = torch.tensor(1, dtype=torch.int32)
+    elif target_mode == 'margin':
+        forward_func = _MarginWrapper(model)
+        target = None
+    else:
+        raise ValueError(f"Unknown target_mode: {target_mode!r}. Expected 'true_label', 'flare', or 'margin'.")
+
+    ig = IntegratedGradients(forward_func, multiply_by_inputs=multiply_by_inputs)
+    ig_b0, _ = ig.attribute(features, baseline, target=target, n_steps=100, internal_batch_size=ib_size,
                                         return_convergence_delta=True)
     return ig_b0[0].detach().cpu().numpy()
 
