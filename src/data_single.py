@@ -11,7 +11,7 @@ import argparse
 from datetime import datetime, timedelta
 from src.fits_parallel_download import download_urls_in_parallel
 from aarp_ml.dataset import aarp_dataset
-from aarp_ml.model.training import ml_dataset, compute_mean_and_std
+from aarp_ml.torch.dataset import compute_log_mean_and_std
 from aarp_ml.data_prep import (get_clean_df, label_urls, random_select_neg_urls, apply_shape_limits,
                                pad_and_resize_in_parallel, process_table_on_disk, remove_offlimb,
                                pad_with_quiet, get_fov_limits, create_json)
@@ -125,7 +125,7 @@ def check_dataset_paths(paths: DatasetPaths, args) -> None:
         print(f"{name:.<25}, {path} {status}")
 
     print("\n----------------------------------------")
-    if args.stats and os.path.exists(paths.stats_pickle):
+    if args.stats and os.path.exists(paths.stats_pickle) and not args.force:
         raise ValueError(f"File {paths.stats_pickle} already exists")
 
     if args.json and os.path.exists(paths.json_filename):
@@ -226,6 +226,7 @@ if __name__ == "__main__":
     parser.add_argument('--extract', action="store_true")
     parser.add_argument('--json', action="store_true")
     parser.add_argument('--stats', action="store_true")
+    parser.add_argument('--force', action="store_true", help="Overwrite existing stats.pkl or JSON")
     args = parser.parse_args()
 
     st = time.time()
@@ -275,8 +276,8 @@ if __name__ == "__main__":
         create_json(paths.pos_dir_single, paths.neg_dir_single, shape_limited_df, paths.json_filename)
 
     if args.stats == True:
-        data_mean, data_std = compute_mean_and_std(json_path=paths.json_filename,
-                                                    batch_size=32)
+        data_mean, data_std = compute_log_mean_and_std(json_path=paths.json_filename,
+                                                        batch_size=32)
         with open(paths.stats_pickle, 'wb') as f:
             num_channels = 7
             stats = {

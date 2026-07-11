@@ -310,9 +310,9 @@ def main():
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     print(f"  Dataset size ({args.subset}): {len(dataset)} samples")
 
-    # Baseline value for each channel: transform(zeros)[c] = -mean_c / std_c
+    # Baseline value for each channel: transform(1 DN)[c] = -log_mean_c / log_std_c
     baseline_per_channel = [
-        (-transform.means[c, 0, 0] / transform.stds[c, 0, 0]).item()
+        (-transform.log_means[c, 0, 0] / transform.log_stds[c, 0, 0]).item()
         for c in range(N_CHANNELS)
     ]
 

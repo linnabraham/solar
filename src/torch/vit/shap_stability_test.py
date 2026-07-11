@@ -319,9 +319,9 @@ def main():
     subset_map = {"test": test_df, "validation": val_df, "training": training_df}
     df = subset_map[args.subset]
 
-    # Precompute baseline value per channel: transform(zeros)[c] = -mean_c / std_c
+    # Precompute baseline value per channel: transform(1 DN)[c] = -log_mean_c / log_std_c
     baseline_per_channel = [
-        (-transform.means[c, 0, 0] / transform.stds[c, 0, 0]).item()
+        (-transform.log_means[c, 0, 0] / transform.log_stds[c, 0, 0]).item()
         for c in range(N_CHANNELS)
     ]
 
