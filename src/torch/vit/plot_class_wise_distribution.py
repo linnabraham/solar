@@ -126,6 +126,7 @@ def plot_distribution_for_passband(
     alpha: float = DEFAULT_ALPHA,
     figsize: Tuple[float, float] = DEFAULT_FIGSIZE,
     dpi: int = DEFAULT_DPI,
+    model_passbands: Optional[List[int]] = None,
 ) -> Tuple[plt.Figure, np.ndarray]:
     """Generate intensity distribution plot for a single AIA passband.
     
@@ -192,6 +193,7 @@ def plot_distribution_for_passband(
         alpha=alpha,
         figsize=figsize,
         dpi=dpi,
+        model_passbands=model_passbands,
     )
     return fig, ax
 
@@ -203,6 +205,7 @@ def plot_all_passbands(
     save_dir: Optional[str] = None,
     output_format: str = "pdf",
     output_dpi: int = DEFAULT_PDF_DPI,
+    model_passbands: Optional[List[int]] = None,
 ) -> Dict[int, Tuple[plt.Figure, np.ndarray]]:
     """Generate and optionally save distribution plots for all or specified passbands.
     
@@ -252,7 +255,8 @@ def plot_all_passbands(
             fig, ax = plot_distribution_for_passband(
                 pb,
                 images_list_neg, images_list_pos,
-                attributions_list_neg, attributions_list_pos
+                attributions_list_neg, attributions_list_pos,
+                model_passbands=model_passbands
             )
             plots[pb] = (fig, ax)
 
@@ -286,7 +290,20 @@ if __name__ == "__main__":
     parser.add_argument("--stride",           type=int, default=1,
                         help="Must match the --stride used when computing the attributions, "
                              "since images and attributions are zipped elementwise per AARP.")
+    parser.add_argument("--channels",         type=int, nargs="+", default=None,
+                        help="AIA passbands the attributions were computed with, e.g. --channels 94 131. "
+                             f"Choices: {list(all_wavelengths)}. Default: all 7, in wavelength order.")
+    parser.add_argument("--subset",           default="test", choices=["training", "validation", "test"],
+                        help="Dataset split the attributions were computed on (default: test). "
+                             "Must match the --subset used with class_wise_distribution.")
     args = parser.parse_args()
+
+    channel_indices = None
+    if args.channels is not None:
+        unknown = [c for c in args.channels if c not in all_wavelengths]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {list(all_wavelengths)}")
+        channel_indices = [list(all_wavelengths).index(c) for c in args.channels]
 
     try:
         # Configure plotting style
@@ -297,6 +314,7 @@ if __name__ == "__main__":
         print(f"Loading metadata from {args.json_path}...")
         metadata = get_metadata_from_json(args.json_path)
         training_df, val_df, test_df = dfs_from_metadata(metadata)
+        subset_df = {"training": training_df, "validation": val_df, "test": test_df}[args.subset]
 
         # Load attributions
         print("Loading attributions...")
@@ -304,24 +322,32 @@ if __name__ == "__main__":
         attributions_list_pos = torch.load(args.attributions_pos)
 
         # Load images
-        print("Loading test images for positive (flare) class...")
-        images_list_pos = load_images_for_label(test_df, label=1, verbose=False, stride=args.stride)
-        print("Loading test images for negative (non-flare) class...")
-        images_list_neg = load_images_for_label(test_df, label=0, verbose=False, stride=args.stride)
+        print(f"Loading {args.subset} images for positive (flare) class...")
+        images_list_pos = load_images_for_label(subset_df, label=1, verbose=False, stride=args.stride)
+        print(f"Loading {args.subset} images for negative (non-flare) class...")
+        images_list_neg = load_images_for_label(subset_df, label=0, verbose=False, stride=args.stride)
+
+        if channel_indices is not None:
+            # Attributions from a channel-subset model have only those channels;
+            # slice the (always 7-channel) images to match.
+            images_list_pos = [img[:, channel_indices] for img in images_list_pos]
+            images_list_neg = [img[:, channel_indices] for img in images_list_neg]
 
         images = (images_list_neg, images_list_pos)
         attributions = (attributions_list_neg, attributions_list_pos)
 
         # Generate and save plots
-        print(f"Generating distribution plots for {len(all_wavelengths)} passbands...")
+        plot_passbands = args.channels if args.channels is not None else list(all_wavelengths)
+        print(f"Generating distribution plots for {len(plot_passbands)} passbands...")
         plots = plot_all_passbands(
-            test_df,
+            subset_df,
             images,
             attributions,
-            passbands=list(all_wavelengths),
+            passbands=plot_passbands,
             save_dir=args.output_dir,
             output_format=args.output_format,
-            output_dpi=300
+            output_dpi=300,
+            model_passbands=args.channels
         )
         
         print(f"✓ Successfully generated {len(plots)} distribution plots")

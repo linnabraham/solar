@@ -16,3 +16,8 @@
 /shap_stats_test.json
 /plots
 /config.local
+/exports
+/logs
+/docs-bak
+/stats_raw.pkl
+/memory

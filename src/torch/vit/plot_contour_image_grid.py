@@ -177,15 +177,31 @@ if __name__ == "__main__":
     parser.add_argument("--output-path", default=None,
                         help="Output PNG path. Defaults to "
                              "plots/attribution_contour_grid/<run-id>.png derived from --model-path.")
+    parser.add_argument("--stats-file",  default="stats.pkl",
+                        help="Path to normalization stats pickle (e.g. stats_raw.pkl for pre-fix models).")
+    parser.add_argument("--channels",    type=int, nargs="+", default=None,
+                        help="AIA passbands the model was trained on, e.g. --channels 94 131. "
+                             "Default: all 7, in wavelength order.")
     args = parser.parse_args()
 
     if args.output_path is None:
         run_id = _Path(args.model_path).parent.name
         args.output_path = f"plots/attribution_contour_grid/{run_id}.png"
 
+    all_passbands = [94, 131, 171, 193, 211, 304, 335]
+    channel_indices = None
+    passbands = all_passbands
+    if args.channels is not None:
+        unknown = [c for c in args.channels if c not in all_passbands]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {all_passbands}")
+        channel_indices = [all_passbands.index(c) for c in args.channels]
+        passbands = args.channels
+
     try:
         # Load configuration and data
-        config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
+        config = TrainingConfig(json_path=args.json_path, stats_file=args.stats_file,
+                                channel_indices=channel_indices)
         config.trained_model_path = args.model_path
         metadata, model, transform, device = get_data_model(config)
         training_df, val_df, test_df = dfs_from_metadata(metadata)
@@ -194,7 +210,7 @@ if __name__ == "__main__":
 
         # Select AARP instance and time index
         aarp_id = args.aarp_id
-        channel = 1  # Passband 131
+        channel = passbands.index(131) if 131 in passbands else 0
         t_idx = 12
 
         # Find the AARP in whichever split it belongs to
@@ -207,6 +223,8 @@ if __name__ == "__main__":
             raise ValueError(f"AARP {aarp_id} not found in any split of {args.json_path}")
         s_aarp = single_aarp(aarp_id, aarp_id_df)
         s_images = s_aarp.get_images()
+        if channel_indices is not None:
+            s_images = s_images[:, channel_indices]
         image = s_images[t_idx]
         
         # Compute attributions
@@ -219,7 +237,7 @@ if __name__ == "__main__":
         print(f"Generating attribution contour grid for AARP {aarp_id} at t_idx={t_idx}...")
         fig = plot_aia_image_grid(
             images=s_images[t_idx],
-            passbands=[94, 131, 171, 193, 211, 304, 335],
+            passbands=passbands,
             saliency=ig_out,
             contour_config=CONTOUR_CONFIG,  # Use module-level default
             vmax_percentile=DEFAULT_VMAX_PERCENTILE,

@@ -19,10 +19,14 @@ __all__ = [
     "get_intensities_using_attributions",
         ]
 
-def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True, stride=1, target_mode='true_label', baseline_image=None):
+def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True, stride=1, target_mode='true_label', baseline_image=None, channel_indices=None):
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
     s_images = s_aarp.get_images()
+    if channel_indices is not None:
+        # Models trained on an AIA-channel subset: keep only those channels,
+        # matching the order the model saw during training.
+        s_images = s_images[:, channel_indices]
     if stride > 1:
         s_images = s_images[::stride]
     # Use the model to make predictions
@@ -75,8 +79,10 @@ def get_intensities_using_attributions(attributions_list, images_list,
     return filtered_images.flatten()
 
 def plot_intensity_distribution(images:tuple, attributions:tuple, percentile_levels, passband:int, x_range=(0,6),
-                                nbins=30, alpha=0.4, figsize=(24,5), dpi=150):
-    channel = all_wavelengths.index(passband)
+                                nbins=30, alpha=0.4, figsize=(24,5), dpi=150, model_passbands=None):
+    # model_passbands: passbands present in the image/attribution arrays, in order.
+    # None means all 7 AIA channels; a subset (e.g. [94, 131]) changes the index mapping.
+    channel = (model_passbands if model_passbands is not None else all_wavelengths).index(passband)
     images_list_neg, images_list_pos = images
     attributions_list_neg, attributions_list_pos = attributions
 
@@ -124,7 +130,21 @@ if __name__=="__main__":
     parser.add_argument("--target-mode",    default="true_label", choices=["true_label", "flare", "margin"],
                         help="Which output IG attributes to: 'true_label' (this AARP's own class, default), "
                              "'flare' (always the flare logit), or 'margin' (logit_flare - logit_nonflare).")
+    parser.add_argument("--stats-file",     default="stats.pkl",
+                        help="Path to normalization stats pickle (e.g. stats_raw.pkl for pre-fix models).")
+    parser.add_argument("--subset",         default="test", choices=["training", "validation", "test"],
+                        help="Dataset split to compute attributions on (default: test).")
+    parser.add_argument("--channels",       type=int, nargs="+", default=None,
+                        help="AIA passbands the model was trained on, e.g. --channels 94 131. "
+                             f"Choices: {all_wavelengths}. Default: all 7, in wavelength order.")
     args = parser.parse_args()
+
+    channel_indices = None
+    if args.channels is not None:
+        unknown = [c for c in args.channels if c not in all_wavelengths]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {all_wavelengths}")
+        channel_indices = [all_wavelengths.index(c) for c in args.channels]
 
     # Load Data and Model
     trained_model_path = args.model_path
@@ -132,13 +152,15 @@ if __name__=="__main__":
         metadata = json.load(json_file)
 
     training_df, val_df, test_df = dfs_from_metadata(metadata)
+    subset_df = {"training": training_df, "validation": val_df, "test": test_df}[args.subset]
 
-    with open('stats.pkl', 'rb') as pickle_file:
+    with open(args.stats_file, 'rb') as pickle_file:
         stats_data = pickle.load(pickle_file)
-    means = [stats_data.get('mean').get(f'channel_{i}') for i in range(7)]
-    stds = [stats_data.get('std').get(f'channel_{i}') for i in range(7)]
+    stats_indices = channel_indices if channel_indices is not None else list(range(7))
+    means = [stats_data.get('mean').get(f'channel_{i}') for i in stats_indices]
+    stds = [stats_data.get('std').get(f'channel_{i}') for i in stats_indices]
 
-    model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=7).model
+    model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=len(stats_indices)).model
 
     transform = AIALogTransform(means=means, stds=stds)
 
@@ -162,9 +184,9 @@ if __name__=="__main__":
 
     model = model.to(device)
 
-    for aarp_id in test_df.query('label == 1').aarp_id.unique():
+    for aarp_id in subset_df.query('label == 1').aarp_id.unique():
         print(aarp_id)
-        s_images, attributions= run_pred_and_ig(aarp_id, test_df, transform, model, device, stride=args.stride, target_mode=args.target_mode)
+        s_images, attributions= run_pred_and_ig(aarp_id, subset_df, transform, model, device, stride=args.stride, target_mode=args.target_mode, channel_indices=channel_indices)
         print(f"{s_images.shape=}")
         print(f"{len(attributions)=}")
         attributions_list_pos.append(attributions)
@@ -173,9 +195,9 @@ if __name__=="__main__":
         gc.collect()
         torch.cuda.empty_cache()
 
-    for aarp_id in test_df.query('label == 0').aarp_id.unique():
+    for aarp_id in subset_df.query('label == 0').aarp_id.unique():
         print(aarp_id)
-        s_images, attributions= run_pred_and_ig(aarp_id, test_df, transform, model, device, stride=args.stride, target_mode=args.target_mode)
+        s_images, attributions= run_pred_and_ig(aarp_id, subset_df, transform, model, device, stride=args.stride, target_mode=args.target_mode, channel_indices=channel_indices)
         print(f"{s_images.shape=}")
         print(f"{len(attributions)=}")
         attributions_list_neg.append(attributions)

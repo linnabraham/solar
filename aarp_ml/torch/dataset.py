@@ -93,9 +93,10 @@ def inverse_transform(image_tensor, means, stds):
     return original_intensity # Shape: [C, H, W]
 
 class aia_euv(Dataset):
-    def __init__(self, json_path, subset, transform=None):
+    def __init__(self, json_path, subset, transform=None, channel_indices=None):
         self.data = self._load_data(json_path, subset)
         self.transform = transform
+        self.channel_indices = channel_indices if channel_indices is not None else list(range(7))
         self.labels = [item['label'] for item in self.data]
 
     def _load_data(self, json_file, subset):
@@ -108,7 +109,7 @@ class aia_euv(Dataset):
 
     def __getitem__(self, idx):
         item = self.data[idx]
-        features = [self._read_fits_file(item[str(i)]) for i in range(7)]  # Read FITS files
+        features = [self._read_fits_file(item[str(i)]) for i in self.channel_indices]  # Read FITS files
         features = np.stack(features, axis=0)  # Stack along a new axis
         label = item['label']
         features = torch.tensor(features, dtype=torch.float32)

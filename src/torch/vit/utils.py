@@ -44,8 +44,8 @@ def get_attribution_for_image(images:np.array, label, transform, device, model, 
 def get_model_and_transform(config):
     with open(config.stats_file, 'rb') as pickle_file:
         stats_data = pickle.load(pickle_file)
-    means = [stats_data.get('mean').get(f'channel_{i}') for i in range(config.n_channels)]
-    stds = [stats_data.get('std').get(f'channel_{i}') for i in range(config.n_channels)]
+    means = [stats_data.get('mean').get(f'channel_{i}') for i in config.channel_indices]
+    stds = [stats_data.get('std').get(f'channel_{i}') for i in config.channel_indices]
 
     transform = AIALogTransform(means=means, stds=stds)
 

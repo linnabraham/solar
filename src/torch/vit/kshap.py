@@ -104,10 +104,21 @@ class KShapConfig:
     seed: int = DEFAULT_SEED
     subset: str = 'training'
     save_images: bool = DEFAULT_SAVE_IMAGES
+    min_free_mb: int = 0  # 0 = disabled; set >0 to abort cleanly if free GPU memory drops below this
+    channel_indices: List[int] = None  # indices into DEFAULT_AIA_CHANNELS; None = all 7, in order
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         import os
+
+        # Derive n_passbands/aia_channels/channel_indices consistently -- required for
+        # models trained on a channel subset (e.g. the 94+131A CV models), where FITS
+        # reads, stats lookups, and the model's input channel count must all agree.
+        if self.channel_indices is None:
+            self.channel_indices = list(range(self.n_passbands))
+        else:
+            self.n_passbands = len(self.channel_indices)
+            self.aia_channels = [DEFAULT_AIA_CHANNELS[i] for i in self.channel_indices]
 
         # Derive output paths from subset when not explicitly set.
         if not self.output_json:
@@ -221,6 +232,13 @@ def get_stratified_indices(
     without replacement using a seeded RNG. The resulting index list is shuffled
     so iteration order is not class-blocked.
 
+    TODO: this is a per-IMAGE draw, not a per-AARP draw -- AARPs contribute wildly
+    different image counts, so this is biased toward AARPs with more timesteps and
+    can miss most available AARPs (e.g. 25 random negative-class images on the
+    training subset touch only ~20 of 86 distinct negative AARPs). An AARP-stratified
+    version (round-robin across distinct AARPs per class, one image per AARP per
+    round before taking a second from any) would be more representative. Deferred.
+
     Args:
         labels: List of integer class labels for each dataset item (0 or 1).
         max_samples: Total number of indices to draw. Must be even.
@@ -291,6 +309,7 @@ def get_data_loader(
         config.json_path,
         subset=config.subset,
         transform=AIALogTransform(means, stds),
+        channel_indices=config.channel_indices,
     )
 
     indices = get_stratified_indices(
@@ -312,42 +331,42 @@ def get_data_loader(
 
 def save_images(
     image: torch.Tensor,
-    baseline_zero: torch.Tensor,
+    baseline_mean: torch.Tensor,
     means: List[float],
     stds: List[float],
     filename_prefix: str,
     config: KShapConfig
 ) -> None:
     """Save normalized, original, and baseline images as multi-channel figures.
-    
+
     Creates three PNG visualizations: normalized model input, original (denormalized),
-    and zero baseline. Each image shows all AIA channels using save_multi_channel_tensor_as_figure.
+    and mean baseline. Each image shows all AIA channels using save_multi_channel_tensor_as_figure.
     Images are saved to config.images_dir subdirectory.
-    
+
     Args:
         image: Input tensor of shape (B, C, H, W) or (C, H, W).
-        baseline_zero: Zero baseline tensor (same shape as image).
+        baseline_mean: Mean baseline tensor (same shape as image; all-zero in z-scored space).
         means: Per-channel normalization means.
         stds: Per-channel normalization standard deviations.
         filename_prefix: Prefix for output filenames (e.g., 'image_0').
         config: KShapConfig instance with aia_channels and images_dir.
-    
+
     Raises:
         RuntimeError: If save_multi_channel_tensor_as_figure fails.
     """
     import os
-    
+
     # Build full file paths in images_dir
     def get_filepath(suffix: str) -> str:
         return os.path.join(config.images_dir, f'{filename_prefix}_{suffix}.png')
-    
+
     save_multi_channel_tensor_as_figure(
         image_tensor=image,
         filename=get_filepath('normalized'),
         title='Model Input Image (Normalized)',
         channel_labels=config.aia_channels,
     )
-    
+
     save_multi_channel_tensor_as_figure(
         image_tensor=image,
         filename=get_filepath('original'),
@@ -357,11 +376,11 @@ def save_images(
         means=means,
         stds=stds
     )
-    
+
     save_multi_channel_tensor_as_figure(
-        image_tensor=baseline_zero,
+        image_tensor=baseline_mean,
         filename=get_filepath('baseline'),
-        title='KernelSHAP Baseline (Zero Input)',
+        title='KernelSHAP Baseline (Mean Input)',
         channel_labels=config.aia_channels,
     )
 
@@ -369,48 +388,48 @@ def save_images(
 def do_kernel_shap(
     config: KShapConfig,
     image: torch.Tensor,
-    baseline_zero: torch.Tensor,
+    baseline_mean: torch.Tensor,
     true_label: int,
     model: torch.nn.Module
 ) -> Tuple[Dict[int, float], Dict[int, float]]:
     """Compute per-channel KernelSHAP attributions for an image.
-    
+
     Uses Captum's KernelShap explainer with feature_mask to group pixels by channel.
     Returns aggregated mean attributions and standard errors per channel.
-    
+
     Args:
         config: KShapConfig instance with n_samples, n_passbands, aia_channels.
         image: Input tensor of shape (1, C, H, W).
-        baseline_zero: Baseline (zeros) of same shape.
+        baseline_mean: Mean baseline (all-zero in z-scored space) of same shape.
         true_label: True class label (0 or 1).
         model: torch.nn.Module in eval mode.
-    
+
     Returns:
         Tuple of (channel_scores_mean, channel_scores_se) dicts mapping channel
         index (0-6) to float attribution values.
-    
+
     Raises:
         RuntimeError: If KernelShap computation fails (GPU memory, etc.).
         ValueError: If image shape invalid (must be batch size 1).
     """
     if image.shape[0] != 1:
         raise ValueError(f"Expected batch size 1, got {image.shape[0]}")
-    
+
     def wrapped_forward_fun(x: torch.Tensor) -> torch.Tensor:
         """Wrapper for model inference."""
         return model(x)
-    
+
     # Create feature_mask grouping pixels by channel
     C = config.n_passbands
     feature_mask = torch.zeros_like(image, dtype=torch.long)
     for c in range(C):
         feature_mask[:, c, :, :] = c
-    
+
     # Compute KernelSHAP attributions
     explainer = KernelShap(wrapped_forward_fun)
     attrs = explainer.attribute(
         image,
-        baselines=baseline_zero,
+        baselines=baseline_mean,
         feature_mask=feature_mask,
         n_samples=config.n_samples,
         target=1,
@@ -451,6 +470,10 @@ def main() -> None:
     """
     import argparse
     parser = argparse.ArgumentParser(description="KernelSHAP attribution for ViT solar-flare model")
+    parser.add_argument("--trained-model-path", type=str, default=DEFAULT_TRAINED_MODEL_PATH,
+                        help="Path to trained ViT checkpoint")
+    parser.add_argument("--json-path", type=str, default=DEFAULT_JSON_PATH,
+                        help="Path to dataset JSON (e.g. a CV fold's JSON for fold-specific checkpoints)")
     parser.add_argument("--max-samples", type=int, default=DEFAULT_MAX_SAMPLES,
                         help="Samples to process (must be even); 0 = all available, balanced on minority class")
     parser.add_argument("--subset", type=str, default="training",
@@ -460,13 +483,34 @@ def main() -> None:
                         help="Output JSON path (default: shap_stats_{subset}.json)")
     parser.add_argument("--save-images", action="store_true",
                         help="Save per-sample visualization PNGs (disabled by default)")
+    parser.add_argument("--min-free-mb", type=int, default=0,
+                        help="Abort cleanly (saving partial results) if free GPU memory drops "
+                             "below this many MB. 0 (default) disables the check -- set this "
+                             "when running alongside another GPU job.")
+    parser.add_argument("--channels", type=int, nargs="+", default=None,
+                        help="AIA passbands the checkpoint was trained on, e.g. --channels 94 131. "
+                             f"Choices: {DEFAULT_AIA_CHANNELS}. Default: all 7, in wavelength order.")
+    parser.add_argument("--stats-file", type=str, default=DEFAULT_STATS_FILE,
+                        help="Path to normalization stats pickle (e.g. stats_raw.pkl for pre-fix models)")
     args = parser.parse_args()
 
+    channel_indices = None
+    if args.channels is not None:
+        unknown = [c for c in args.channels if c not in DEFAULT_AIA_CHANNELS]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {DEFAULT_AIA_CHANNELS}")
+        channel_indices = [DEFAULT_AIA_CHANNELS.index(c) for c in args.channels]
+
     config = KShapConfig(
+        trained_model_path=args.trained_model_path,
+        json_path=args.json_path,
         max_samples=args.max_samples,
         subset=args.subset,
         output_json=args.output_json,
+        channel_indices=channel_indices,
         save_images=args.save_images,
+        min_free_mb=args.min_free_mb,
+        stats_file=args.stats_file,
     )
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
@@ -479,8 +523,8 @@ def main() -> None:
     try:
         with open(config.stats_file, 'rb') as f:
             stats = pickle.load(f)
-            means = [stats['mean'][f'channel_{i}'] for i in range(config.n_passbands)]
-            stds = [stats['std'][f'channel_{i}'] for i in range(config.n_passbands)]
+            means = [stats['mean'][f'channel_{i}'] for i in config.channel_indices]
+            stds = [stats['std'][f'channel_{i}'] for i in config.channel_indices]
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Statistics file not found: {config.stats_file}") from e
     except KeyError as e:
@@ -497,11 +541,24 @@ def main() -> None:
     t_loop_start = time.perf_counter()
 
     for i, (x, y) in enumerate(tqdm(data_loader, desc="KernelSHAP", unit="sample")):
+        if config.min_free_mb > 0 and device.type == 'cuda':
+            free_mb = torch.cuda.mem_get_info()[0] / (1024 ** 2)
+            if free_mb < config.min_free_mb:
+                print(f"\n! Free GPU memory {free_mb:.0f}MB < --min-free-mb {config.min_free_mb}MB "
+                      f"at sample {i}/{n_total}. Stopping early and saving partial results.")
+                break
+
         image = x.to(device)  # already shape (1, C, H, W) since batch_size=1
-        baseline_zero = transform(torch.zeros_like(image)).to(device)
+        # Mean baseline: image is already log+z-scored, so an all-zero tensor here
+        # IS "every channel at its typical (mean) value" -- NOT transform(zeros),
+        # which would clamp raw-zero to 1 DN and z-score that (the dark/near-black
+        # baseline). The dark baseline's distance-from-baseline for a typical pixel
+        # is mean/std per channel, which ranges ~3x (94A) to ~18x (193A) just from
+        # each channel's own scale -- a baseline-choice artifact, not real signal.
+        baseline_mean = torch.zeros_like(image).to(device)
 
         if config.save_images:
-            save_images(image, baseline_zero, means, stds, f"image_{i}", config)
+            save_images(image, baseline_mean, means, stds, f"image_{i}", config)
 
         true_label = int(y.item())
 
@@ -512,7 +569,7 @@ def main() -> None:
             prediction = int(model(image).argmax(dim=1).item())
 
         # Compute KernelSHAP attributions w.r.t. the true class
-        mean_scores, se_scores = do_kernel_shap(config, image, baseline_zero, true_label, model)
+        mean_scores, se_scores = do_kernel_shap(config, image, baseline_mean, true_label, model)
 
         record = {
             "round": i,

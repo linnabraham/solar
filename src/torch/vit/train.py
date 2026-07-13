@@ -12,6 +12,7 @@ from collections import Counter
 from sklearn.metrics import confusion_matrix
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import DeepFlare_ViT, SaveBestModel
+from aarp_ml.dataset import all_wavelengths
 from src.torch.vit.config import TrainingConfig
 
 def get_weighted_sampler(dataset) -> WeightedRandomSampler:
@@ -157,8 +158,8 @@ def train(config: TrainingConfig):
     # Load statistics
     with open(config.stats_file, 'rb') as f:
         stats = pickle.load(f)
-    means = [stats['mean'][f'channel_{i}'] for i in range(config.n_channels)]
-    stds = [stats['std'][f'channel_{i}'] for i in range(config.n_channels)]
+    means = [stats['mean'][f'channel_{i}'] for i in config.channel_indices]
+    stds = [stats['std'][f'channel_{i}'] for i in config.channel_indices]
 
     # Create datasets
     train_dataset = aia_euv(
@@ -168,12 +169,14 @@ def train(config: TrainingConfig):
             AIALogTransform(means, stds),
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5)
-        ])
+        ]),
+        channel_indices=config.channel_indices
     )
     val_dataset = aia_euv(
         config.json_path,
         subset='validation',
-        transform=v2.Compose([AIALogTransform(means, stds)])
+        transform=v2.Compose([AIALogTransform(means, stds)]),
+        channel_indices=config.channel_indices
     )
 
     # Create dataloaders
@@ -262,12 +265,24 @@ def parse_args() -> TrainingConfig:
                        help="Enable L1 regularization")
     parser.add_argument("--l1-lambda", type=float, default=TrainingConfig.l1_lambda,
                        help="L1 regularization strength")
+    parser.add_argument("--channels", type=int, nargs="+", default=None,
+                       help="AIA passbands to use, e.g. --channels 94 131. "
+                            f"Choices: {all_wavelengths}. Default: all 7, in wavelength order.")
+    parser.add_argument("--memory-threshold", type=int, default=TrainingConfig.memory_threshold,
+                       help="Abort epoch if allocated GPU memory exceeds this many MB")
 
     args = parser.parse_args()
 
     # Validate that --retrain is not given without --trained-model-path
     if args.retrain and not args.trained_model_path:
         parser.error("--retrain requires --trained-model-path to be specified.")
+
+    channel_indices = None
+    if args.channels is not None:
+        unknown = [c for c in args.channels if c not in all_wavelengths]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {all_wavelengths}")
+        channel_indices = [all_wavelengths.index(c) for c in args.channels]
 
     return TrainingConfig(
         json_path=args.json_path,
@@ -279,7 +294,9 @@ def parse_args() -> TrainingConfig:
         retrain=args.retrain,
         trained_model_path=args.trained_model_path,
         use_l1=args.use_l1,
-        l1_lambda=args.l1_lambda
+        l1_lambda=args.l1_lambda,
+        channel_indices=channel_indices,
+        memory_threshold=args.memory_threshold
     )
 
 if __name__ == "__main__":

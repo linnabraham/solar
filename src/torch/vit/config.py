@@ -21,7 +21,14 @@ class TrainingConfig:
     image_height: int = 512
     n_classes: int = 2
     n_channels: int = 7
+    channel_indices: Optional[list] = None  # indices into AIA_CHANNELS wavelength order; None = all 7
 
     # System parameters
     device: str = "cuda:0"
     memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+
+    def __post_init__(self):
+        if self.channel_indices is None:
+            self.channel_indices = list(range(self.n_channels))
+        else:
+            self.n_channels = len(self.channel_indices)

@@ -1,4 +1,5 @@
 import sys, os
+import argparse
 import wandb
 from tqdm import tqdm
 from torchvision.transforms import v2
@@ -14,15 +15,16 @@ from torch.utils.data import DataLoader
 from src.torch.vit.train import print_config, get_weighted_sampler, _run_epoch
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
 from aarp_ml.torch.model import SaveBestModel
+from aarp_ml.dataset import all_wavelengths
 
-def modify_alexnet(model):
+def modify_alexnet(model, in_channels=7):
     """
     This function modifies the base architecture of AlexNet to conform as far as
     posssible with the architecture that used in tensorflow
     """
 
     model.features[0] = nn.Conv2d(
-        in_channels=7,
+        in_channels=in_channels,
         out_channels=96,
         kernel_size=(5, 5),
         stride=(2, 2),
@@ -63,10 +65,17 @@ class TrainingConfig:
     image_height: int = 512
     n_classes: int = 2
     n_channels: int = 7
+    channel_indices: Optional[list] = None  # indices into AIA_CHANNELS wavelength order; None = all 7
 
     # System parameters
     device: str = "cuda:0"
     memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+
+    def __post_init__(self):
+        if self.channel_indices is None:
+            self.channel_indices = list(range(self.n_channels))
+        else:
+            self.n_channels = len(self.channel_indices)
 
 def init_data(config):
     with open(config.json_path, 'r') as json_file:
@@ -75,8 +84,8 @@ def init_data(config):
     with open(config.stats_file, 'rb') as pickle_file:
         stats_data = pickle.load(pickle_file)
 
-    means = [stats_data.get('mean').get(f'channel_{i}') for i in range(config.n_channels)]
-    stds = [stats_data.get('std').get(f'channel_{i}') for i in range(config.n_channels)]
+    means = [stats_data.get('mean').get(f'channel_{i}') for i in config.channel_indices]
+    stds = [stats_data.get('std').get(f'channel_{i}') for i in config.channel_indices]
 
     transform = AIALogTransform(means=means, stds=stds)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -88,12 +97,14 @@ def init_data(config):
             AIALogTransform(means, stds),
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5)
-        ])
+        ]),
+        channel_indices=config.channel_indices
     )
     val_dataset = aia_euv(
         config.json_path,
         subset='validation',
-        transform=v2.Compose([AIALogTransform(means, stds)])
+        transform=v2.Compose([AIALogTransform(means, stds)]),
+        channel_indices=config.channel_indices
     )
 
     # Create dataloaders
@@ -166,8 +177,39 @@ def train(config: TrainingConfig, model):
         if not success:
             break
 
+def parse_args() -> TrainingConfig:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-path", default="solar_dataset.json",
+                       help="Path to JSON file containing dataset information")
+    parser.add_argument("--stats-file", default="stats.pkl",
+                       help="Path to statistics file containing means and stds")
+    parser.add_argument("--batch-size", type=int, default=TrainingConfig.batch_size)
+    parser.add_argument("--epochs", type=int, default=TrainingConfig.epochs)
+    parser.add_argument("--lr", type=float, default=TrainingConfig.learning_rate)
+    parser.add_argument("--channels", type=int, nargs="+", default=None,
+                       help="AIA passbands to use, e.g. --channels 94 131. "
+                            f"Choices: {all_wavelengths}. Default: all 7, in wavelength order.")
+
+    args = parser.parse_args()
+
+    channel_indices = None
+    if args.channels is not None:
+        unknown = [c for c in args.channels if c not in all_wavelengths]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {all_wavelengths}")
+        channel_indices = [all_wavelengths.index(c) for c in args.channels]
+
+    return TrainingConfig(
+        json_path=args.json_path,
+        stats_file=args.stats_file,
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        learning_rate=args.lr,
+        channel_indices=channel_indices,
+    )
+
 if __name__=="__main__":
+    config = parse_args()
     alexnet = torchvision.models.alexnet()
-    model = modify_alexnet(alexnet)
-    config = TrainingConfig(json_path="solar_dataset.json", stats_file="stats.pkl")
+    model = modify_alexnet(alexnet, in_channels=config.n_channels)
     train(config, model)

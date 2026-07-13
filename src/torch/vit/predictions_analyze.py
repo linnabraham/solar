@@ -265,7 +265,7 @@ def vizualize_goes_ts_predictions(
     return fig, ax
 
 
-def get_aarp_seq_dataset(s_aarp, transform, device):
+def get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=None):
     """Load AARP image sequence and return as TensorDataset.
     
     Args:
@@ -277,12 +277,14 @@ def get_aarp_seq_dataset(s_aarp, transform, device):
         torch.utils.data.TensorDataset with normalized images.
     """
     s_images = s_aarp.get_images()  # Shape: [N, 7, 512, 512]
+    if channel_indices is not None:
+        s_images = s_images[:, channel_indices]
     tensor_images = torch.from_numpy(s_images).to(torch.float32).to(device)
     tensor_data = transform(tensor_images)
     dataset = TensorDataset(tensor_data)
     return dataset
 
-def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home, resume=False):
+def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home, resume=False, channel_indices=None):
     """Generate and save prediction plot for a single AARP sample.
     
     Loads AARP image sequence, generates model predictions, fetches GOES
@@ -314,7 +316,7 @@ def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
 
-    dataset = get_aarp_seq_dataset(s_aarp, transform, device)
+    dataset = get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=channel_indices)
     predictions = make_predictions(dataset, model=model, device=device)
     torch.cuda.empty_cache()
     gc.collect()
@@ -369,13 +371,27 @@ def main():
     parser.add_argument("--output-dir", default=None,
                         help="Root directory for output plots. Defaults to "
                              "plots/predictions/<run-id> derived from --model-path.")
+    parser.add_argument("--stats-file", default="stats.pkl",
+                        help="Path to normalization stats pickle (e.g. stats_raw.pkl for pre-fix models).")
+    parser.add_argument("--channels", type=int, nargs="+", default=None,
+                        help="AIA passbands the model was trained on, e.g. --channels 94 131. "
+                             "Default: all 7, in wavelength order.")
     args = parser.parse_args()
 
     if args.output_dir is None:
         run_id = Path(args.model_path).parent.name
         args.output_dir = f"plots/predictions/{run_id}"
 
-    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
+    channel_indices = None
+    if args.channels is not None:
+        from aarp_ml.dataset import all_wavelengths
+        unknown = [c for c in args.channels if c not in all_wavelengths]
+        if unknown:
+            parser.error(f"Unknown channel(s) {unknown}. Choices: {all_wavelengths}")
+        channel_indices = [all_wavelengths.index(c) for c in args.channels]
+
+    config = TrainingConfig(json_path=args.json_path, stats_file=args.stats_file,
+                            channel_indices=channel_indices)
     config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
@@ -397,9 +413,11 @@ def main():
     os.makedirs(output_home, exist_ok=True)
 
     for aarp_id in test_df.aarp_id.unique().tolist() if not test_df.empty else []:
-        make_prediction_plot(aarp_id, test_df, transform, model, device, output_home)
+        make_prediction_plot(aarp_id, test_df, transform, model, device, output_home,
+                             channel_indices=channel_indices)
     for aarp_id in val_df.aarp_id.unique().tolist() if not val_df.empty else []:
-        make_prediction_plot(aarp_id, val_df, transform, model, device, output_home)
+        make_prediction_plot(aarp_id, val_df, transform, model, device, output_home,
+                             channel_indices=channel_indices)
 
 if __name__ == "__main__":
     main()
