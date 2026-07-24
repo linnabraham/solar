@@ -14,8 +14,12 @@ class TrainingConfig:
     scheduler_type: Optional[str] = None
     retrain: bool = False
     trained_model_path: Optional[str] = None
+    run_name: Optional[str] = None
     use_l1: bool = False
     l1_lambda: float = 0.01
+    save_all_epochs: bool = False  # also save every epoch's checkpoint (for post-hoc checkpoint-selection experiments)
+    seed: Optional[int] = None  # if set, fixes torch/numpy/python RNG state for reproducible runs
+    model_type: str = "deepflare_vit"  # bookkeeping only (wandb + run metadata); does not drive train.py branching
 
     # Model parameters
     image_height: int = 512
