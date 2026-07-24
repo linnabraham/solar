@@ -22,7 +22,6 @@ import pickle
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import torchvision
 import torch.nn as nn
 from pathlib import Path
 from dataclasses import dataclass
@@ -33,6 +32,7 @@ from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 
 from aarp_ml.torch.dataset import aia_euv, AIALogTransform
+from aarp_ml.torch.model import build_pretrained_vit
 from src.torch.vit.test import compute_metrics        # reuse existing helper
 from ml_utils.visualization import plot_confusion_matrix
 
@@ -48,41 +48,6 @@ DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # ==================== Model loading ====================
-
-def build_pretrained_vit(n_channels: int = N_CHANNELS,
-                         n_classes: int = N_CLASSES) -> torch.nn.Module:
-    """Reconstruct the torchvision vit_l_16 architecture used during training.
-
-    Applies the same two modifications made when the model was trained:
-      - conv_proj replaced to accept n_channels input channels (7 AIA passbands)
-      - heads.head replaced with a new Linear layer for n_classes outputs
-        (preserving the 'heads.head' key name used in the saved checkpoint)
-
-    Args:
-        n_channels: Number of AIA passband channels (default 7).
-        n_classes: Number of output classes (default 2).
-
-    Returns:
-        The modified torchvision VisionTransformer.
-    """
-    model = torchvision.models.vit_l_16(weights=None)    # no pretrained weights; we load from ckpt
-
-    conv1_out = model.conv_proj.out_channels
-    model.conv_proj = nn.Conv2d(
-        n_channels,
-        conv1_out,
-        kernel_size=(16, 16),
-        stride=(16, 16),
-    )
-
-    # Replace only the final linear layer in-place, preserving the 'heads.head'
-    # key name used by the original torchvision VisionTransformer.  The training
-    # code saved the checkpoint with this structure rather than replacing the
-    # entire heads module with an nn.Sequential (which would produce 'heads.1').
-    lin_in = model.heads.head.in_features
-    model.heads.head = nn.Linear(in_features=lin_in, out_features=n_classes, bias=True)
-    return model
-
 
 def load_pretrained_vit(checkpoint_path: str,
                         device: torch.device) -> torch.nn.Module:
@@ -103,7 +68,7 @@ def load_pretrained_vit(checkpoint_path: str,
             f"got top-level keys: {list(ckpt.keys()) if isinstance(ckpt, dict) else type(ckpt)}"
         )
 
-    model = build_pretrained_vit()
+    model = build_pretrained_vit(pretrained=False)
     model.load_state_dict(ckpt["model_state_dict"])
     model.to(device)
     model.eval()

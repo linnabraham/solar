@@ -1,6 +1,30 @@
 import torch
+import torch.nn as nn
+import torchvision
 from .base import BaseModel
 from vit_pytorch import ViT
+
+def build_pretrained_vit(n_channels: int = 7, n_classes: int = 2, pretrained: bool = True) -> torch.nn.Module:
+    """torchvision vit_l_16, conv_proj swapped for n_channels input, heads.head swapped for
+    n_classes output. pretrained=True loads ImageNet1K_V1 weights (for training from scratch);
+    pretrained=False skips it (for eval/inference, about to load a fine-tuned checkpoint anyway).
+
+    Single source of truth for this architecture -- train_pretrained.py, test_pretrained.py, and
+    evaluate_aarp.py all build from here so the reconstructed graph is guaranteed identical to
+    whatever produced a given .pth file. Do NOT wrap heads.head in nn.Sequential(Dropout, Linear)
+    -- that changes the state_dict key to 'heads.1.*' and breaks load_state_dict against existing
+    checkpoints (see the now-superseded VIT_Pretrained in vit_pretrained.py for that variant).
+    """
+    weights = "IMAGENET1K_V1" if pretrained else None
+    model = torchvision.models.vit_l_16(weights=weights)
+
+    conv1_out = model.conv_proj.out_channels
+    model.conv_proj = nn.Conv2d(n_channels, conv1_out, kernel_size=(16, 16), stride=(16, 16))
+
+    lin_in = model.heads.head.in_features
+    model.heads.head = nn.Linear(lin_in, n_classes, bias=True)
+
+    return model
 
 class DeepFlare_ViT(BaseModel):
     def __init__(self,**kwargs):
