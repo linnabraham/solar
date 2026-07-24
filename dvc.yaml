@@ -1,46 +1,280 @@
-stages:
-  prediction-plots:
-    cmd: python -m src.torch.vit.predictions_analyze
-    deps:
-    - outputs/glad-shape-197/trained_model.pth
-    - solar_dataset.json
-    - stats.pkl
-    - src/torch/vit/ig.py
-    - src/torch/vit/predictions_analyze.py
-    outs:
-    - plots/predictions/1275/goes_with_predictions.png
-    - plots/predictions/1449/goes_with_predictions.png
-    - plots/predictions/185/goes_with_predictions.png
-    - plots/predictions/2026/goes_with_predictions.png
-    - plots/predictions/3153/goes_with_predictions.png
-    - plots/predictions/3229/goes_with_predictions.png
-    - plots/predictions/3364/goes_with_predictions.png
-    - plots/predictions/3563/goes_with_predictions.png
-    - plots/predictions/377/goes_with_predictions.png
-    - plots/predictions/401/goes_with_predictions.png
-    - plots/predictions/4296/goes_with_predictions.png
-    - plots/predictions/4920/goes_with_predictions.png
-    - plots/predictions/5894/goes_with_predictions.png
-    - plots/predictions/833/goes_with_predictions.png
+# Experiment registry (paper/experiments.yaml) drives the exp-* stages below:
+# every experiment = (checkpoint × stats × dataset JSON), outputs land in
+# artifacts/<exp-id>/ and metrics/<exp-id>/. See paper/battery.yaml for what
+# each artifact means. Tier membership is edited in the registry, not here.
+vars:
+  - paper/experiments.yaml
 
-  plot-class-dist:
-    cmd: python -m src.torch.vit.plot_class_wise_distribution
-    deps:
-    - data/intermediate-outs/attributions_neg.pt
-    - data/intermediate-outs/attributions_pos.pt
-    - solar_dataset.json
-    - src/torch/vit/plot_class_wise_distribution.py
-    - src/torch/vit/class_wise_distribution.py
-    - src/torch/vit/ig.py
-    - src/torch/vit/utils.py
-    outs:
-    - plots/distribution/131.png
-    - plots/distribution/171.png
-    - plots/distribution/193.png
-    - plots/distribution/211.png
-    - plots/distribution/304.png
-    - plots/distribution/335.png
-    - plots/distribution/94.png
+stages:
+  # ── Per-experiment battery stages (foreach over registry tiers) ────────────
+
+  exp-eval-test:
+    foreach: ${tier_core}
+    do:
+      cmd: >-
+        python -m src.torch.vit.test --subset test
+        --trained-model ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-path artifacts/${key}/cm_test.png
+        --metrics-out metrics/${key}/scores_test.json
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/test.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/cm_test.png
+      metrics:
+      - metrics/${key}/scores_test.json:
+          cache: false
+
+  exp-eval-validation:
+    foreach: ${tier_core}
+    do:
+      cmd: >-
+        python -m src.torch.vit.test --subset validation
+        --trained-model ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-path artifacts/${key}/cm_validation.png
+        --metrics-out metrics/${key}/scores_validation.json
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/test.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/cm_validation.png
+      metrics:
+      - metrics/${key}/scores_validation.json:
+          cache: false
+
+  # IG attribution sections run on BOTH test and validation: with only ~17
+  # positive AARPs total, the two splits can tell different stories and the
+  # reports must show whether the channel/attribution findings hold on each.
+  exp-ig-attributions-test:
+    foreach: ${tier_explain}
+    do:
+      cmd: >-
+        python -m src.torch.vit.class_wise_distribution
+        --subset test
+        --json-path ${item.json}
+        --model-path ${item.checkpoint}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-neg artifacts/${key}/attributions_neg_test.pt
+        --output-pos artifacts/${key}/attributions_pos_test.pt
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/class_wise_distribution.py
+      - src/torch/vit/ig.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/attributions_neg_test.pt:
+          cache: false
+      - artifacts/${key}/attributions_pos_test.pt:
+          cache: false
+
+  exp-ig-attributions-validation:
+    foreach: ${tier_explain}
+    do:
+      cmd: >-
+        python -m src.torch.vit.class_wise_distribution
+        --subset validation
+        --json-path ${item.json}
+        --model-path ${item.checkpoint}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-neg artifacts/${key}/attributions_neg_validation.pt
+        --output-pos artifacts/${key}/attributions_pos_validation.pt
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/class_wise_distribution.py
+      - src/torch/vit/ig.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/attributions_neg_validation.pt:
+          cache: false
+      - artifacts/${key}/attributions_pos_validation.pt:
+          cache: false
+
+  exp-ig-distribution-plots-test:
+    foreach: ${tier_explain}
+    do:
+      cmd: >-
+        python -m src.torch.vit.plot_class_wise_distribution
+        --subset test
+        --json-path ${item.json}
+        --attributions-neg artifacts/${key}/attributions_neg_test.pt
+        --attributions-pos artifacts/${key}/attributions_pos_test.pt
+        --output-dir artifacts/${key}/distribution_test
+        ${item.channels_args}
+      deps:
+      - artifacts/${key}/attributions_neg_test.pt
+      - artifacts/${key}/attributions_pos_test.pt
+      - ${item.json}
+      - src/torch/vit/plot_class_wise_distribution.py
+      - src/torch/vit/class_wise_distribution.py
+      - src/torch/vit/ig.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/distribution_test
+
+  exp-ig-distribution-plots-validation:
+    foreach: ${tier_explain}
+    do:
+      cmd: >-
+        python -m src.torch.vit.plot_class_wise_distribution
+        --subset validation
+        --json-path ${item.json}
+        --attributions-neg artifacts/${key}/attributions_neg_validation.pt
+        --attributions-pos artifacts/${key}/attributions_pos_validation.pt
+        --output-dir artifacts/${key}/distribution_validation
+        ${item.channels_args}
+      deps:
+      - artifacts/${key}/attributions_neg_validation.pt
+      - artifacts/${key}/attributions_pos_validation.pt
+      - ${item.json}
+      - src/torch/vit/plot_class_wise_distribution.py
+      - src/torch/vit/class_wise_distribution.py
+      - src/torch/vit/ig.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/distribution_validation
+
+  # Exemplar AARPs below must stay in sync with exemplar_aarps in
+  # paper/experiments.yaml (flaring: 377, 1449; non-flaring: 2026, 4296).
+  exp-contour-grids:
+    foreach: ${tier_explain}
+    do:
+      cmd:
+      - >-
+        python -m src.torch.vit.plot_contour_image_grid
+        --json-path ${item.json} --model-path ${item.checkpoint}
+        --stats-file ${item.stats} ${item.channels_args}
+        --aarp-id 377 --output-path artifacts/${key}/contour_grid/aarp377.png
+      - >-
+        python -m src.torch.vit.plot_contour_image_grid
+        --json-path ${item.json} --model-path ${item.checkpoint}
+        --stats-file ${item.stats} ${item.channels_args}
+        --aarp-id 1449 --output-path artifacts/${key}/contour_grid/aarp1449.png
+      - >-
+        python -m src.torch.vit.plot_contour_image_grid
+        --json-path ${item.json} --model-path ${item.checkpoint}
+        --stats-file ${item.stats} ${item.channels_args}
+        --aarp-id 2026 --output-path artifacts/${key}/contour_grid/aarp2026.png
+      - >-
+        python -m src.torch.vit.plot_contour_image_grid
+        --json-path ${item.json} --model-path ${item.checkpoint}
+        --stats-file ${item.stats} ${item.channels_args}
+        --aarp-id 4296 --output-path artifacts/${key}/contour_grid/aarp4296.png
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/plot_contour_image_grid.py
+      - src/torch/vit/ig.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/contour_grid
+
+  exp-prediction-plots:
+    foreach: ${tier_explain}
+    do:
+      cmd: >-
+        python -m src.torch.vit.predictions_analyze
+        --json-path ${item.json}
+        --model-path ${item.checkpoint}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-dir artifacts/${key}/predictions
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/ig.py
+      - src/torch/vit/predictions_analyze.py
+      outs:
+      - artifacts/${key}/predictions
+
+  exp-kshap-stats:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.kshap --subset test
+        --trained-model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-json artifacts/${key}/shap_stats_test.json
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/kshap.py
+      - aarp_ml/torch/dataset.py
+      - aarp_ml/torch/model.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/shap_stats_test.json
+
+  exp-kshap-analyze:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.analyze_shap --subset test
+        --input-json artifacts/${key}/shap_stats_test.json
+        --output-dir artifacts/${key}/kshap
+      deps:
+      - artifacts/${key}/shap_stats_test.json
+      - src/torch/vit/analyze_shap.py
+      outs:
+      - artifacts/${key}/kshap
+
+  exp-kshap-stats-validation:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.kshap --subset validation
+        --trained-model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        --output-json artifacts/${key}/shap_stats_validation.json
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/kshap.py
+      - aarp_ml/torch/dataset.py
+      - aarp_ml/torch/model.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/shap_stats_validation.json
+
+  exp-kshap-analyze-validation:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.analyze_shap --subset validation
+        --input-json artifacts/${key}/shap_stats_validation.json
+        --output-dir artifacts/${key}/kshap_validation
+      deps:
+      - artifacts/${key}/shap_stats_validation.json
+      - src/torch/vit/analyze_shap.py
+      outs:
+      - artifacts/${key}/kshap_validation
+
+  # ── Single-run / data stages ───────────────────────────────────────────────
 
   xgb-feat-importance:
     cmd: python -m src.torch.xgb_feat_importance --model-path outputs/devoted-pond-14/best_xgboost_model.json
@@ -51,19 +285,6 @@ stages:
     - plots/xgb/devoted-pond-14/feat_importance_gain.png
     - plots/xgb/devoted-pond-14/feat_importance_weight.png
     - plots/xgb/devoted-pond-14/feat_importance_gain_top20.png
-
-  plot_contour_image_grid:
-    cmd: python -m src.torch.vit.plot_contour_image_grid
-    deps:
-    - outputs/glad-shape-197/trained_model.pth
-    - solar_dataset.json
-    - src/torch/vit/ig.py
-    - src/torch/vit/plot_contour_image_grid.py
-    - src/torch/vit/train.py
-    - src/torch/vit/utils.py
-    - stats.pkl
-    outs:
-    - plots/attribution_contour_grid.png
 
   create_movie:
     cmd: >-
@@ -101,26 +322,6 @@ stages:
     outs:
     - plots/attributions
 
-  confusion-matrix-val:
-    cmd: python -m src.torch.vit.test --subset validation
-    deps:
-    - outputs/glad-shape-197/trained_model.pth
-    - solar_dataset.json
-    - src/torch/vit/test.py
-    - stats.pkl
-    outs:
-    - plots/cm_validation.png
-
-  confusion-matrix-test:
-    cmd: python -m src.torch.vit.test --subset test
-    deps:
-    - outputs/glad-shape-197/trained_model.pth
-    - solar_dataset.json
-    - src/torch/vit/test.py
-    - stats.pkl
-    outs:
-    - plots/cm_test.png
-
   data-single:
     cmd: python -m src.data_single --process --select
     deps:
@@ -137,42 +338,6 @@ stages:
     - data/neg_urls_selected_downloaded.csv
     - data/pos_urls_selected_downloaded.csv
     - data/shape_limited.csv
-
-  create-distribution:
-    cmd: python -m src.torch.vit.class_wise_distribution
-    deps:
-    - outputs/glad-shape-197/trained_model.pth
-    - solar_dataset.json
-    - src/torch/vit/class_wise_distribution.py
-    - src/torch/vit/ig.py
-    - src/torch/vit/utils.py
-    - stats.pkl
-    outs:
-    - data/intermediate-outs/attributions_neg.pt:
-        cache: false
-    - data/intermediate-outs/attributions_pos.pt:
-        cache: false
-
-  kshap-stats:
-    cmd: python -m src.torch.vit.kshap --subset test
-    deps:
-    - src/torch/vit/kshap.py
-    - aarp_ml/torch/dataset.py
-    - aarp_ml/torch/model.py
-    - outputs/glad-shape-197/trained_model.pth
-    - solar_dataset.json
-    - src/torch/vit/utils.py
-    - stats.pkl
-    outs:
-    - shap_stats_test.json
-
-  kshap-analyze:
-    cmd: python -m src.torch.vit.analyze_shap --subset test
-    deps:
-    - src/torch/vit/analyze_shap.py
-    - shap_stats_test.json
-    outs:
-    - plots/kshap/test/results
 
   # ── Subset pipeline stages ────────────────────────────────────────────────
   # Operates on a small locally-downloaded AARP subset (see src/aarp_subset_pipeline.py).

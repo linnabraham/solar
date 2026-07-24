@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Experiment registry — the axes of the investigation
+#
+# An EXPERIMENT = (model checkpoint × pipeline state). Pipeline state =
+# normalization stats + dataset JSON. Battery items (battery.yaml) are
+# produced per experiment into artifacts/<exp-id>/ and metrics/<exp-id>/;
+# each experiment gets one papermill report: reports/<exp-id>.html.
+#
+# This file is loaded by dvc.yaml via `vars:` — the exp-* stages foreach over
+# the tier_* dicts below. IDs use only [a-z0-9-] (DVC stage-name safe):
+#   <run-name>-lin  = pre-fix linear-space stats (stats_raw.pkl)
+#   <run-name>-log  = post-fix log-space stats   (stats.pkl)
+#
+# `specs:` holds one YAML anchor per experiment; the tier_* dicts reference
+# those anchors, so each experiment is defined exactly once. To move an
+# experiment between tiers, add/remove its line in the tier dicts.
+#   tier_core    = metrics + CM (cheap — every experiment)
+#   tier_explain = IG distributions, contour grids, prediction timeseries
+#   tier_shap    = kernel-SHAP stats + ranking
+#
+# History of decisions (2026-07-17 Q&A with Linn + verification):
+#   - balmy-energy-223 chosen over sleek-bush-222 (same config family:
+#     7-ch, post-fix log-norm, single balanced split): test CM gives
+#     balanced accuracy 0.67 / TSS≈0.35 vs sleek's 0.56 / TSS≈0.11.
+#   - treasured-blaze-221 dropped: pretrained-ImageNet architecture
+#     experiment, pre-fix. Future work: rebuild post-fix, with tests
+#     (targets the 7-ch overfitting problem).
+#   - vibrant-cosmos-225 ignored; pilot runs discarded.
+#   - 2-ch performance claim = CV folds 0-2 (mean±std). Folds 3-4 never ran
+#     (run_cv.py background job stopped after fold 2; resumable if wanted).
+#     Fold 1 = representative single 2-ch model (best TSS≈0.43).
+#   - young-snowball-224 kept for explainability continuity only:
+#     good val, poor test — cite with that caveat.
+#   - Channel counts verified from checkpoint patch-embedding shapes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+exemplar_aarps:           # fixed across all reports; all in the shared test split
+  flaring: [377, 1449]
+  nonflaring: [2026, 4296]
+
+specs:
+  glad-shape-197-lin: &glad-shape-197-lin
+    # 7-ch historical baseline (pre-fix). Its mean-baseline IG maps must be
+    # comparable against the post-fix models.
+    checkpoint: outputs/glad-shape-197/trained_model.pth
+    stats: stats_raw.pkl
+    json: solar_dataset.json
+    channels_args: ""
+  balmy-energy-223-log: &balmy-energy-223-log
+    # 7-ch, post-fix log-norm, single balanced split — leading 7-ch candidate.
+    checkpoint: outputs/balmy-energy-223/trained_model.pth
+    stats: stats.pkl
+    json: solar_dataset.json
+    channels_args: ""
+  young-snowball-224-log: &young-snowball-224-log
+    # 2-ch (94+131), post-fix. Explainability continuity; poor-test caveat.
+    checkpoint: outputs/young-snowball-224/trained_model.pth
+    stats: stats.pkl
+    json: solar_dataset.json
+    channels_args: "--channels 94 131"
+  cv-fold0-94131ch-log: &cv-fold0-94131ch-log
+    checkpoint: outputs/cv-fold0-94131ch/trained_model.pth
+    stats: stats.pkl
+    json: cv_folds/fold_0.json
+    channels_args: "--channels 94 131"
+  cv-fold1-94131ch-log: &cv-fold1-94131ch-log
+    checkpoint: outputs/cv-fold1-94131ch/trained_model.pth
+    stats: stats.pkl
+    json: cv_folds/fold_1.json
+    channels_args: "--channels 94 131"
+  cv-fold2-94131ch-log: &cv-fold2-94131ch-log
+    checkpoint: outputs/cv-fold2-94131ch/trained_model.pth
+    stats: stats.pkl
+    json: cv_folds/fold_2.json
+    channels_args: "--channels 94 131"
+  cv-fold0-7ch-normfix-l1-log: &cv-fold0-7ch-normfix-l1-log
+    # 7-ch fold-0 run with the full recipe fixes (log-norm + per-fold stats
+    # [no leakage] + recalibrated L1). Finished 2026-07-18 07:56.
+    # NOTE: fold-based experiment — global exemplar AARPs 377/4296 are in its
+    # TRAINING split (1449=val, 2026=test); reports must annotate seen/unseen.
+    checkpoint: outputs/cv-fold0-94131171193211304335ch-normfix-l1/trained_model.pth
+    stats: cv_folds/fold_0_stats.pkl
+    json: cv_folds/fold_0.json
+    channels_args: ""
+  # PLACEHOLDER — cv-fold0-94131171193211304335ch-normfix-l1-allepochs is
+  # training now (2026-07-18): same recipe, saving every epoch checkpoint for
+  # post-hoc epoch selection. Add spec(s) when it finishes — possibly several
+  # entries pointing at different epoch checkpoints of the same run.
+
+tier_core:
+  glad-shape-197-lin: *glad-shape-197-lin
+  balmy-energy-223-log: *balmy-energy-223-log
+  young-snowball-224-log: *young-snowball-224-log
+  cv-fold0-94131ch-log: *cv-fold0-94131ch-log
+  cv-fold1-94131ch-log: *cv-fold1-94131ch-log
+  cv-fold2-94131ch-log: *cv-fold2-94131ch-log
+  cv-fold0-7ch-normfix-l1-log: *cv-fold0-7ch-normfix-l1-log
+
+tier_explain:
+  glad-shape-197-lin: *glad-shape-197-lin
+  balmy-energy-223-log: *balmy-energy-223-log
+  young-snowball-224-log: *young-snowball-224-log
+  cv-fold0-7ch-normfix-l1-log: *cv-fold0-7ch-normfix-l1-log
+
+tier_shap:
+  glad-shape-197-lin: *glad-shape-197-lin
+  balmy-energy-223-log: *balmy-energy-223-log
+  young-snowball-224-log: *young-snowball-224-log
+  cv-fold1-94131ch-log: *cv-fold1-94131ch-log
+  cv-fold0-7ch-normfix-l1-log: *cv-fold0-7ch-normfix-l1-log
+
+# Baseline (fixed; not part of model selection). devoted-pond-14 confirmed
+# 2026-07-23 vs apricot-fog-13 (plots/xgb/evaluation/{run}/xgb_metrics.csv):
+# devoted-pond-14 test TSS=0.396 (recall .652, FAR .256, acc .712) beats
+# apricot-fog-13 test TSS=0.255 (recall .915, FAR .660, acc .542) — the
+# latter's high recall is a near-trivial positive-biased classifier, not
+# real skill (predicts positive on ~75% of test frames).
+xgboost_baseline:
+  checkpoint: outputs/devoted-pond-14/best_xgboost_model.json
+
+# Outputs of the investigation — set when the reports have decided them:
+canonical: null             # experiment whose report becomes the paper
+canonical_2ch: cv-ensemble  # 2-ch performance claim = CV folds (see history)

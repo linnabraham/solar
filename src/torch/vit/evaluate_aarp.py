@@ -88,6 +88,7 @@ from torchvision.transforms import v2
 from tqdm import tqdm
 
 from aarp_ml.torch.dataset import AIALogTransform, aia_euv
+from aarp_ml.torch.model import build_pretrained_vit
 from ml_utils.visualization import plot_confusion_matrix
 from src.torch.vit.utils import dfs_from_metadata, get_metadata_from_json
 
@@ -138,6 +139,10 @@ def compute_skill_scores(cm: np.ndarray,
     f1          = (2 * precision * recall / (precision + recall)
                    if (precision + recall) > 0 else 0.0)
     accuracy    = (TP + TN) / len(y_true) if len(y_true) > 0 else 0.0
+    balanced_accuracy = (recall + specificity) / 2.0
+    # Base rate -- always read precision against this. At low prevalence, even a
+    # precision well below 0.5 can be many multiples better than a random guess.
+    prevalence  = (TP + FN) / len(y_true) if len(y_true) > 0 else 0.0
     tss         = recall - far
 
     # HSS = 2(TP·TN − FP·FN) / ((TP+FN)(FN+TN) + (TP+FP)(FP+TN))
@@ -163,6 +168,8 @@ def compute_skill_scores(cm: np.ndarray,
         "F1":          f1,
         "MCC":         float(mcc),
         "accuracy":    accuracy,
+        "balanced_accuracy": balanced_accuracy,
+        "prevalence":  prevalence,
         "TSS":         tss,
         "HSS":         hss,
         "log_loss":    bce,
@@ -255,18 +262,10 @@ def load_vit(model_path: str,
 def load_vit_pretrained(model_path: str,
                         stats_file: str) -> Tuple[torch.nn.Module, AIALogTransform, torch.device]:
     """Load a VIT_Pretrained (torchvision vit_l_16) checkpoint."""
-    import torch.nn as nn
-    import torchvision
-
     transform = _load_transform(stats_file)
     device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = torchvision.models.vit_l_16(weights=None)
-    conv1_out = model.conv_proj.out_channels
-    model.conv_proj = nn.Conv2d(N_CHANNELS, conv1_out,
-                                kernel_size=(16, 16), stride=(16, 16))
-    lin_in = model.heads.head.in_features
-    model.heads.head = nn.Linear(lin_in, N_CLASSES, bias=True)
+    model = build_pretrained_vit(n_channels=N_CHANNELS, n_classes=N_CLASSES, pretrained=False)
 
     ckpt = torch.load(model_path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
@@ -461,13 +460,15 @@ def compute_baseline_metrics(agg: pd.DataFrame) -> Dict[str, float]:
 # Output helpers
 # ---------------------------------------------------------------------------
 
-def _print_scores(label: str, agg_method: str, scores: Dict) -> None:
+def _print_scores(label: str, agg_method: str, scores: Dict,
+                  roc_auc: float = None, avg_precision: float = None) -> None:
     sep = "=" * 58
     print(f"\n{sep}")
     print(f"  {label}  [{agg_method} aggregation]")
     print(sep)
     print(f"  TP: {scores['TP']:4d}   FP: {scores['FP']:4d}")
     print(f"  FN: {scores['FN']:4d}   TN: {scores['TN']:4d}")
+    print(f"  Prevalence  : {scores['prevalence']:.4f}  (base rate -- read Precision against this)")
     print(f"  Precision   : {scores['precision']:.4f}")
     print(f"  Recall      : {scores['recall']:.4f}")
     print(f"  Specificity : {scores['specificity']:.4f}")
@@ -475,9 +476,14 @@ def _print_scores(label: str, agg_method: str, scores: Dict) -> None:
     print(f"  F1          : {scores['F1']:.4f}")
     print(f"  MCC         : {scores['MCC']:.4f}")
     print(f"  Accuracy    : {scores['accuracy']:.4f}")
+    print(f"  Balanced Acc: {scores['balanced_accuracy']:.4f}  ((Recall + Specificity) / 2)")
     print(f"  TSS         : {scores['TSS']:.4f}  (Recall − FAR)")
     print(f"  HSS         : {scores['HSS']:.4f}  (Heidke Skill Score)")
     print(f"  Log-loss    : {scores['log_loss']:.4f}")
+    if roc_auc is not None:
+        print(f"  ROC-AUC     : {roc_auc:.4f}")
+    if avg_precision is not None:
+        print(f"  Avg Precision: {avg_precision:.4f}")
     print(sep)
 
 
@@ -517,9 +523,13 @@ def save_all_outputs(
 
     Produces:
       image_level_curves.png  — ROC and PR curves at the frame level
+      cm_image_level.png      — raw frame-level CM at `threshold`, no AARP aggregation
       cm_max.png / cm_mean.png — AR-level CMs for each aggregation method
       aarp_metrics.csv         — per-AARP table
-      skill_scores.csv         — model + baseline metrics side-by-side
+      skill_scores.csv         — model + baseline metrics side-by-side (incl. image-level row)
+      frame_predictions.npz    — raw (y_true, y_prob) per frame, so precision/recall at any
+                                  other threshold can be recomputed later without rerunning
+                                  the model
     """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -531,13 +541,41 @@ def save_all_outputs(
         label=f"({model_label} | {subset_label})"
     )
 
+    # 1b. Persist raw per-frame predictions -- lets precision/recall/CM be recomputed at any
+    # threshold later without a fresh model pass.
+    npz_path = out / "frame_predictions.npz"
+    np.savez(npz_path, y_true=frame_y_true, y_prob=frame_y_prob, threshold=threshold)
+    print(f"  ✓ Raw frame predictions → {npz_path}")
+
+    # 1c. Raw frame-level CM at `threshold`, no AARP aggregation at all -- the rawest possible
+    # view, distinct from both the max- and mean-aggregation AR-level views below.
+    frame_y_pred = (frame_y_prob >= threshold).astype(int)
+    frame_cm = confusion_matrix(frame_y_true, frame_y_pred, labels=CONFUSION_MATRIX_CLASSES)
+    frame_scores = compute_skill_scores(frame_cm, frame_y_true, frame_y_prob, frame_y_pred)
+    _print_scores(f"{model_label} | {subset_label}", "image-level (raw, no AARP pooling)",
+                  frame_scores, roc_auc=img_scores["roc_auc"],
+                  avg_precision=img_scores["average_precision"])
+    _save_cm(
+        frame_cm,
+        title=f"{model_label} — {subset_label} (image-level, threshold={threshold})",
+        out_path=out / "cm_image_level.png",
+    )
+
     # 2. Per-AARP CSV
     csv_path = out / "aarp_metrics.csv"
     agg.to_csv(csv_path, index=False)
     print(f"  ✓ Per-AARP table → {csv_path}")
 
     # 3. AR-level CMs + skill scores (model)
-    skill_rows = []
+    skill_rows = [{
+        "classifier": model_label,
+        "subset":     subset_label,
+        "aggregation": "image_level",
+        "n_samples":  len(frame_y_true),
+        "roc_auc":    img_scores["roc_auc"],
+        "avg_precision": img_scores["average_precision"],
+        **frame_scores,
+    }]
     for method, pred_col, prob_col in [
         ("max",  "pred_max",  "max_prob"),
         ("mean", "pred_mean", "mean_prob"),
@@ -551,7 +589,8 @@ def save_all_outputs(
             agg[prob_col].values,
             agg[pred_col].values,
         )
-        _print_scores(f"{model_label} | {subset_label}", method, scores)
+        _print_scores(f"{model_label} | {subset_label}", method, scores,
+                      roc_auc=img_scores["roc_auc"], avg_precision=img_scores["average_precision"])
 
         _save_cm(
             cm,
@@ -563,7 +602,7 @@ def save_all_outputs(
             "classifier": model_label,
             "subset":     subset_label,
             "aggregation": method,
-            "n_aarp":     len(agg),
+            "n_samples":  len(agg),
             "roc_auc":    img_scores["roc_auc"],
             "avg_precision": img_scores["average_precision"],
             **scores,
@@ -576,7 +615,7 @@ def save_all_outputs(
         "classifier": "always_positive",
         "subset":     subset_label,
         "aggregation": "—",
-        "n_aarp":     len(agg),
+        "n_samples":  len(agg),
         "roc_auc":    float("nan"),
         "avg_precision": float("nan"),
         **baseline,

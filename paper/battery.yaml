@@ -1,0 +1,223 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Analysis battery — what every experiment report contains
+# (supersedes the earlier figures.yaml draft)
+#
+# Each item is one section of the per-experiment report. The report template
+# (notebooks/experiment_report.ipynb, executed via papermill per experiment)
+# renders these in order, reading ONLY from artifacts/<exp-id>/ and
+# metrics/<exp-id>/ — all computation happens in DVC stages.
+#
+# Fields:
+#   tier     : core | explain | shap | robust | movies — must be in the
+#              experiment's tiers list for the section to appear
+#   keyed_on : what the artifact actually depends on —
+#              experiment          = checkpoint × pipeline state (per-exp dirs)
+#              pipeline            = stats/json only (shared/<stats-tag>/ dirs;
+#                                    identical across models, computed once)
+#              none                = static data artifact (shared/static/)
+#   stage    : existing DVC stage to parametrize, or
+#              "PROMOTE: <script>" / "NOTEBOOK-ONLY: <nb>" / "MANUAL"
+#   paper    : main | supplementary | undecided | no — provisional; the real
+#              decision is an OUTPUT of comparing reports
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Report §1: Performance (tier: core) ──────────────────────────────────────
+
+scores:
+  caption: Classification scores table (val + test). Framing is DISCRIMINATION
+    (flare vs non-flare AARPs), not operational forecasting — so the primary
+    metrics are the base-rate-insensitive ones.
+  metric_priority:
+    primary: [recall, specificity, balanced_accuracy]   # imbalance-robust
+    secondary: [precision, accuracy]    # report, but caveat with the split's base rate
+    kept: [tss, hss]                    # TSS retained, not emphasized
+                                        # (note TSS = 2·balanced_accuracy − 1)
+  metrics: metrics/{exp}/scores_{subset}.json   # include base_rate per subset
+  stage: exp-eval-test / exp-eval-validation (dvc.yaml)
+  tier: core
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+cm:
+  caption: Confusion matrices, validation and test
+  path: artifacts/{exp}/cm_{subset}.png
+  stage: exp-eval-test / exp-eval-validation (dvc.yaml)
+  tier: core
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+roc:
+  caption: ROC / reliability curve, test set
+  path: artifacts/{exp}/roc_test.png
+  stage: "PROMOTE: extract from src/torch/vit/compare_models.py"
+  tier: core
+  keyed_on: experiment
+  status: needs-stage
+  paper: main
+
+# ── Report §2: Explainability (tier: explain) ────────────────────────────────
+
+ig_distribution:
+  caption: Class-wise IG attribution distributions per AIA channel
+  path: artifacts/{exp}/distribution/
+  stage: exp-ig-attributions + exp-ig-distribution-plots (dvc.yaml)
+  tier: explain
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+attribution_contour_grid:
+  caption: IG contours over AIA channels, fixed exemplar AARPs (exemplar_aarps in
+    experiments.yaml — same in every report so reports compare visually)
+  path: artifacts/{exp}/attribution_contour_grid_{aarp}.png
+  stage: exp-contour-grids (dvc.yaml)
+  tier: explain
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+ig_mean_baseline:
+  caption: IG attributions with MEAN baseline — the variant of interest per Linn
+    (cf. ig_ranking_check_7ch_meanbaseline.json, export-*-meanbaseline notebooks).
+    Must be comparable between glad-shape-197+lin and post-fix models.
+  path: artifacts/{exp}/ig_meanbaseline/
+  metrics: metrics/{exp}/ig_ranking_meanbaseline.json
+  stage: "PROMOTE: extract from export-aia-attribution-cube-meanbaseline.ipynb"
+  tier: explain
+  keyed_on: experiment
+  status: needs-extraction
+  paper: main
+
+prediction_timeseries:
+  caption: Model probability vs GOES flux, fixed exemplar AARPs (see experiments.yaml)
+  path: artifacts/{exp}/predictions/
+  stage: exp-prediction-plots (dvc.yaml)
+  tier: explain
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+# ── Report §3: SHAP (tier: shap) ─────────────────────────────────────────────
+
+shap_ranking:
+  caption: Kernel-SHAP per-channel importance ranking, test set. Primary uses per
+    Linn — (a) compare the 7-ch models against each other, (b) discriminate
+    94 Å vs 131 Å importance. A prior Claude session computed this comparison
+    but it was never saved — this stage makes it a durable artifact.
+  path: artifacts/{exp}/kshap/
+  metrics: metrics/{exp}/shap_ranking_test.json
+  stage: exp-kshap-stats + exp-kshap-analyze (dvc.yaml). Pre-existing stats
+    migrated via dvc commit — cv-fold1 (fresh, Jul 17) and glad-shape-197-lin
+    (May 7 file; provenance is asserted, not DVC-verified — rerun if in doubt).
+  tier: shap
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+# ── Report §4: Robustness (tier: robust) ─────────────────────────────────────
+
+model_randomization:
+  caption: Attribution sanity — cascading randomization (SSIM / Spearman)
+  path: artifacts/{exp}/model_randomization/
+  stage: "PROMOTE: src/torch/vit/model_randomization_test.py"
+  tier: robust
+  keyed_on: experiment
+  status: needs-stage
+  paper: main
+
+shap_stability:
+  caption: SHAP ranking stability (Kendall tau across backgrounds)
+  path: artifacts/{exp}/shap_stability/
+  stage: "PROMOTE: src/torch/vit/shap_stability_test.py"
+  tier: robust
+  keyed_on: experiment
+  status: needs-stage
+  paper: main
+
+shap_faithfulness:
+  caption: Performance degradation under channel-ablation ordering
+  path: artifacts/{exp}/shap_faithfulness/
+  stage: "PROMOTE: src/torch/vit/shap_faithfulness_test.py"
+  tier: robust
+  keyed_on: experiment
+  status: needs-stage
+  paper: main
+
+# ── Report §5: Movies (tier: movies; canonical candidates only) ──────────────
+
+attribution_movies:
+  caption: Attribution evolution movies (online supplement)
+  path: artifacts/{exp}/movies/
+  stage: create_movie → parametrized
+  tier: movies
+  keyed_on: experiment
+  status: needs-stage
+  paper: supplementary
+
+# ── Shared sections (identical across models; computed per pipeline state
+#    or once, injected into every report and the paper) ─────────────────────
+
+dataset_summary:
+  caption: Dataset composition — AARP counts, class balance per split
+  metrics: metrics/shared/{json}/dataset_summary.json
+  stage: "PROMOTE: small new script over the dataset JSON"
+  tier: core
+  keyed_on: pipeline
+  status: needs-stage
+  paper: main
+
+norm_stats_comparison:
+  caption: Linear-space vs log-space normalization stats — channel distributions
+  path: artifacts/shared/norm_comparison.png
+  stage: "NOTEBOOK-ONLY: notebooks/normalization-comparison.ipynb"
+  tier: core
+  keyed_on: pipeline
+  status: needs-extraction
+  paper: undecided          # decided by comparing +lin vs +log reports
+
+intensity_boxplots:
+  caption: Channel intensity distributions, flaring vs non-flaring
+  path: artifacts/shared/intensity_boxplots/
+  stage: "PROMOTE: src/torch/vit/intensity_boxplot.py"
+  tier: explain
+  keyed_on: pipeline
+  status: needs-stage
+  paper: supplementary
+
+correlation_94_131:
+  caption: 94 Å vs 131 Å intensity correlation (motivates the 2-ch subset)
+  path: artifacts/shared/corr_94_131.png
+  stage: "NOTEBOOK-ONLY: notebooks/channel_94_131_correlation.ipynb"
+  tier: explain
+  keyed_on: pipeline
+  status: needs-extraction
+  paper: supplementary
+
+preprocessing_figure:
+  caption: AARP preprocessing stages figure (paper §2)
+  path: artifacts/shared/aarp_preprocessing_flare.png
+  stage: "PROMOTE: src/torch/vit/paper_aarp_figure.py"
+  tier: core
+  keyed_on: pipeline
+  status: needs-stage
+  paper: main
+
+architecture_figure:
+  caption: DeepFlare-ViT architecture schematic
+  path: paper/assets/architecture.pdf
+  stage: MANUAL
+  tier: core
+  keyed_on: none
+  status: manual
+  paper: main
+
+# ── Cross-experiment summary (its own thin notebook, not per-report) ─────────
+# reports/summary.html — reads metrics/*/ across ALL experiments:
+#   - leaderboard ranked by balanced accuracy (recall & specificity columns
+#     first; precision/accuracy shown with each split's base rate alongside)
+#   - SHAP channel-ranking agreement matrix across experiments
+#   - CV-fold table (aggregating the cv-fold* experiments)
+#   - lin-vs-log deltas for same-checkpoint experiment pairs
+# This is where the canonical-model decision gets made.
