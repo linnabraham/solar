@@ -39,6 +39,8 @@ from captum.attr import IntegratedGradients
 from scipy.stats import spearmanr
 from skimage.metrics import structural_similarity
 
+from torchvision.transforms import v2
+
 from aarp_ml.dataset import all_wavelengths
 from src.torch.vit.ig import single_aarp
 from src.torch.vit.train import TrainingConfig
@@ -46,6 +48,7 @@ from src.torch.vit.utils import (
     dfs_from_metadata,
     get_metadata_from_json,
     get_model_and_transform,
+    needs_resize,
 )
 
 # ---------------------------------------------------------------------------
@@ -55,6 +58,7 @@ from src.torch.vit.utils import (
 TRAINED_MODEL_PATH = "outputs/glad-shape-197/trained_model.pth"
 
 CHANNEL_NAMES = ["94 Å", "131 Å", "171 Å", "193 Å", "211 Å", "304 Å", "335 Å"]
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +84,12 @@ def parse_args():
                         choices=["test", "validation", "training"])
     parser.add_argument("--json-path", default="solar_dataset.json")
     parser.add_argument("--stats-file", default="stats.pkl")
+    parser.add_argument("--model-type", default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16). The pretrained "
+                             "architecture has 24 transformer blocks vs. 4, so its "
+                             "cascade has 27 levels instead of 7 -- proportionally more "
+                             "IG calls per run.")
     return parser.parse_args()
 
 
@@ -105,14 +115,23 @@ def pick_one_sample(df, label):
 # IG with configurable n_steps
 # ---------------------------------------------------------------------------
 
-def compute_ig(model, image_np, label, transform, device, n_steps):
+def compute_ig(model, image_np, label, transform, device, n_steps, resize_to=None):
     """Compute IG attribution for a single image (numpy [7,512,512]).
 
-    Returns numpy array [7, 512, 512].
+    Returns numpy array [7, H, W] -- H,W is 512 (native), or resize_to when given.
+    Reference and randomized-cascade attributions are always computed through
+    this same function with the same resize_to, so they stay directly comparable
+    to each other regardless of the model's native input size.
     """
     tensor_img = torch.from_numpy(image_np).to(torch.float32)
-    tensor_data = transform(tensor_img).to(device)
-    baseline = transform(torch.zeros_like(tensor_img)).to(device)
+    tensor_data = transform(tensor_img)
+    if resize_to is not None:
+        tensor_data = v2.Resize(resize_to)(tensor_data)
+    tensor_data = tensor_data.to(device)
+    baseline = transform(torch.zeros_like(tensor_img))
+    if resize_to is not None:
+        baseline = v2.Resize(resize_to)(baseline)
+    baseline = baseline.to(device)
 
     model.eval()
     ig = IntegratedGradients(model, multiply_by_inputs=True)
@@ -137,13 +156,35 @@ def compute_ig(model, image_np, label, transform, device, n_steps):
 # Layer randomization
 # ---------------------------------------------------------------------------
 
-def get_cascade_groups(model):
+def get_cascade_groups(model, model_type="deepflare_vit"):
     """Return layer groups in cascading order: top (output) → bottom (input).
 
-    Each entry is (name_str, list_of_nn_Modules).
-    Note: model.to_latent (Identity) and model.dropout (Dropout) have no
-    trainable parameters and are intentionally skipped.
+    Each entry is (name_str, list_of_nn_Modules_or_Parameters).
+
+    model_type == "vit_pretrained" (torchvision vit_l_16) has an entirely
+    different internal module tree than vit_pytorch's ViT (DeepFlare_ViT), and
+    24 transformer blocks instead of 4 -- so this is a parallel cascade
+    definition, not a reuse of the same attribute names. model.class_token is
+    a raw nn.Parameter (no reset_parameters()) that torchvision itself
+    initializes to zeros -- grouped into the bottom "patch_embedding" step
+    alongside conv_proj, since (unlike model.to_latent/model.dropout below,
+    which have no learnable parameters at all) it does carry real trained
+    weights and skipping it would leave one parameter permanently untouched
+    through the whole cascade.
     """
+    if model_type == "vit_pretrained":
+        groups = []
+        groups.append(("mlp_head",         [model.heads.head]))
+        groups.append(("transformer_norm", [model.encoder.ln]))
+        n_blocks = len(model.encoder.layers)
+        for i in reversed(range(n_blocks)):
+            groups.append((f"transformer_block_{i}", [model.encoder.layers[i]]))
+        groups.append(("patch_embedding",  [model.conv_proj, model.class_token]))
+        return groups
+
+    # DeepFlare_ViT (vit_pytorch's ViT). model.to_latent (Identity) and
+    # model.dropout (Dropout) have no trainable parameters and are
+    # intentionally skipped.
     groups = []
     groups.append(("mlp_head",         [model.mlp_head]))
     groups.append(("transformer_norm", [model.transformer.norm]))
@@ -155,13 +196,18 @@ def get_cascade_groups(model):
 
 
 def randomize_modules(modules):
-    """Re-initialize all learnable layers inside *modules* in-place.
+    """Re-initialize all learnable layers/parameters inside *modules* in-place.
 
     Uses each layer's own reset_parameters() where available (same distribution
     as original initialization — Kaiming uniform for Linear, etc.), falling back
-    to Xavier uniform for layers that lack reset_parameters().
+    to Xavier uniform for layers that lack reset_parameters(). A raw
+    nn.Parameter (e.g. vit_l_16's class_token, which has no reset_parameters()
+    of its own) is reset to zeros, matching torchvision's own init for it.
     """
     for mod in modules:
+        if isinstance(mod, nn.Parameter):
+            nn.init.zeros_(mod)
+            continue
         for layer in mod.modules():
             if hasattr(layer, "reset_parameters"):
                 layer.reset_parameters()
@@ -321,9 +367,11 @@ def main():
         json_path=args.json_path,
         stats_file=args.stats_file,
         trained_model_path=args.model_path,
+        model_type=VALID_MODEL_TYPES[args.model_type],
     )
     model, transform, device = get_model_and_transform(config)
-    model = model.to(device)
+    resize_to = needs_resize(config)
+    print(f"Model type: {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
 
     metadata = get_metadata_from_json(args.json_path)
     training_df, val_df, test_df = dfs_from_metadata(metadata)
@@ -347,14 +395,14 @@ def main():
     # -- Reference attributions (trained model) --------------------------------
     print(f"\nComputing reference IG attributions (n_steps={args.n_steps})...")
     ref_attrs = [
-        compute_ig(model, img, lbl, transform, device, n_steps=args.n_steps)
+        compute_ig(model, img, lbl, transform, device, n_steps=args.n_steps, resize_to=resize_to)
         for img, lbl in samples
     ]
     results = [{"label": "trained", "attrs": ref_attrs, "ssim": 1.0, "corr": 1.0}]
 
     # -- Cascading randomization ----------------------------------------------
     randomized_model = copy.deepcopy(model)
-    cascade_groups = get_cascade_groups(randomized_model)
+    cascade_groups = get_cascade_groups(randomized_model, model_type=config.model_type)
 
     print("\nRunning cascade randomization:")
     for name, modules in cascade_groups:
@@ -362,7 +410,8 @@ def main():
         randomize_modules(modules)          # mutate in-place (cascading)
 
         rand_attrs = [
-            compute_ig(randomized_model, img, lbl, transform, device, n_steps=args.n_steps)
+            compute_ig(randomized_model, img, lbl, transform, device, n_steps=args.n_steps,
+                      resize_to=resize_to)
             for img, lbl in samples
         ]
 
