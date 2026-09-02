@@ -5,10 +5,18 @@ from tqdm import tqdm
 from typing import Optional, List
 from dataclasses import dataclass
 import numpy as np
+import torch.multiprocessing
 from sklearn.metrics import log_loss
 from src.torch.vit.train import print_config
 from src.torch.train_alexnet import init_data
 import xgboost as xgb
+
+# Multi-worker DataLoader IPC defaults to the 'file_descriptor' sharing strategy,
+# which burns one fd per tensor handed back from each worker. Over ~1000+ batches
+# with num_workers>0 that exceeds the shell's default ulimit -n and kills the
+# workers ("Too many open files"). 'file_system' uses shared-memory files instead,
+# independent of ulimit.
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 @dataclass
 class TrainingConfig:
@@ -31,6 +39,7 @@ class TrainingConfig:
     # System parameters
     device: str = "cuda:0"
     memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+    num_workers: int = 0  # DataLoader worker processes for parallel FITS I/O
     simple_stats: tuple = ("min", "max", "mean")
     percentiles: tuple = (60, 80, 90, 95, 98, 99)
     passbands: tuple = ('94', '131', '171', '193', '211', '304', '335')
@@ -174,6 +183,8 @@ def parse_args() -> TrainingConfig:
                        help="Path to statistics file containing means and stds")
     parser.add_argument("--batch-size", type=int, default=32,
                        help="Batch size for feature extraction")
+    parser.add_argument("--num-workers", type=int, default=0,
+                       help="DataLoader worker processes for parallel FITS I/O (default: 0, sequential)")
     parser.add_argument("--run-name", type=str, default=None,
                        help="Deterministic name for this run/output dir, overriding wandb's random name")
     args = parser.parse_args()
@@ -182,6 +193,7 @@ def parse_args() -> TrainingConfig:
         json_path=args.json_path,
         stats_file=args.stats_file,
         batch_size=args.batch_size,
+        num_workers=args.num_workers,
         run_name=args.run_name,
     )
 

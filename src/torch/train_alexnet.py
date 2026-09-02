@@ -70,6 +70,7 @@ class TrainingConfig:
     # System parameters
     device: str = "cuda:0"
     memory_threshold: int = 5000  # GPU memory threshold measured in megabytes
+    num_workers: int = 0  # DataLoader worker processes for parallel FITS I/O
 
     def __post_init__(self):
         if self.channel_indices is None:
@@ -111,12 +112,14 @@ def init_data(config):
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.batch_size,
-        sampler=get_weighted_sampler(train_dataset)
+        sampler=get_weighted_sampler(train_dataset),
+        num_workers=config.num_workers
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=config.batch_size,
-        shuffle=True
+        shuffle=True,
+        num_workers=config.num_workers
     )
     return metadata, transform, device, train_loader, val_loader
 
