@@ -13,7 +13,7 @@ Typical usage:
 """
 
 from captum.attr import KernelShap
-from aarp_ml.torch.model import DeepFlare_ViT
+from aarp_ml.torch.model import DeepFlare_ViT, build_pretrained_vit
 import vit_pytorch
 import torch
 from dataclasses import dataclass, field
@@ -21,6 +21,10 @@ from typing import Dict, List, Tuple
 import time
 import warnings
 from tqdm import tqdm
+from torchvision.transforms import v2
+
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
+PRETRAINED_RESIZE: int = 224  # native input size for the pretrained vit_l_16
 
 # Data loading imports
 from torch.utils.data import DataLoader, WeightedRandomSampler, SubsetRandomSampler
@@ -106,6 +110,7 @@ class KShapConfig:
     save_images: bool = DEFAULT_SAVE_IMAGES
     min_free_mb: int = 0  # 0 = disabled; set >0 to abort cleanly if free GPU memory drops below this
     channel_indices: List[int] = None  # indices into DEFAULT_AIA_CHANNELS; None = all 7, in order
+    model_type: str = "deepflare_vit"  # "deepflare_vit" or "vit_pretrained" (torchvision vit_l_16)
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -178,32 +183,38 @@ def get_weighted_sampler(dataset) -> WeightedRandomSampler:
 
 
 def get_model(config: KShapConfig, device: torch.device) -> torch.nn.Module:
-    """Load pretrained ViT model from checkpoint.
-    
-    Loads DeepFlare_ViT architecture and restores state from checkpoint dict.
-    Moves model to specified device and sets eval mode.
-    
+    """Load a trained ViT model from checkpoint.
+
+    Builds DeepFlare_ViT or (when config.model_type == "vit_pretrained") the
+    torchvision vit_l_16 via build_pretrained_vit(), and restores state from
+    checkpoint dict. Moves model to specified device and sets eval mode.
+
     Args:
         config: KShapConfig instance with trained_model_path.
         device: torch.device (cuda or cpu).
-    
+
     Returns:
         torch.nn.Module in eval mode on specified device.
-    
+
     Raises:
         FileNotFoundError: If checkpoint file not found.
         RuntimeError: If model architecture mismatch with checkpoint weights.
         KeyError: If checkpoint missing expected 'model_state_dict' field.
     """
     try:
-        model = DeepFlare_ViT(
-            height=config.height,
-            n_classes=config.n_classes,
-            n_passbands=config.n_passbands
-        ).model
-        
-        checkpoint = torch.load(config.trained_model_path, map_location=device)
-        
+        if config.model_type == "vit_pretrained":
+            model = build_pretrained_vit(
+                n_channels=config.n_passbands, n_classes=config.n_classes, pretrained=False
+            )
+        else:
+            model = DeepFlare_ViT(
+                height=config.height,
+                n_classes=config.n_classes,
+                n_passbands=config.n_passbands
+            ).model
+
+        checkpoint = torch.load(config.trained_model_path, map_location=device, weights_only=False)
+
         if isinstance(checkpoint, dict):
             if 'model_state_dict' in checkpoint:
                 model.load_state_dict(checkpoint['model_state_dict'])
@@ -212,11 +223,11 @@ def get_model(config: KShapConfig, device: torch.device) -> torch.nn.Module:
         else:
             # Legacy checkpoint format: direct state dict
             model.load_state_dict(checkpoint)
-        
+
         model = model.to(device)
         model.eval()
         return model
-    
+
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Model checkpoint not found: {config.trained_model_path}") from e
 
@@ -492,6 +503,9 @@ def main() -> None:
                              f"Choices: {DEFAULT_AIA_CHANNELS}. Default: all 7, in wavelength order.")
     parser.add_argument("--stats-file", type=str, default=DEFAULT_STATS_FILE,
                         help="Path to normalization stats pickle (e.g. stats_raw.pkl for pre-fix models)")
+    parser.add_argument("--model-type", type=str, default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
     args = parser.parse_args()
 
     channel_indices = None
@@ -511,10 +525,13 @@ def main() -> None:
         save_images=args.save_images,
         min_free_mb=args.min_free_mb,
         stats_file=args.stats_file,
+        model_type=VALID_MODEL_TYPES[args.model_type],
     )
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+    resize_to = PRETRAINED_RESIZE if config.model_type == "vit_pretrained" else None
+
     print(f"Device: {device}")
+    print(f"Model type: {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
     print(f"Images directory: {config.images_dir}")
     print(f"Config: {config}")
     
@@ -548,7 +565,10 @@ def main() -> None:
                       f"at sample {i}/{n_total}. Stopping early and saving partial results.")
                 break
 
-        image = x.to(device)  # already shape (1, C, H, W) since batch_size=1
+        image = x
+        if resize_to is not None:
+            image = v2.Resize(resize_to)(image)
+        image = image.to(device)  # shape (1, C, H, W) since batch_size=1 (resized if pretrained)
         # Mean baseline: image is already log+z-scored, so an all-zero tensor here
         # IS "every channel at its typical (mean) value" -- NOT transform(zeros),
         # which would clamp raw-zero to 1 DN and z-score that (the dark/near-black
