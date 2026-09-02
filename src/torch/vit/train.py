@@ -159,8 +159,11 @@ def _run_epoch(*, epoch, model, train_loader, val_loader, criterion,
     print(f"Epoch loss: {metrics['train/train_loss_epoch']:.4f}")
     print(f"Validation loss: {metrics['val/val_loss']:.4f}")
 
-    # Save best model
-    save_callback(val_loss, model, os.path.join(output_dir, "trained_model.pth"))
+    # Save best model. optimizer/epoch included so --retrain resumes with Adam's momentum/
+    # variance state intact rather than reinitializing it from scratch. wandb_run_id lets a
+    # future --retrain resume this same wandb run instead of starting a new one.
+    save_callback(val_loss, model, os.path.join(output_dir, "trained_model.pth"),
+                  optimizer=optimizer, epoch=epoch, wandb_run_id=wandb.run.id)
 
     # Optionally also save this epoch's checkpoint unconditionally, so checkpoint-selection
     # strategies other than "lowest single-epoch val_loss" can be tried post-hoc without
@@ -170,7 +173,13 @@ def _run_epoch(*, epoch, model, train_loader, val_loader, criterion,
         epoch_dir = os.path.join(output_dir, "epoch_checkpoints")
         os.makedirs(epoch_dir, exist_ok=True)
         torch.save(
-            {'model_state_dict': model.state_dict(), 'val_metric': val_loss, 'epoch': epoch},
+            {
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_metric': val_loss,
+                'epoch': epoch,
+                'wandb_run_id': wandb.run.id,
+            },
             os.path.join(epoch_dir, f"epoch_{epoch:02d}.pth")
         )
 
@@ -206,8 +215,21 @@ def train(config: TrainingConfig,
     if config.seed is not None:
         set_seed(config.seed)
 
-    # Initialize wandb
-    wandb.init(project="flare_torch", config=vars(config), name=config.run_name)
+    # Load checkpoint (if retraining) before wandb.init, so a wandb_run_id saved in a prior
+    # run's checkpoint can be used to resume that same wandb run below instead of always
+    # starting a new one -- otherwise every --retrain invocation splits what should be one
+    # continuous training curve into a separate wandb run each time.
+    checkpoint = None
+    if config.retrain and config.trained_model_path:
+        checkpoint = torch.load(config.trained_model_path, map_location="cpu", weights_only=False)
+
+    wandb_run_id = checkpoint.get("wandb_run_id") if isinstance(checkpoint, dict) else None
+    if wandb_run_id:
+        print(f"Resuming wandb run id={wandb_run_id} (continuing that run instead of starting a new one).")
+        wandb.init(project="flare_torch", config=vars(config), name=config.run_name,
+                   id=wandb_run_id, resume="must")
+    else:
+        wandb.init(project="flare_torch", config=vars(config), name=config.run_name)
 
     # Print configuration
     print_config(config)
@@ -276,13 +298,21 @@ def train(config: TrainingConfig,
     output_dir = os.path.join("outputs", config.run_name or wandb.run.name)
     os.makedirs(output_dir, exist_ok=True)
 
-    # Setup model saving
-    save_best_model = SaveBestModel(monitor='val_loss', mode='min')
+    # Setup model saving -- seed best_value from the existing best checkpoint's own val_metric
+    # on resume, so the tracker doesn't reset to infinity and clobber a better historical best
+    # with a worse one (see SaveBestModel's docstring for why this matters).
+    best_model_path = os.path.join(output_dir, "trained_model.pth")
+    initial_best_value = None
+    if config.retrain and os.path.exists(best_model_path):
+        prior_best = torch.load(best_model_path, map_location="cpu", weights_only=False)
+        if isinstance(prior_best, dict) and 'val_metric' in prior_best:
+            initial_best_value = prior_best['val_metric']
+            print(f"Seeding best-value tracker from {best_model_path}: val_metric={initial_best_value}")
+    save_best_model = SaveBestModel(monitor='val_loss', mode='min', initial_best_value=initial_best_value)
 
-    # Load checkpoint if retraining
+    # Apply the checkpoint loaded above (before wandb.init) if retraining.
     start_epoch = 0
-    if config.retrain and config.trained_model_path:
-        checkpoint = torch.load(config.trained_model_path, map_location=device)
+    if checkpoint is not None:
         if isinstance(checkpoint, dict):
             if 'model_state_dict' in checkpoint:
                 model.load_state_dict(checkpoint['model_state_dict'])
@@ -291,6 +321,15 @@ def train(config: TrainingConfig,
             start_epoch = checkpoint.get('epoch', -1) + 1
         else:
             model.load_state_dict(checkpoint)
+
+    if config.retrain and start_epoch >= config.epochs:
+        raise ValueError(
+            f"Resuming from checkpoint epoch {start_epoch - 1} (start_epoch={start_epoch}) but "
+            f"--epochs={config.epochs} is not greater than that, so there would be nothing to "
+            f"train (range({start_epoch}, {config.epochs}) is empty). --epochs is the absolute "
+            f"target epoch count, not epochs to add on top of what's already been trained -- "
+            f"pass a value greater than {start_epoch}."
+        )
 
     # Training loop
     torch.cuda.reset_peak_memory_stats()

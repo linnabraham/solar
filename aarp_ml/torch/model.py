@@ -46,17 +46,23 @@ class DeepFlare_ViT(BaseModel):
                          dropout=dropout_prob,emb_dropout=dropout_prob,pool="mean")
 
 class SaveBestModel:
-    def __init__(self, monitor='val_loss', mode='min'):
+    def __init__(self, monitor='val_loss', mode='min', initial_best_value=None):
+        """initial_best_value: seed the tracker from a prior run's best (e.g. the val_metric
+        already stored in an existing trained_model.pth) instead of always starting at
+        inf/-inf. Without this, resuming training (--retrain) resets the tracker to inf, so the
+        very first validation of the resumed run overwrites trained_model.pth even if it's worse
+        than the pre-resume best -- silently discarding it (only recoverable if --save-all-epochs
+        happened to also keep the true-best epoch's checkpoint separately)."""
         self.monitor = monitor
         self.mode = mode
         if mode == 'min':
-            self.best_value = float('inf')
+            self.best_value = float('inf') if initial_best_value is None else float(initial_best_value)
             self.monitor_op = lambda x, y: x < y
         else:
-            self.best_value = float('-inf')
+            self.best_value = float('-inf') if initial_best_value is None else float(initial_best_value)
             self.monitor_op = lambda x, y: x > y
 
-    def __call__(self, val_metric, model, filepath, optimizer=None, epoch=None):
+    def __call__(self, val_metric, model, filepath, optimizer=None, epoch=None, wandb_run_id=None):
         if self.monitor_op(val_metric, self.best_value):
             print(f"Validation {self.monitor}: {val_metric} improved from {self.best_value} to {val_metric}. Saving model...")
             self.best_value = val_metric
@@ -70,6 +76,8 @@ class SaveBestModel:
                 checkpoint['optimizer_state_dict'] = optimizer.state_dict()
             if epoch is not None:
                 checkpoint['epoch'] = epoch
+            if wandb_run_id is not None:
+                checkpoint['wandb_run_id'] = wandb_run_id
 
             torch.save(checkpoint, filepath)
         else:
