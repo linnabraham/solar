@@ -28,12 +28,15 @@ import torch
 from captum.attr import KernelShap
 from scipy.stats import kendalltau
 
+from torchvision.transforms import v2
+
 from src.torch.vit.ig import single_aarp
 from src.torch.vit.train import TrainingConfig
 from src.torch.vit.utils import (
     dfs_from_metadata,
     get_metadata_from_json,
     get_model_and_transform,
+    needs_resize,
 )
 
 # ---------------------------------------------------------------------------
@@ -44,6 +47,7 @@ TRAINED_MODEL_PATH = "outputs/glad-shape-197/trained_model.pth"
 AIA_WAVELENGTHS = [94, 131, 171, 193, 211, 304, 335]
 CHANNEL_LABELS = [f"{w} Å" for w in AIA_WAVELENGTHS]
 N_CHANNELS = 7
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +73,9 @@ def parse_args():
                         choices=["test", "validation", "training"])
     parser.add_argument("--json-path", default="solar_dataset.json")
     parser.add_argument("--stats-file", default="stats.pkl")
+    parser.add_argument("--model-type", default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
     return parser.parse_args()
 
 
@@ -102,14 +109,17 @@ def pick_balanced_samples(df, n_total):
 # ---------------------------------------------------------------------------
 
 def compute_shap_one_run(image_np, transform, baseline_per_channel,
-                         model, device, n_shap, seed):
+                         model, device, n_shap, seed, resize_to=None):
     """Run KernelSHAP once with a fixed seed. Returns importance array [7]."""
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
     tensor_img = torch.from_numpy(image_np).float()
-    transformed = transform(tensor_img).unsqueeze(0).to(device)   # [1, 7, 512, 512]
+    transformed = transform(tensor_img).unsqueeze(0)   # [1, 7, 512, 512]
+    if resize_to is not None:
+        transformed = v2.Resize(resize_to)(transformed)
+    transformed = transformed.to(device)
 
     # Build baseline tensor: channel c → baseline_per_channel[c] everywhere
     baseline = torch.zeros_like(transformed)
@@ -309,9 +319,11 @@ def main():
         json_path=args.json_path,
         stats_file=args.stats_file,
         trained_model_path=args.model_path,
+        model_type=VALID_MODEL_TYPES[args.model_type],
     )
     model, transform, device = get_model_and_transform(config)
-    model = model.to(device)
+    resize_to = needs_resize(config)
+    print(f"Model type: {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
 
     metadata = get_metadata_from_json(args.json_path)
     _, val_df, test_df = dfs_from_metadata(metadata)
@@ -346,7 +358,7 @@ def main():
             seed = run_idx * 1000 + s_idx
             importances = compute_shap_one_run(
                 img, transform, baseline_per_channel,
-                model, device, args.n_shap, seed,
+                model, device, args.n_shap, seed, resize_to=resize_to,
             )
             runs.append(importances)
             print(f"    run {run_idx}: [{', '.join(f'{v:.4f}' for v in importances)}]")
