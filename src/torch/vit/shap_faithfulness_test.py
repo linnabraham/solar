@@ -36,6 +36,7 @@ import numpy as np
 import torch
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
+from torchvision.transforms import v2
 
 from aarp_ml.torch.dataset import aia_euv
 from src.torch.vit.analyze_shap import (
@@ -46,7 +47,7 @@ from src.torch.vit.analyze_shap import (
 )
 from src.torch.vit.test import compute_metrics
 from src.torch.vit.train import TrainingConfig
-from src.torch.vit.utils import get_model_and_transform
+from src.torch.vit.utils import get_model_and_transform, needs_resize
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -55,6 +56,7 @@ from src.torch.vit.utils import get_model_and_transform
 TRAINED_MODEL_PATH = "outputs/glad-shape-197/trained_model.pth"
 N_CHANNELS = 7
 CONFUSION_MATRIX_CLASSES = [0, 1]
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 # Map 'AIA_94' → channel index 0, 'AIA_131' → 1, …
 CHANNEL_NAME_TO_IDX = {f"AIA_{w}": i for i, w in enumerate(AIA_WAVELENGTHS)}
@@ -83,6 +85,9 @@ def parse_args():
                         choices=["test", "validation", "training"])
     parser.add_argument("--json-path", default="solar_dataset.json")
     parser.add_argument("--stats-file", default="stats.pkl")
+    parser.add_argument("--model-type", default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
     return parser.parse_args()
 
 
@@ -112,12 +117,17 @@ def get_shap_channel_order(shap_json_path):
 # Inference with masked channels
 # ---------------------------------------------------------------------------
 
-def evaluate_masked(model, loader, masked_channel_indices, baseline_per_channel, device):
+def evaluate_masked(model, loader, masked_channel_indices, baseline_per_channel, device,
+                    resize_to=None):
     """Run inference with specified channels replaced by their baseline value.
 
     Args:
         masked_channel_indices: list of int channel indices to zero-out.
         baseline_per_channel:   list[float] — one scalar per channel.
+        resize_to: if given (e.g. 224 for the pretrained vit_l_16), resize after
+            masking (masking fills a channel with a uniform scalar, so resize
+            order doesn't affect the result -- a constant channel stays constant
+            under bilinear interpolation).
 
     Returns:
         dict with 'precision', 'recall', 'TP', 'FP', 'FN', 'TN'.
@@ -129,6 +139,8 @@ def evaluate_masked(model, loader, masked_channel_indices, baseline_per_channel,
             features = features.clone().to(device)
             for c in masked_channel_indices:
                 features[:, c, :, :] = baseline_per_channel[c]
+            if resize_to is not None:
+                features = v2.Resize(resize_to)(features)
             outputs = model(features)
             preds = outputs.argmax(dim=1)
             y_true.extend(labels.tolist())
@@ -137,17 +149,19 @@ def evaluate_masked(model, loader, masked_channel_indices, baseline_per_channel,
     return compute_metrics(cm)   # precision, recall, TP, FP, FN, TN
 
 
-def run_deletion_curve(model, loader, ordering_names, baseline_per_channel, device):
+def run_deletion_curve(model, loader, ordering_names, baseline_per_channel, device,
+                       resize_to=None):
     """Sweep deletion levels 0 → 7, returning lists of precision and recall."""
     precisions, recalls = [], []
     masked_so_far = []
     # Level 0: no channels masked
-    m0 = evaluate_masked(model, loader, [], baseline_per_channel, device)
+    m0 = evaluate_masked(model, loader, [], baseline_per_channel, device, resize_to=resize_to)
     precisions.append(m0["precision"])
     recalls.append(m0["recall"])
     for ch_name in ordering_names:
         masked_so_far.append(CHANNEL_NAME_TO_IDX[ch_name])
-        m = evaluate_masked(model, loader, masked_so_far, baseline_per_channel, device)
+        m = evaluate_masked(model, loader, masked_so_far, baseline_per_channel, device,
+                            resize_to=resize_to)
         precisions.append(m["precision"])
         recalls.append(m["recall"])
     return np.array(precisions), np.array(recalls)
@@ -302,9 +316,11 @@ def main():
         json_path=args.json_path,
         stats_file=args.stats_file,
         trained_model_path=args.model_path,
+        model_type=VALID_MODEL_TYPES[args.model_type],
     )
     model, transform, device = get_model_and_transform(config)
-    model = model.to(device)
+    resize_to = needs_resize(config)
+    print(f"Model type: {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
 
     dataset = aia_euv(args.json_path, subset=args.subset, transform=transform)
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
@@ -319,7 +335,7 @@ def main():
     # -- Deletion sweep: SHAP order ------------------------------------------
     print("\nRunning deletion sweep — SHAP order...")
     shap_prec, shap_rec = run_deletion_curve(
-        model, loader, shap_order_names, baseline_per_channel, device
+        model, loader, shap_order_names, baseline_per_channel, device, resize_to=resize_to
     )
     print(f"  Recall at k=0 (no mask): {shap_rec[0]:.3f}")
     print(f"  Recall at k=7 (all masked): {shap_rec[-1]:.3f}")
@@ -327,7 +343,7 @@ def main():
     # -- Deletion sweep: Reverse-SHAP ----------------------------------------
     print("\nRunning deletion sweep — Reverse-SHAP order...")
     rev_prec, rev_rec = run_deletion_curve(
-        model, loader, rev_order_names, baseline_per_channel, device
+        model, loader, rev_order_names, baseline_per_channel, device, resize_to=resize_to
     )
 
     # -- Deletion sweeps: random orderings -----------------------------------
@@ -339,7 +355,7 @@ def main():
         rand_order = base_channels.copy()
         random.shuffle(rand_order)
         rp, rr = run_deletion_curve(model, loader, rand_order,
-                                    baseline_per_channel, device)
+                                    baseline_per_channel, device, resize_to=resize_to)
         rand_prec_list.append(rp)
         rand_rec_list.append(rr)
         print(f"  [{r_idx+1}/{args.n_random}] recall@k=1: {rr[1]:.3f}")
