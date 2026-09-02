@@ -26,7 +26,10 @@ from sunpy.timeseries import XRSTimeSeries
 import warnings
 import gc
 from src.data_single import DatasetPaths
-from src.torch.vit.utils import get_data_model, dfs_from_metadata
+from src.torch.vit.utils import get_data_model, dfs_from_metadata, needs_resize
+from torchvision.transforms import v2
+
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 from src.torch.vit.train import TrainingConfig
 
 # ==================== MODULE-LEVEL CONSTANTS ====================
@@ -265,14 +268,16 @@ def vizualize_goes_ts_predictions(
     return fig, ax
 
 
-def get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=None):
+def get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=None, resize_to=None):
     """Load AARP image sequence and return as TensorDataset.
-    
+
     Args:
         s_aarp: single_aarp instance with image loading methods.
         transform: AIALogTransform normalization transform.
         device: torch.device (cuda or cpu).
-    
+        resize_to: if given (e.g. 224 for the pretrained vit_l_16), resize images to this
+            size after normalization -- AARP images are natively 512x512.
+
     Returns:
         torch.utils.data.TensorDataset with normalized images.
     """
@@ -281,10 +286,12 @@ def get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=None):
         s_images = s_images[:, channel_indices]
     tensor_images = torch.from_numpy(s_images).to(torch.float32).to(device)
     tensor_data = transform(tensor_images)
+    if resize_to is not None:
+        tensor_data = v2.Resize(resize_to)(tensor_data)
     dataset = TensorDataset(tensor_data)
     return dataset
 
-def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home, resume=False, channel_indices=None):
+def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_home, resume=False, channel_indices=None, resize_to=None):
     """Generate and save prediction plot for a single AARP sample.
     
     Loads AARP image sequence, generates model predictions, fetches GOES
@@ -316,7 +323,7 @@ def make_prediction_plot(aarp_id, metadata_df, transform, model, device, output_
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
 
-    dataset = get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=channel_indices)
+    dataset = get_aarp_seq_dataset(s_aarp, transform, device, channel_indices=channel_indices, resize_to=resize_to)
     predictions = make_predictions(dataset, model=model, device=device)
     torch.cuda.empty_cache()
     gc.collect()
@@ -376,6 +383,12 @@ def main():
     parser.add_argument("--channels", type=int, nargs="+", default=None,
                         help="AIA passbands the model was trained on, e.g. --channels 94 131. "
                              "Default: all 7, in wavelength order.")
+    parser.add_argument("--model-type", default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
+    parser.add_argument("--aarp-id", type=int, nargs="+", default=None,
+                        help="Restrict to specific AARP ID(s) instead of the full "
+                             "val+test split (e.g. for a cheap smoke test before a full run).")
     args = parser.parse_args()
 
     if args.output_dir is None:
@@ -391,33 +404,29 @@ def main():
         channel_indices = [all_wavelengths.index(c) for c in args.channels]
 
     config = TrainingConfig(json_path=args.json_path, stats_file=args.stats_file,
-                            channel_indices=channel_indices)
+                            channel_indices=channel_indices,
+                            model_type=VALID_MODEL_TYPES[args.model_type])
     config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
+    resize_to = needs_resize(config)
+    print(f"Model type : {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
     training_df, val_df, test_df = dfs_from_metadata(metadata)
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint = torch.load(args.model_path, map_location=device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=DEFAULT_LEARNING_RATE)
-    if isinstance(checkpoint, dict):
-        if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
-        if 'optimizer_state_dict' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint.get('epoch', -1) + 1
-    else:
-        model.load_state_dict(checkpoint)
-    model = model.to(device)
 
     output_home = args.output_dir
     os.makedirs(output_home, exist_ok=True)
 
-    for aarp_id in test_df.aarp_id.unique().tolist() if not test_df.empty else []:
+    test_aarps = test_df.aarp_id.unique().tolist() if not test_df.empty else []
+    val_aarps = val_df.aarp_id.unique().tolist() if not val_df.empty else []
+    if args.aarp_id is not None:
+        test_aarps = [a for a in test_aarps if a in args.aarp_id]
+        val_aarps = [a for a in val_aarps if a in args.aarp_id]
+
+    for aarp_id in test_aarps:
         make_prediction_plot(aarp_id, test_df, transform, model, device, output_home,
-                             channel_indices=channel_indices)
-    for aarp_id in val_df.aarp_id.unique().tolist() if not val_df.empty else []:
+                             channel_indices=channel_indices, resize_to=resize_to)
+    for aarp_id in val_aarps:
         make_prediction_plot(aarp_id, val_df, transform, model, device, output_home,
-                             channel_indices=channel_indices)
+                             channel_indices=channel_indices, resize_to=resize_to)
 
 if __name__ == "__main__":
     main()

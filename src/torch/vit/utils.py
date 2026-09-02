@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from typing import List
 from aarp_ml.dataset import all_wavelengths
-from aarp_ml.torch.model import DeepFlare_ViT
+from aarp_ml.torch.model import DeepFlare_ViT, build_pretrained_vit
 from aarp_ml.torch.dataset import AIALogTransform
 from src.torch.vit.train import TrainingConfig
 from src.torch.vit.ig import do_ig
@@ -49,22 +49,45 @@ def get_model_and_transform(config):
 
     transform = AIALogTransform(means=means, stds=stds)
 
-    model = DeepFlare_ViT(height=config.image_height, n_classes=config.n_classes,
-                          n_passbands=config.n_channels).model
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint = torch.load(config.trained_model_path, map_location=device)
-    learning_rate = config.learning_rate
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    if isinstance(checkpoint, dict):
-        if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
-        if 'optimizer_state_dict' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint.get('epoch', -1) + 1
+    if config.model_type == "vit_pretrained":
+        # torchvision vit_l_16 (fine-tuned) -- no optimizer state needed here, this path is
+        # eval/inference-only. Caller is responsible for resizing inputs to 224x224 (this
+        # architecture's native size); see RESIZE_SIZE / needs_resize().
+        model = build_pretrained_vit(n_channels=config.n_channels, n_classes=config.n_classes,
+                                     pretrained=False)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        checkpoint = torch.load(config.trained_model_path, map_location=device, weights_only=False)
+        model.load_state_dict(checkpoint['model_state_dict'])
     else:
-        model.load_state_dict(checkpoint)
+        model = DeepFlare_ViT(height=config.image_height, n_classes=config.n_classes,
+                              n_passbands=config.n_channels).model
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        checkpoint = torch.load(config.trained_model_path, map_location=device)
+        learning_rate = config.learning_rate
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        if isinstance(checkpoint, dict):
+            if 'model_state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['model_state_dict'])
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint.get('epoch', -1) + 1
+        else:
+            model.load_state_dict(checkpoint)
 
+    model = model.to(device)
     return model, transform, device
+
+
+def needs_resize(config) -> int | None:
+    """224 if config.model_type is the pretrained vit_l_16 (its native input size), else None.
+
+    get_model_and_transform() loads the right architecture but does not resize inputs -- that
+    happens in each caller's own data pipeline (AARP images are natively 512x512). Callers that
+    build tensors directly (rather than through aia_euv's transform pipeline) must apply
+    torchvision.transforms.v2.Resize(needs_resize(config)) before the forward pass when this
+    returns non-None.
+    """
+    return 224 if config.model_type == "vit_pretrained" else None
 
 def get_data_model(config):
     metadata = get_metadata(config)
