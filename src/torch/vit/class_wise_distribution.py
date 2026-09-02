@@ -3,23 +3,24 @@ import gc
 import json
 from aarp_ml.dataset import all_wavelengths
 import torch
-from aarp_ml.torch.dataset import AIALogTransform
-import pickle
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 from itertools import islice
 from tqdm import tqdm
-from aarp_ml.torch.model import DeepFlare_ViT
+from torchvision.transforms import v2
 import matplotlib.pyplot as plt
 from src.torch.vit.ig import single_aarp, make_predictions, do_ig
-from src.torch.vit.utils import dfs_from_metadata
+from src.torch.vit.utils import dfs_from_metadata, get_data_model, needs_resize
+from src.torch.vit.train import TrainingConfig
+
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 __all__ = [
     "plot_intensity_distribution",
     "get_intensities_using_attributions",
         ]
 
-def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True, stride=1, target_mode='true_label', baseline_image=None, channel_indices=None):
+def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_inputs=True, stride=1, target_mode='true_label', baseline_image=None, channel_indices=None, resize_to=None):
     aarp_id_df = metadata_df.query(f'aarp_id == {aarp_id}')
     s_aarp = single_aarp(aarp_id, aarp_id_df)
     s_images = s_aarp.get_images()
@@ -32,6 +33,8 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_
     # Use the model to make predictions
     tensor_images = torch.from_numpy(s_images).to(torch.float32)  # shape: [x, 7, 512, 512]
     tensor_data = transform(tensor_images)
+    if resize_to is not None:
+        tensor_data = v2.Resize(resize_to)(tensor_data)
     tensor_data = tensor_data.to(device)
     dataset = TensorDataset(tensor_data)
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -42,7 +45,10 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_
 
     if baseline_image is not None:
         # Fixed baseline (e.g. channel-mean image), transformed once and reused for every frame.
-        baseline_fixed = transform(torch.from_numpy(baseline_image).to(torch.float32).unsqueeze(0)).to(device)
+        baseline_fixed = transform(torch.from_numpy(baseline_image).to(torch.float32).unsqueeze(0))
+        if resize_to is not None:
+            baseline_fixed = v2.Resize(resize_to)(baseline_fixed)
+        baseline_fixed = baseline_fixed.to(device)
 
     with torch.no_grad():
         for (batch,) in tqdm(islice(loader, n_images), total=n_images, desc=f"IG aarp={aarp_id}"):
@@ -137,6 +143,13 @@ if __name__=="__main__":
     parser.add_argument("--channels",       type=int, nargs="+", default=None,
                         help="AIA passbands the model was trained on, e.g. --channels 94 131. "
                              f"Choices: {all_wavelengths}. Default: all 7, in wavelength order.")
+    parser.add_argument("--model-type",     default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
+    parser.add_argument("--aarp-id",        type=int, nargs="+", default=None,
+                        help="Restrict to specific AARP ID(s) instead of the full subset "
+                             "(e.g. for a cheap smoke test before a full IG sweep -- this "
+                             "script is the most expensive one in the battery).")
     args = parser.parse_args()
 
     channel_indices = None
@@ -147,46 +160,30 @@ if __name__=="__main__":
         channel_indices = [all_wavelengths.index(c) for c in args.channels]
 
     # Load Data and Model
-    trained_model_path = args.model_path
     with open(args.json_path, 'r') as json_file:
         metadata = json.load(json_file)
 
     training_df, val_df, test_df = dfs_from_metadata(metadata)
     subset_df = {"training": training_df, "validation": val_df, "test": test_df}[args.subset]
+    if args.aarp_id is not None:
+        subset_df = subset_df[subset_df.aarp_id.isin(args.aarp_id)]
 
-    with open(args.stats_file, 'rb') as pickle_file:
-        stats_data = pickle.load(pickle_file)
-    stats_indices = channel_indices if channel_indices is not None else list(range(7))
-    means = [stats_data.get('mean').get(f'channel_{i}') for i in stats_indices]
-    stds = [stats_data.get('std').get(f'channel_{i}') for i in stats_indices]
-
-    model = DeepFlare_ViT(height=512, n_classes=2, n_passbands=len(stats_indices)).model
-
-    transform = AIALogTransform(means=means, stds=stds)
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint = torch.load(trained_model_path, map_location=device)
-    learning_rate = 0.001
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    if isinstance(checkpoint, dict):
-        if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
-        if 'optimizer_state_dict' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint.get('epoch', -1) + 1
-    else:
-        model.load_state_dict(checkpoint)
+    config = TrainingConfig(json_path=args.json_path, stats_file=args.stats_file,
+                            channel_indices=channel_indices,
+                            model_type=VALID_MODEL_TYPES[args.model_type])
+    config.trained_model_path = args.model_path
+    _, model, transform, device = get_data_model(config)
+    resize_to = needs_resize(config)
+    print(f"Model type : {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
 
     attributions_list_pos = []
     attributions_list_neg = []
     images_list_pos = []
     images_list_neg = []
 
-    model = model.to(device)
-
     for aarp_id in subset_df.query('label == 1').aarp_id.unique():
         print(aarp_id)
-        s_images, attributions= run_pred_and_ig(aarp_id, subset_df, transform, model, device, stride=args.stride, target_mode=args.target_mode, channel_indices=channel_indices)
+        s_images, attributions= run_pred_and_ig(aarp_id, subset_df, transform, model, device, stride=args.stride, target_mode=args.target_mode, channel_indices=channel_indices, resize_to=resize_to)
         print(f"{s_images.shape=}")
         print(f"{len(attributions)=}")
         attributions_list_pos.append(attributions)
@@ -197,7 +194,7 @@ if __name__=="__main__":
 
     for aarp_id in subset_df.query('label == 0').aarp_id.unique():
         print(aarp_id)
-        s_images, attributions= run_pred_and_ig(aarp_id, subset_df, transform, model, device, stride=args.stride, target_mode=args.target_mode, channel_indices=channel_indices)
+        s_images, attributions= run_pred_and_ig(aarp_id, subset_df, transform, model, device, stride=args.stride, target_mode=args.target_mode, channel_indices=channel_indices, resize_to=resize_to)
         print(f"{s_images.shape=}")
         print(f"{len(attributions)=}")
         attributions_list_neg.append(attributions)
