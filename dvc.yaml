@@ -17,6 +17,7 @@ stages:
         --json-path ${item.json}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-path artifacts/${key}/cm_test.png
         --metrics-out metrics/${key}/scores_test.json
       deps:
@@ -40,6 +41,7 @@ stages:
         --json-path ${item.json}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-path artifacts/${key}/cm_validation.png
         --metrics-out metrics/${key}/scores_validation.json
       deps:

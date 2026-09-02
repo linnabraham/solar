@@ -1208,7 +1208,7 @@ stages:
   exp-kshap-stats@cv-fold0-7ch-normfix-l1-log:
     cmd: python -m src.torch.vit.kshap --subset test --trained-model-path 
       outputs/cv-fold0-94131171193211304335ch-normfix-l1/trained_model.pth 
-      --json-path cv_folds/fold_0.json --stats-file cv_folds/fold_0_stats.pkl  
+      --json-path cv_folds/fold_0.json --stats-file cv_folds/fold_0_stats.pkl 
       --output-json artifacts/cv-fold0-7ch-normfix-l1-log/shap_stats_test.json
     deps:
     - path: aarp_ml/torch/dataset.py
@@ -1244,3 +1244,80 @@ stages:
       hash: md5
       md5: 5385a8fd66c24197790c8f7152717f01
       size: 32111
+  exp-eval-validation@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.test --subset validation --trained-model 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl  --model-type 
+      vit-pretrained --output-path 
+      artifacts/pretrained-vit-dropout03-epoch01-log/cm_validation.png 
+      --metrics-out 
+      metrics/pretrained-vit-dropout03-epoch01-log/scores_validation.json
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: b092de26cf756ec602d6f2e484c965dd
+      size: 14114
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/cm_validation.png
+      hash: md5
+      md5: ba09f4295f227d40148cb6621d09165f
+      size: 13162
+    - path: metrics/pretrained-vit-dropout03-epoch01-log/scores_validation.json
+      hash: md5
+      md5: d5b1a92d7c1dd9891181144cd8182853
+      size: 345
+  exp-eval-test@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.test --subset test --trained-model 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl  --model-type 
+      vit-pretrained --output-path 
+      artifacts/pretrained-vit-dropout03-epoch01-log/cm_test.png --metrics-out 
+      metrics/pretrained-vit-dropout03-epoch01-log/scores_test.json
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: b092de26cf756ec602d6f2e484c965dd
+      size: 14114
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/cm_test.png
+      hash: md5
+      md5: 4d67778ac099b92a453218cc9d2a5db9
+      size: 13452
+    - path: metrics/pretrained-vit-dropout03-epoch01-log/scores_test.json
+      hash: md5
+      md5: a0fe9dd13e389b564c387c64407fcb6c
+      size: 371

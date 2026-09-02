@@ -14,7 +14,7 @@ from aarp_ml.dataset import all_wavelengths
 from tqdm import tqdm
 from torchvision.transforms import v2
 from src.torch.vit.train import TrainingConfig
-from src.torch.vit.utils import get_data_model
+from src.torch.vit.utils import get_data_model, needs_resize
 from ml_utils.visualization import plot_confusion_matrix
 
 # ==================== Module Constants ====================
@@ -23,6 +23,7 @@ CONFUSION_MATRIX_CLASSES = [0, 1]
 OUTPUT_PATH = "plots/cm_{subset}.png"
 VALID_SUBSETS = {'training', 'validation', 'test'}
 DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 # ==================== Configuration Class ====================
 @dataclass
@@ -269,6 +270,13 @@ if __name__ == "__main__":
         help="If set, write the computed metrics as JSON to this path "
              "(recall, specificity, balanced accuracy, precision, accuracy, TSS, HSS, base rate)"
     )
+    parser.add_argument(
+        "--model-type",
+        default="vit",
+        choices=list(VALID_MODEL_TYPES),
+        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+             "'vit-pretrained' (torchvision vit_l_16)."
+    )
 
     args = parser.parse_args()
 
@@ -295,20 +303,22 @@ if __name__ == "__main__":
         config = TrainingConfig(
             json_path=args.json_path,
             stats_file=args.stats_file,
-            channel_indices=channel_indices
+            channel_indices=channel_indices,
+            model_type=VALID_MODEL_TYPES[args.model_type],
         )
         config.trained_model_path = args.trained_model
 
         # Load model and transform
         metadata, model, transform, device = get_data_model(config)
-        device = torch.device(DEFAULT_DEVICE)
-        model.to(device)
         print(f"Using device: {device}")
+        resize_to = needs_resize(config)
+        print(f"Model type: {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
 
         # Load dataset — combine with ConcatDataset when multiple subsets given
         print(f"Loading {subset_label} dataset...")
+        transform_steps = [transform] if resize_to is None else [transform, v2.Resize(resize_to)]
         datasets = [
-            aia_euv(args.json_path, subset=s, transform=v2.Compose([transform]),
+            aia_euv(args.json_path, subset=s, transform=v2.Compose(transform_steps),
                     channel_indices=config.channel_indices)
             for s in args.subset
         ]
