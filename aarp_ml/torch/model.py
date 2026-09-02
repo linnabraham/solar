@@ -4,10 +4,16 @@ import torchvision
 from .base import BaseModel
 from vit_pytorch import ViT
 
-def build_pretrained_vit(n_channels: int = 7, n_classes: int = 2, pretrained: bool = True) -> torch.nn.Module:
+def build_pretrained_vit(n_channels: int = 7, n_classes: int = 2, pretrained: bool = True,
+                         dropout: float = 0.0, attention_dropout: float = 0.0) -> torch.nn.Module:
     """torchvision vit_l_16, conv_proj swapped for n_channels input, heads.head swapped for
     n_classes output. pretrained=True loads ImageNet1K_V1 weights (for training from scratch);
     pretrained=False skips it (for eval/inference, about to load a fine-tuned checkpoint anyway).
+
+    dropout/attention_dropout are forwarded to torchvision's VisionTransformer (both default to
+    0.0, torchvision's own default -- previously not exposed here at all, so every run before
+    2026-07-27 trained with zero dropout regardless of intent). Dropout layers carry no
+    parameters, so this is fully compatible with a pretrained checkpoint's state_dict either way.
 
     Single source of truth for this architecture -- train_pretrained.py, test_pretrained.py, and
     evaluate_aarp.py all build from here so the reconstructed graph is guaranteed identical to
@@ -16,7 +22,7 @@ def build_pretrained_vit(n_channels: int = 7, n_classes: int = 2, pretrained: bo
     checkpoints (see the now-superseded VIT_Pretrained in vit_pretrained.py for that variant).
     """
     weights = "IMAGENET1K_V1" if pretrained else None
-    model = torchvision.models.vit_l_16(weights=weights)
+    model = torchvision.models.vit_l_16(weights=weights, dropout=dropout, attention_dropout=attention_dropout)
 
     conv1_out = model.conv_proj.out_channels
     model.conv_proj = nn.Conv2d(n_channels, conv1_out, kernel_size=(16, 16), stride=(16, 16))

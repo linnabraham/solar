@@ -20,6 +20,8 @@ class TrainingConfig:
     save_all_epochs: bool = False  # also save every epoch's checkpoint (for post-hoc checkpoint-selection experiments)
     seed: Optional[int] = None  # if set, fixes torch/numpy/python RNG state for reproducible runs
     model_type: str = "deepflare_vit"  # bookkeeping only (wandb + run metadata); does not drive train.py branching
+    dropout: Optional[float] = None  # only consumed by train_pretrained.py's build_model_fn; None -> library default (0.0)
+    attention_dropout: Optional[float] = None  # same, for vit_l_16's attention_dropout
 
     # Model parameters
     image_height: int = 512

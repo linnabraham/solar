@@ -35,6 +35,12 @@ def parse_args() -> TrainingConfig:
     import argparse
     parser = argparse.ArgumentParser()
     add_common_training_args(parser, default_memory_threshold=DEFAULT_MEMORY_THRESHOLD)
+    parser.add_argument("--dropout", type=float, default=0.0,
+                       help="Dropout probability for vit_l_16's transformer blocks/MLP "
+                            "(torchvision default: 0.0 -- every run before 2026-07-27 used this, "
+                            "unregularized, since it wasn't exposed here at all).")
+    parser.add_argument("--attention-dropout", type=float, default=0.0,
+                       help="Dropout probability for vit_l_16's attention weights (default: 0.0).")
 
     args = parser.parse_args()
 
@@ -67,6 +73,8 @@ def parse_args() -> TrainingConfig:
         seed=args.seed,
         model_type="vit_pretrained",
         image_height=RESIZE_SIZE,  # cosmetic -- wandb should log the true model input size
+        dropout=args.dropout,
+        attention_dropout=args.attention_dropout,
     )
 
 
@@ -75,7 +83,8 @@ if __name__ == "__main__":
     train(
         config,
         build_model_fn=lambda cfg: build_pretrained_vit(
-            n_channels=cfg.n_channels, n_classes=cfg.n_classes, pretrained=True
+            n_channels=cfg.n_channels, n_classes=cfg.n_classes, pretrained=True,
+            dropout=cfg.dropout or 0.0, attention_dropout=cfg.attention_dropout or 0.0,
         ),
         extra_transform=v2.Resize(RESIZE_SIZE),
     )

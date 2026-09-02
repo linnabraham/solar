@@ -1,3 +1,10 @@
+# DEPRECATED (2026-07-27): superseded by aarp_ml.torch.model.build_pretrained_vit, which fixes
+# two problems this class has -- forward() bakes in a non-deterministic resize+flip (breaks
+# eval determinism), and its nn.Sequential(Dropout, Linear) head produces state_dict key
+# 'heads.1.*' instead of 'heads.head.*', incompatible with checkpoints actually in use
+# (treasured-blaze-221 etc.). Nothing in the active pipeline imports this anymore
+# (train_pretrained.py / test_pretrained.py / evaluate_aarp.py all use the shared builder).
+# Marked for deletion -- not yet removed.
 import torchvision
 from torchvision.transforms import v2
 from aarp_ml.torch.model import BaseModel
