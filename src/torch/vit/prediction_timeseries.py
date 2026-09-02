@@ -24,18 +24,20 @@ from torch.utils.data import TensorDataset
 from astro_utils.utils import get_start_and_end_time
 from src.torch.vit.ig import single_aarp, make_predictions
 from src.torch.vit.predictions_analyze import plot_goes, FLARE_TIME_WINDOW_HOURS
-from src.torch.vit.utils import get_data_model, dfs_from_metadata
+from src.torch.vit.utils import get_data_model, dfs_from_metadata, needs_resize
 from src.torch.vit.train import TrainingConfig
 from src.data_single import DatasetPaths
+from torchvision.transforms import v2
 
 TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
 OUTPUT_HOME: str = "plots/prediction_timeseries"
 FIGSIZE: tuple = (12, 4)
 OUTPUT_DPI: int = 150
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 
 def make_prediction_timeseries(aarp_id, metadata_df, transform, model, device,
-                                output_home=OUTPUT_HOME):
+                                output_home=OUTPUT_HOME, resize_to=None):
     """Generate GOES + flare score plot for one AARP without running IG.
 
     Args:
@@ -58,7 +60,10 @@ def make_prediction_timeseries(aarp_id, metadata_df, transform, model, device,
 
     # Forward passes only — fast
     tensor_images = torch.from_numpy(s_images).to(torch.float32)
-    tensor_data = transform(tensor_images).to(device)
+    tensor_data = transform(tensor_images)
+    if resize_to is not None:
+        tensor_data = v2.Resize(resize_to)(tensor_data)
+    tensor_data = tensor_data.to(device)
     dataset = TensorDataset(tensor_data)
     probs = make_predictions(dataset, model=model, device=device, probabilities=True)
     flare_scores = probs[:, 1].cpu().numpy()   # always flare-class probability [T]
@@ -126,6 +131,9 @@ def main():
     parser.add_argument("--aarp-id", type=int, nargs="+", default=None,
                         help="One or more AARP IDs (space-separated). "
                              "Omit to process the full test+val set.")
+    parser.add_argument("--model-type", default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
     args = parser.parse_args()
 
     from pathlib import Path
@@ -133,10 +141,12 @@ def main():
         run_id = Path(args.model_path).parent.name
         args.output_dir = f"plots/prediction_timeseries/{run_id}"
 
-    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
+    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl",
+                            model_type=VALID_MODEL_TYPES[args.model_type])
     config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
-    model = model.to(device)
+    resize_to = needs_resize(config)
+    print(f"Model type : {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
     _, val_df, test_df = dfs_from_metadata(metadata)
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -144,10 +154,10 @@ def main():
     def _run(aarp_id):
         if not test_df.empty and aarp_id in test_df.aarp_id.values:
             make_prediction_timeseries(aarp_id, test_df, transform, model, device,
-                                       args.output_dir)
+                                       args.output_dir, resize_to=resize_to)
         elif not val_df.empty and aarp_id in val_df.aarp_id.values:
             make_prediction_timeseries(aarp_id, val_df, transform, model, device,
-                                       args.output_dir)
+                                       args.output_dir, resize_to=resize_to)
         else:
             print(f"AARP {aarp_id} not found in test or validation splits")
 
