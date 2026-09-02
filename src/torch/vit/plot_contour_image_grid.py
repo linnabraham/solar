@@ -7,7 +7,9 @@ from typing import Optional, Dict, List, Tuple
 from src.torch.vit.ig import single_aarp
 from src.torch.vit.train import TrainingConfig
 from src.torch.vit.utils import (get_data_model, dfs_from_metadata,
-                                get_attribution_for_image)
+                                get_attribution_for_image, needs_resize)
+
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 # ==================== Module Constants ====================
 # Default contour configuration for each AIA passband (wavelength)
@@ -182,6 +184,9 @@ if __name__ == "__main__":
     parser.add_argument("--channels",    type=int, nargs="+", default=None,
                         help="AIA passbands the model was trained on, e.g. --channels 94 131. "
                              "Default: all 7, in wavelength order.")
+    parser.add_argument("--model-type",  default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
     args = parser.parse_args()
 
     if args.output_path is None:
@@ -201,12 +206,13 @@ if __name__ == "__main__":
     try:
         # Load configuration and data
         config = TrainingConfig(json_path=args.json_path, stats_file=args.stats_file,
-                                channel_indices=channel_indices)
+                                channel_indices=channel_indices,
+                                model_type=VALID_MODEL_TYPES[args.model_type])
         config.trained_model_path = args.model_path
         metadata, model, transform, device = get_data_model(config)
+        resize_to = needs_resize(config)
+        print(f"Model type: {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
         training_df, val_df, test_df = dfs_from_metadata(metadata)
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = model.to(device)
 
         # Select AARP instance and time index
         aarp_id = args.aarp_id
@@ -229,7 +235,7 @@ if __name__ == "__main__":
         
         # Compute attributions
         ig_out = get_attribution_for_image(
-            image, s_aarp.label, transform, device, model, ib_size=1
+            image, s_aarp.label, transform, device, model, ib_size=1, resize_to=resize_to
         )
         saliency = ig_out[channel]
         

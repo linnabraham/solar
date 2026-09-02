@@ -6,6 +6,7 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
 from typing import List
+from torchvision.transforms import v2
 from aarp_ml.dataset import all_wavelengths
 from aarp_ml.torch.model import DeepFlare_ViT, build_pretrained_vit
 from aarp_ml.torch.dataset import AIALogTransform
@@ -23,19 +24,34 @@ def get_metadata_from_json(json_path):
         metadata = json.load(json_file)
     return metadata
 
-def get_attribution_for_image(images:np.array, label, transform, device, model, ib_size=1):
-    """ Get Integrated Gradients attribution for a single image."""
+def get_attribution_for_image(images:np.array, label, transform, device, model, ib_size=1, resize_to=None):
+    """ Get Integrated Gradients attribution for a single image.
+
+    resize_to: if given (e.g. 224 for the pretrained vit_l_16), the image is resized before
+    the forward/backward pass, and the resulting attribution map is upsampled back to the
+    original (H, W) before returning -- so callers always get attribution at the same
+    resolution as the input `images`, regardless of the model's native input size.
+    """
     if images.ndim != 3:
         raise ValueError("Expecting a single timestep image and not a sequence")
+    orig_hw = images.shape[-2:]
     tensor_images = torch.from_numpy(images).to(torch.float32)
     tensor_data = transform(tensor_images)
+    if resize_to is not None:
+        tensor_data = v2.Resize(resize_to)(tensor_data)
     tensor_data = tensor_data.to(device)
     # apply the transform function on the zero baseline image as well to get
     # the proper zero baseline image
     baseline_zero = transform(torch.zeros_like(tensor_images))
+    if resize_to is not None:
+        baseline_zero = v2.Resize(resize_to)(baseline_zero)
     baseline_zero = baseline_zero.to(device)
     with torch.no_grad():
         ig_b0 = do_ig(tensor_data.unsqueeze(0), baseline=baseline_zero.unsqueeze(0), label=label, ib_size=ib_size, model=model)
+    if resize_to is not None:
+        ig_b0 = torch.nn.functional.interpolate(
+            torch.from_numpy(ig_b0).unsqueeze(0), size=orig_hw, mode='bilinear', align_corners=False
+        ).squeeze(0).numpy()
     del tensor_images, tensor_data
     gc.collect()
     torch.cuda.empty_cache()
