@@ -123,6 +123,7 @@ tier_explain:
   balmy-energy-223-log: *balmy-energy-223-log
   young-snowball-224-log: *young-snowball-224-log
   cv-fold0-7ch-normfix-l1-log: *cv-fold0-7ch-normfix-l1-log
+  pretrained-vit-dropout03-epoch01-log: *pretrained-vit-dropout03-epoch01-log
 
 tier_shap:
   glad-shape-197-lin: *glad-shape-197-lin

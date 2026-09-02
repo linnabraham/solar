@@ -69,6 +69,7 @@ stages:
         --model-path ${item.checkpoint}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-neg artifacts/${key}/attributions_neg_test.pt
         --output-pos artifacts/${key}/attributions_pos_test.pt
       deps:
@@ -94,6 +95,7 @@ stages:
         --model-path ${item.checkpoint}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-neg artifacts/${key}/attributions_neg_validation.pt
         --output-pos artifacts/${key}/attributions_pos_validation.pt
       deps:
@@ -162,22 +164,22 @@ stages:
       - >-
         python -m src.torch.vit.plot_contour_image_grid
         --json-path ${item.json} --model-path ${item.checkpoint}
-        --stats-file ${item.stats} ${item.channels_args}
+        --stats-file ${item.stats} ${item.channels_args} ${item.model_type_args}
         --aarp-id 377 --output-path artifacts/${key}/contour_grid/aarp377.png
       - >-
         python -m src.torch.vit.plot_contour_image_grid
         --json-path ${item.json} --model-path ${item.checkpoint}
-        --stats-file ${item.stats} ${item.channels_args}
+        --stats-file ${item.stats} ${item.channels_args} ${item.model_type_args}
         --aarp-id 1449 --output-path artifacts/${key}/contour_grid/aarp1449.png
       - >-
         python -m src.torch.vit.plot_contour_image_grid
         --json-path ${item.json} --model-path ${item.checkpoint}
-        --stats-file ${item.stats} ${item.channels_args}
+        --stats-file ${item.stats} ${item.channels_args} ${item.model_type_args}
         --aarp-id 2026 --output-path artifacts/${key}/contour_grid/aarp2026.png
       - >-
         python -m src.torch.vit.plot_contour_image_grid
         --json-path ${item.json} --model-path ${item.checkpoint}
-        --stats-file ${item.stats} ${item.channels_args}
+        --stats-file ${item.stats} ${item.channels_args} ${item.model_type_args}
         --aarp-id 4296 --output-path artifacts/${key}/contour_grid/aarp4296.png
       deps:
       - ${item.checkpoint}
@@ -198,6 +200,7 @@ stages:
         --model-path ${item.checkpoint}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-dir artifacts/${key}/predictions
       deps:
       - ${item.checkpoint}
