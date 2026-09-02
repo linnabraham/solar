@@ -26,15 +26,17 @@ from torch.utils.data import TensorDataset
 from src.torch.vit.ig import single_aarp, make_predictions
 from src.torch.vit.class_wise_distribution import run_pred_and_ig
 from src.torch.vit.predictions_analyze import plot_goes, FLARE_TIME_WINDOW_HOURS
-from src.torch.vit.utils import get_data_model, dfs_from_metadata
+from src.torch.vit.utils import get_data_model, dfs_from_metadata, needs_resize
 from src.torch.vit.train import TrainingConfig
 from src.data_single import DatasetPaths
+from torchvision.transforms import v2
 
 TRAINED_MODEL_PATH: str = "outputs/glad-shape-197/trained_model.pth"
 OUTPUT_HOME: str = "plots/intensity_boxplots"
 FIGSIZE: tuple = (16, 26)
 OUTPUT_DPI: int = 150
 N_XTICK_LABELS: int = 8
+VALID_MODEL_TYPES = {"vit": "deepflare_vit", "vit-pretrained": "vit_pretrained"}
 
 RAW_PERCENTILES: list = [25, 50, 75, 99]
 ATTR_PERCENTILES: list = [95, 99]
@@ -201,7 +203,7 @@ def plot_intensity_and_attribution_timeseries(
 
 
 def make_boxplot(aarp_id, metadata_df, transform, model, device, output_home=OUTPUT_HOME,
-                 multiply_by_inputs=True):
+                 multiply_by_inputs=True, resize_to=None, stride=1):
     """Compute IG attributions and generate the quantile timeseries figure for one AARP.
 
     Args:
@@ -214,17 +216,24 @@ def make_boxplot(aarp_id, metadata_df, transform, model, device, output_home=OUT
         multiply_by_inputs: Passed to IntegratedGradients. False gives pure gradient
             signal uncoupled from pixel brightness, useful for diagnosing whether
             attribution patterns are driven by input magnitude or model sensitivity.
+        stride: Use every Nth frame (IG is the expensive step here, ~5-6s/frame on
+            the pretrained architecture -- a 451-frame AARP takes ~40 minutes at
+            stride=1). Applied consistently to images/attributions/flare-scores AND
+            timestamps, so the x-axis stays aligned with the (thinned) data.
     """
     output_dir = os.path.join(output_home, str(aarp_id))
 
     s_images, attributions = run_pred_and_ig(
         aarp_id, metadata_df, transform=transform, model=model, device=device,
-        multiply_by_inputs=multiply_by_inputs,
+        multiply_by_inputs=multiply_by_inputs, resize_to=resize_to, stride=stride,
     )
 
     # Compute per-timestep flare probability — fast (no IG, forward passes only)
     tensor_images = torch.from_numpy(s_images).to(torch.float32)
-    tensor_data = transform(tensor_images).to(device)
+    tensor_data = transform(tensor_images)
+    if resize_to is not None:
+        tensor_data = v2.Resize(resize_to)(tensor_data)
+    tensor_data = tensor_data.to(device)
     dataset = TensorDataset(tensor_data)
     probs = make_predictions(dataset, model=model, device=device, probabilities=True)
     flare_scores = probs[:, 1].cpu().numpy()   # class 1 = flare, shape [T]
@@ -235,6 +244,10 @@ def make_boxplot(aarp_id, metadata_df, transform, model, device, output_home=OUT
 
     s_aarp = single_aarp(aarp_id, metadata_df.query(f"aarp_id == {aarp_id}"))
     timestamps = s_aarp.timestamps.reset_index(drop=True)
+    if stride > 1:
+        # Must match run_pred_and_ig's own s_images[::stride] slicing above, so the
+        # x-axis stays aligned with the (thinned) images/attributions/flare-scores.
+        timestamps = timestamps.iloc[::stride].reset_index(drop=True)
 
     fl_start, fl_end = get_start_and_end_time(
         s_aarp.get_midtime(), FLARE_TIME_WINDOW_HOURS * 60
@@ -284,6 +297,14 @@ def main():
     parser.add_argument("--no-input-mult", action="store_true",
                         help="Use multiply_by_inputs=False in IG (pure gradient, no input weighting). "
                              "Output written to a separate directory for side-by-side comparison.")
+    parser.add_argument("--model-type", default="vit", choices=list(VALID_MODEL_TYPES),
+                        help="Model architecture: 'vit' (DeepFlare_ViT, default) or "
+                             "'vit-pretrained' (torchvision vit_l_16).")
+    parser.add_argument("--stride", type=int, default=1,
+                        help="Use every Nth frame per AARP for IG (default: 1, all frames). "
+                             "IG is the expensive step here (~5-6s/frame on the pretrained "
+                             "architecture) -- e.g. a 451-frame AARP takes ~40 minutes at "
+                             "stride=1. Try stride=4+ for a quick look before a full run.")
     args = parser.parse_args()
 
     from pathlib import Path
@@ -294,10 +315,12 @@ def main():
         base_dir = f"plots/intensity_boxplots/{run_id}"
     output_dir = base_dir if multiply_by_inputs else base_dir.rstrip("/") + "_no_input_mult"
 
-    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl")
+    config = TrainingConfig(json_path=args.json_path, stats_file="stats.pkl",
+                            model_type=VALID_MODEL_TYPES[args.model_type])
     config.trained_model_path = args.model_path
     metadata, model, transform, device = get_data_model(config)
-    model = model.to(device)
+    resize_to = needs_resize(config)
+    print(f"Model type : {args.model_type}" + (f"  (resize to {resize_to})" if resize_to else ""))
     _, val_df, test_df = dfs_from_metadata(metadata)
 
     os.makedirs(output_dir, exist_ok=True)
@@ -306,19 +329,19 @@ def main():
         for aarp_id in args.aarp_id:
             if not test_df.empty and aarp_id in test_df.aarp_id.values:
                 make_boxplot(aarp_id, test_df, transform, model, device, output_dir,
-                             multiply_by_inputs=multiply_by_inputs)
+                             multiply_by_inputs=multiply_by_inputs, resize_to=resize_to, stride=args.stride)
             elif not val_df.empty and aarp_id in val_df.aarp_id.values:
                 make_boxplot(aarp_id, val_df, transform, model, device, output_dir,
-                             multiply_by_inputs=multiply_by_inputs)
+                             multiply_by_inputs=multiply_by_inputs, resize_to=resize_to, stride=args.stride)
             else:
                 print(f"AARP {aarp_id} not found in test or validation splits")
     else:
         for aarp_id in (test_df.aarp_id.unique().tolist() if not test_df.empty else []):
             make_boxplot(aarp_id, test_df, transform, model, device, output_dir,
-                         multiply_by_inputs=multiply_by_inputs)
+                         multiply_by_inputs=multiply_by_inputs, resize_to=resize_to, stride=args.stride)
         for aarp_id in (val_df.aarp_id.unique().tolist() if not val_df.empty else []):
             make_boxplot(aarp_id, val_df, transform, model, device, output_dir,
-                         multiply_by_inputs=multiply_by_inputs)
+                         multiply_by_inputs=multiply_by_inputs, resize_to=resize_to, stride=args.stride)
 
 
 if __name__ == "__main__":
