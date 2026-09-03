@@ -1,6 +1,9 @@
 # ADR-0001: Checkpoint selection for `pretrained-vit-solar-dataset-dropout03`
 
-**Status:** Accepted — 2026-09-02
+**Status:** Accepted — 2026-09-02. Refined by [ADR-0006](0006-two-checkpoint-transparency-dropout03.md)
+(2026-09-03), which adds a second, val-selected checkpoint (`epoch_78`) run
+alongside this one specifically so the selection-bias caveat below is visible
+in the actual output, not just in this document.
 
 ## Context
 

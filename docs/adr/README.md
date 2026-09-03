@@ -9,8 +9,9 @@ that's already settled.
 
 | ADR | Title | Status |
 |---|---|---|
-| [0001](0001-checkpoint-selection-dropout03.md) | Checkpoint selection for `pretrained-vit-solar-dataset-dropout03` | Accepted |
+| [0001](0001-checkpoint-selection-dropout03.md) | Checkpoint selection for `pretrained-vit-solar-dataset-dropout03` | Accepted; refined by 0006 |
 | [0002](0002-defer-kfold-cv.md) | Deferring k-fold CV as the fix for noisy single-split estimates | Deferred |
 | [0003](0003-multi-architecture-analysis-support.md) | Multi-architecture support pattern for the analysis toolchain | Accepted, in progress |
 | [0004](0004-experiment-registry-and-report-battery.md) | Experiment registry and report battery | Accepted (predates this phase; extended here) |
 | [0005](0005-git-workflow-publication-wrapup.md) | Git workflow for this phase | Accepted |
+| [0006](0006-two-checkpoint-transparency-dropout03.md) | Two-checkpoint transparency for dropout03 Performance/Explainability reporting | Accepted, in progress |
