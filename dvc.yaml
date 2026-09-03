@@ -56,6 +56,34 @@ stages:
       - metrics/${key}/scores_validation.json:
           cache: false
 
+  # ROC curve vs the fixed XGBoost baseline (paper/experiments.yaml's
+  # xgboost_baseline) -- promoted from compare_models.py's manual/pairwise
+  # CLI into a per-experiment stage. Also produces a bonus AR-level CM
+  # comparison and a metrics table (compare_models.py's other two outputs),
+  # not just the ROC curve battery.yaml originally asked for.
+  exp-roc:
+    foreach: ${tier_core}
+    do:
+      cmd: >-
+        python -m src.torch.vit.compare_models
+        --vit-path ${item.checkpoint}
+        --xgb-path ${xgboost_baseline.checkpoint}
+        --subset test
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.model_type_args}
+        --output-dir artifacts/${key}/roc_test
+      deps:
+      - ${item.checkpoint}
+      - ${xgboost_baseline.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/compare_models.py
+      - src/torch/vit/evaluate_aarp.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/roc_test
+
   # IG attribution sections run on BOTH test and validation: with only ~17
   # positive AARPs total, the two splits can tell different stories and the
   # reports must show whether the channel/attribution findings hold on each.

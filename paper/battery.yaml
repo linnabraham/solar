@@ -49,12 +49,19 @@ cm:
   paper: main
 
 roc:
-  caption: ROC / reliability curve, test set
-  path: artifacts/{exp}/roc_test.png
-  stage: "PROMOTE: extract from src/torch/vit/compare_models.py"
+  caption: ROC curve vs the fixed XGBoost baseline (xgboost_baseline), test set.
+    Also produces two bonus outputs from the same compare_models.py run, not
+    separately tracked here -- cm_test/cm_comparison.png (AR-level CM, ViT vs
+    XGBoost) and metrics_comparison.csv (wide metric table, both models +
+    always-positive baseline).
+  path: artifacts/{exp}/roc_test/roc_comparison.png
+  stage: exp-roc (dvc.yaml)
   tier: core
   keyed_on: experiment
-  status: needs-stage
+  status: staged
+  known_gap: compare_models.py has no --channels support -- this stage will
+    fail for channel-subset experiments (young-snowball-224-log,
+    cv-fold{0,1,2}-94131ch-log) until that's added.
   paper: main
 
 # ── Report §2: Explainability (tier: explain) ────────────────────────────────

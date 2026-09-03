@@ -321,9 +321,11 @@ def main() -> None:
     )
     parser.add_argument("--vit-path", required=True,
                         help="Path to ViT checkpoint (.pth).")
-    parser.add_argument("--vit-type", default="vit",
+    parser.add_argument("--vit-type", "--model-type", dest="vit_type", default="vit",
                         choices=["vit", "vit-pretrained"],
-                        help="ViT architecture variant (default: vit).")
+                        help="ViT architecture variant (default: vit). --model-type is "
+                             "accepted as an alias, matching the flag name used by every "
+                             "other script in this project's analysis toolchain.")
     parser.add_argument("--vit-label", default=DEFAULT_VIT_LABEL,
                         help=f"Display name for ViT in plots (default: {DEFAULT_VIT_LABEL}).")
     parser.add_argument("--xgb-path", required=True,
