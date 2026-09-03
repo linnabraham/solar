@@ -42,6 +42,7 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_
     label = s_aarp.label
     ib_size = 1
     n_images = s_images.shape[0]
+    orig_hw = s_images.shape[-2:]  # attribution is upsampled back to this if resize_to is used
 
     if baseline_image is not None:
         # Fixed baseline (e.g. channel-mean image), transformed once and reused for every frame.
@@ -60,6 +61,14 @@ def run_pred_and_ig(aarp_id, metadata_df, transform, model, device, multiply_by_
                 baseline = baseline.to(device)
             ig_b0 = do_ig(batch, baseline, label=label, ib_size=ib_size, model=model,
                           multiply_by_inputs=multiply_by_inputs, target_mode=target_mode)
+            if resize_to is not None:
+                # Callers (e.g. plot_class_wise_distribution.py's np.where(attr > thresh, image, 0))
+                # index attributions and the ORIGINAL s_images by the same pixel coordinates, so the
+                # attribution must come back at s_images' native resolution, not the model's resized
+                # input size. Same convention as utils.py::get_attribution_for_image().
+                ig_b0 = torch.nn.functional.interpolate(
+                    torch.from_numpy(ig_b0).unsqueeze(0), size=orig_hw, mode='bilinear', align_corners=False
+                ).squeeze(0).numpy()
             attributions.append(ig_b0)
             del batch, ig_b0
             torch.cuda.empty_cache()
