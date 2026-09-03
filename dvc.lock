@@ -1537,3 +1537,95 @@ stages:
       hash: md5
       md5: 9a097b00951a9392c36addb3c98c9e33
       size: 372
+  exp-prediction-plots@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.predictions_analyze --json-path 
+      solar_dataset.json --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --stats-file stats.pkl  --model-type vit-pretrained --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch78-log/predictions
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/predictions_analyze.py
+      hash: md5
+      md5: 5a0df238b97e0daa92b31b33c51e7853
+      size: 16658
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/predictions
+      hash: md5
+      md5: d7f7a14732460b49a3b13d6b75059472.dir
+      size: 1026468
+      nfiles: 14
+  exp-contour-grids@pretrained-vit-dropout03-epoch78-log:
+    cmd:
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --stats-file stats.pkl  --model-type vit-pretrained --aarp-id 377 
+      --output-path 
+      artifacts/pretrained-vit-dropout03-epoch78-log/contour_grid/aarp377.png
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --stats-file stats.pkl  --model-type vit-pretrained --aarp-id 1449 
+      --output-path 
+      artifacts/pretrained-vit-dropout03-epoch78-log/contour_grid/aarp1449.png
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --stats-file stats.pkl  --model-type vit-pretrained --aarp-id 2026 
+      --output-path 
+      artifacts/pretrained-vit-dropout03-epoch78-log/contour_grid/aarp2026.png
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --stats-file stats.pkl  --model-type vit-pretrained --aarp-id 4296 
+      --output-path 
+      artifacts/pretrained-vit-dropout03-epoch78-log/contour_grid/aarp4296.png
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/plot_contour_image_grid.py
+      hash: md5
+      md5: 5d014f99733c28993615187812a12a66
+      size: 11308
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/contour_grid
+      hash: md5
+      md5: bfd93df6d2fead07235e2d5ba08367dd.dir
+      size: 66992878
+      nfiles: 4
