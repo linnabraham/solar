@@ -1629,3 +1629,90 @@ stages:
       md5: bfd93df6d2fead07235e2d5ba08367dd.dir
       size: 66992878
       nfiles: 4
+  exp-ig-attributions-test@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.class_wise_distribution --subset test 
+      --json-path solar_dataset.json --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --stats-file stats.pkl  --model-type vit-pretrained --output-neg 
+      artifacts/pretrained-vit-dropout03-epoch78-log/attributions_neg_test.pt 
+      --output-pos 
+      artifacts/pretrained-vit-dropout03-epoch78-log/attributions_pos_test.pt
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: f7054a7c84a387b1eafc13727020befe
+      size: 11321
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: 
+        artifacts/pretrained-vit-dropout03-epoch78-log/attributions_neg_test.pt
+      hash: md5
+      md5: 9e3aed41da4128a68b69705d6d2fc850
+      size: 40777135768
+    - path: 
+        artifacts/pretrained-vit-dropout03-epoch78-log/attributions_pos_test.pt
+      hash: md5
+      md5: a6e613c127b09c4560249e182702e41f
+      size: 21824439704
+  exp-ig-distribution-plots-test@pretrained-vit-dropout03-epoch78-log:
+    cmd: 'python -m src.torch.vit.plot_class_wise_distribution --subset test --json-path
+      solar_dataset.json --attributions-neg artifacts/pretrained-vit-dropout03-epoch78-log/attributions_neg_test.pt
+      --attributions-pos artifacts/pretrained-vit-dropout03-epoch78-log/attributions_pos_test.pt
+      --output-dir artifacts/pretrained-vit-dropout03-epoch78-log/distribution_test '
+    deps:
+    - path: 
+        artifacts/pretrained-vit-dropout03-epoch78-log/attributions_neg_test.pt
+      hash: md5
+      md5: 9e3aed41da4128a68b69705d6d2fc850
+      size: 40777135768
+    - path: 
+        artifacts/pretrained-vit-dropout03-epoch78-log/attributions_pos_test.pt
+      hash: md5
+      md5: a6e613c127b09c4560249e182702e41f
+      size: 21824439704
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: f7054a7c84a387b1eafc13727020befe
+      size: 11321
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/plot_class_wise_distribution.py
+      hash: md5
+      md5: 001b4cc486bfe1a171da3b9923cad428
+      size: 14787
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/distribution_test
+      hash: md5
+      md5: 8e9b56c6ffc4260a1a137b1a3ab3aca8.dir
+      size: 881114
+      nfiles: 7
