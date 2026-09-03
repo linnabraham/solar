@@ -107,6 +107,29 @@ specs:
     json: solar_dataset.json
     channels_args: ""
     model_type_args: "--model-type vit-pretrained"
+  pretrained-vit-dropout03-epoch78-log: &pretrained-vit-dropout03-epoch78-log
+    # Same training run as pretrained-vit-dropout03-epoch01-log, deliberately
+    # DIFFERENT epoch -- NOT a "better checkpoint" candidate. This is the
+    # properly-justified val-based comparison point: non-degenerate (val
+    # precision 0.980, not boundary-pinned at 1.0 like 96/100 epochs of this
+    # run) and the best val balanced_accuracy/TSS epoch checked (0.748/0.496,
+    # vs epoch_48's raw-val_loss-minimizing but precision-pinned 0.682/0.365
+    # -- val_loss alone is not the right selection criterion here, see
+    # docs/adr/0001-checkpoint-selection-dropout03.md).
+    #
+    # Registered ONLY to make checkpoint-selection instability directly
+    # visible by comparing against epoch01 on the SAME test data -- run
+    # test-subset stages only (tier_core here; deliberately not added to
+    # tier_explain's -validation variants or tier_shap). A rigorously-chosen
+    # val-based epoch still lands at test TSS=0.262 (rank 44/100) -- the
+    # point is exactly that this doesn't improve on epoch01's instability
+    # story, it sharpens it: even careful val selection doesn't predict test
+    # for this run.
+    checkpoint: outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+    stats: stats.pkl
+    json: solar_dataset.json
+    channels_args: ""
+    model_type_args: "--model-type vit-pretrained"
 
 tier_core:
   glad-shape-197-lin: *glad-shape-197-lin
@@ -117,6 +140,7 @@ tier_core:
   cv-fold2-94131ch-log: *cv-fold2-94131ch-log
   cv-fold0-7ch-normfix-l1-log: *cv-fold0-7ch-normfix-l1-log
   pretrained-vit-dropout03-epoch01-log: *pretrained-vit-dropout03-epoch01-log
+  pretrained-vit-dropout03-epoch78-log: *pretrained-vit-dropout03-epoch78-log
 
 tier_explain:
   glad-shape-197-lin: *glad-shape-197-lin
