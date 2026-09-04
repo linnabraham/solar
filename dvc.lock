@@ -2406,3 +2406,71 @@ stages:
       md5: a101b08638caee245d4aa2c9b21d18d9.dir
       size: 199129
       nfiles: 3
+  exp-model-randomization@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.model_randomization_test --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --json-path solar_dataset.json --stats-file stats.pkl --model-type 
+      vit-pretrained --subset test --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch78-log/model_randomization
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/model_randomization_test.py
+      hash: md5
+      md5: 860b4bba7c2b8934d2e526b3514bdf35
+      size: 18625
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/model_randomization
+      hash: md5
+      md5: 3b10f84e9bae9b67d71a86f2c51a855e.dir
+      size: 1158552
+      nfiles: 3
+  exp-model-randomization@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.model_randomization_test --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl --model-type 
+      vit-pretrained --subset test --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch01-log/model_randomization
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/model_randomization_test.py
+      hash: md5
+      md5: 860b4bba7c2b8934d2e526b3514bdf35
+      size: 18625
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/model_randomization
+      hash: md5
+      md5: b23af86d55bc274ebd321fcba197d55a.dir
+      size: 1518817
+      nfiles: 3
