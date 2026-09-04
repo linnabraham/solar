@@ -156,6 +156,8 @@ tier_shap:
   young-snowball-224-log: *young-snowball-224-log
   cv-fold1-94131ch-log: *cv-fold1-94131ch-log
   cv-fold0-7ch-normfix-l1-log: *cv-fold0-7ch-normfix-l1-log
+  pretrained-vit-dropout03-epoch01-log: *pretrained-vit-dropout03-epoch01-log
+  pretrained-vit-dropout03-epoch78-log: *pretrained-vit-dropout03-epoch78-log
 
 # Baseline (fixed; not part of model selection). devoted-pond-14 confirmed
 # 2026-07-23 vs apricot-fog-13 (plots/xgb/evaluation/{run}/xgb_metrics.csv):

@@ -248,6 +248,7 @@ stages:
         --json-path ${item.json}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-json artifacts/${key}/shap_stats_test.json
       deps:
       - ${item.checkpoint}
@@ -282,6 +283,7 @@ stages:
         --json-path ${item.json}
         --stats-file ${item.stats}
         ${item.channels_args}
+        ${item.model_type_args}
         --output-json artifacts/${key}/shap_stats_validation.json
       deps:
       - ${item.checkpoint}
