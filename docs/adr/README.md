@@ -15,3 +15,4 @@ that's already settled.
 | [0004](0004-experiment-registry-and-report-battery.md) | Experiment registry and report battery | Accepted (predates this phase; extended here) |
 | [0005](0005-git-workflow-publication-wrapup.md) | Git workflow for this phase | Accepted |
 | [0006](0006-two-checkpoint-transparency-dropout03.md) | Two-checkpoint transparency for dropout03 Performance/Explainability reporting | Accepted, in progress |
+| [0007](0007-standalone-roc-and-highn-shap.md) | Standalone ROC and higher-N SHAP ranking variants | Accepted |

@@ -1436,8 +1436,8 @@ stages:
       size: 42253014
     - path: src/torch/vit/compare_models.py
       hash: md5
-      md5: de37b4399f23c711eca1c8da7767ea5e
-      size: 16778
+      md5: ae6c256931afb253fc3c5d7547b104b6
+      size: 17011
     - path: src/torch/vit/evaluate_aarp.py
       hash: md5
       md5: b6d43ba2197f5f92257fbe1f72e85fd9

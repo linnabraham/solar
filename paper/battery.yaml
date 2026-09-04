@@ -62,6 +62,18 @@ roc:
   known_gap: compare_models.py has no --channels support -- this stage will
     fail for channel-subset experiments (young-snowball-224-log,
     cv-fold{0,1,2}-94131ch-log) until that's added.
+
+roc_solo:
+  caption: Standalone ViT-only ROC/CM/metrics, test set -- no XGBoost pairing,
+    for when the baseline comparison isn't wanted, just the model's own curve.
+    Same bonus outputs as roc (AR-level CM, metrics table), minus the
+    XGBoost/baseline columns.
+  path: artifacts/{exp}/roc_solo_test/roc_comparison.png
+  stage: exp-roc-solo (dvc.yaml)
+  tier: core
+  keyed_on: experiment
+  status: staged
+  known_gap: same --channels gap as roc.
   paper: main
 
 # ── Report §2: Explainability (tier: explain) ────────────────────────────────
@@ -118,6 +130,21 @@ shap_ranking:
   stage: exp-kshap-stats + exp-kshap-analyze (dvc.yaml). Pre-existing stats
     migrated via dvc commit — cv-fold1 (fresh, Jul 17) and glad-shape-197-lin
     (May 7 file; provenance is asserted, not DVC-verified — rerun if in doubt).
+  tier: shap
+  keyed_on: experiment
+  status: staged
+  paper: main
+
+shap_ranking_highn:
+  caption: Kernel-SHAP per-channel importance ranking at --max-samples 200
+    (vs shap_ranking's default 50) -- more statistical power for the
+    per-channel Wilcoxon significance tests, at ~4x the runtime (still only
+    ~minutes, unlike the IG stages). Separate output, does not replace
+    shap_ranking's default-N results. Not run for every tier_shap experiment
+    by default -- built for the dropout03 two-checkpoint comparison first.
+    See ADR-0007.
+  path: artifacts/{exp}/kshap_highn/
+  stage: exp-kshap-stats-highn + exp-kshap-analyze-highn (dvc.yaml)
   tier: shap
   keyed_on: experiment
   status: staged

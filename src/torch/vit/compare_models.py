@@ -328,8 +328,9 @@ def main() -> None:
                              "other script in this project's analysis toolchain.")
     parser.add_argument("--vit-label", default=DEFAULT_VIT_LABEL,
                         help=f"Display name for ViT in plots (default: {DEFAULT_VIT_LABEL}).")
-    parser.add_argument("--xgb-path", required=True,
-                        help="Path to XGBoost model (.json).")
+    parser.add_argument("--xgb-path", default=None,
+                        help="Path to XGBoost model (.json). Optional -- omit for a "
+                             "standalone ViT-only ROC/CM/metrics report with no comparison.")
     parser.add_argument("--xgb-label", default=DEFAULT_XGB_LABEL,
                         help=f"Display name for XGBoost in plots (default: {DEFAULT_XGB_LABEL}).")
     parser.add_argument("--subset", nargs="+", required=True,
@@ -352,17 +353,21 @@ def main() -> None:
 
     subset_label = "+".join(args.subset)
     vit_run_id   = Path(args.vit_path).parent.name
-    xgb_run_id   = Path(args.xgb_path).parent.name
+    has_xgb      = args.xgb_path is not None
     excl_suffix  = (
         "_excl" + "-".join(str(a) for a in sorted(args.exclude_aarp))
         if args.exclude_aarp else ""
     )
 
     if args.output_dir is None:
-        args.output_dir = (
-            f"{DEFAULT_OUTPUT_DIR}/{vit_run_id}_vs_{xgb_run_id}"
-            f"/{subset_label}{excl_suffix}"
-        )
+        if has_xgb:
+            xgb_run_id = Path(args.xgb_path).parent.name
+            args.output_dir = (
+                f"{DEFAULT_OUTPUT_DIR}/{vit_run_id}_vs_{xgb_run_id}"
+                f"/{subset_label}{excl_suffix}"
+            )
+        else:
+            args.output_dir = f"{DEFAULT_OUTPUT_DIR}/{vit_run_id}/{subset_label}{excl_suffix}"
 
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -376,39 +381,39 @@ def main() -> None:
     # ── Load shared metadata ───────────────────────────────────────────────
     metadata = get_metadata_from_json(args.json_path)
 
-    # ── Run inference for both models ──────────────────────────────────────
+    # ── Run inference ─────────────────────────────────────────────────────
     print(f"\nRunning {args.vit_label} inference…")
     vit_ids, vit_true, vit_prob = _run_model(
         args.vit_path, args.vit_type, args.subset,
         args.json_path, args.stats_file, args.batch_size, metadata,
     )
-
-    print(f"\nRunning {args.xgb_label} inference…")
-    xgb_ids, xgb_true, xgb_prob = _run_model(
-        args.xgb_path, "xgb", args.subset,
-        args.json_path, args.stats_file, args.batch_size, metadata,
-    )
-
-    # ── Aggregate to AR level ──────────────────────────────────────────────
     vit_agg = aggregate_per_aarp(vit_ids, vit_true, vit_prob, args.threshold)
-    xgb_agg = aggregate_per_aarp(xgb_ids, xgb_true, xgb_prob, args.threshold)
+
+    if has_xgb:
+        print(f"\nRunning {args.xgb_label} inference…")
+        xgb_ids, xgb_true, xgb_prob = _run_model(
+            args.xgb_path, "xgb", args.subset,
+            args.json_path, args.stats_file, args.batch_size, metadata,
+        )
+        xgb_agg = aggregate_per_aarp(xgb_ids, xgb_true, xgb_prob, args.threshold)
 
     if args.exclude_aarp:
         vit_agg = vit_agg[~vit_agg["aarp_id"].isin(args.exclude_aarp)].reset_index(drop=True)
-        xgb_agg = xgb_agg[~xgb_agg["aarp_id"].isin(args.exclude_aarp)].reset_index(drop=True)
-        # also filter frame-level arrays for ROC
         vit_mask = ~np.isin(vit_ids, args.exclude_aarp)
-        xgb_mask = ~np.isin(xgb_ids, args.exclude_aarp)
         vit_true, vit_prob = vit_true[vit_mask], vit_prob[vit_mask]
-        xgb_true, xgb_prob = xgb_true[xgb_mask], xgb_prob[xgb_mask]
+        if has_xgb:
+            xgb_agg = xgb_agg[~xgb_agg["aarp_id"].isin(args.exclude_aarp)].reset_index(drop=True)
+            xgb_mask = ~np.isin(xgb_ids, args.exclude_aarp)
+            xgb_true, xgb_prob = xgb_true[xgb_mask], xgb_prob[xgb_mask]
 
     # ── Build model descriptors ────────────────────────────────────────────
     models = [
         {"label": args.vit_label, "color": _COLORS["vit"],
          "y_true": vit_true, "y_prob": vit_prob, "agg": vit_agg},
-        {"label": args.xgb_label, "color": _COLORS["xgb"],
-         "y_true": xgb_true, "y_prob": xgb_prob, "agg": xgb_agg},
     ]
+    if has_xgb:
+        models.append({"label": args.xgb_label, "color": _COLORS["xgb"],
+                       "y_true": xgb_true, "y_prob": xgb_prob, "agg": xgb_agg})
 
     # ── Figures ────────────────────────────────────────────────────────────
     print("\nGenerating figures…")

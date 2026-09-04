@@ -84,6 +84,29 @@ stages:
       outs:
       - artifacts/${key}/roc_test
 
+  # Standalone ViT-only ROC/CM/metrics -- no XGBoost pairing, for when the
+  # comparison against the baseline isn't wanted, just the model's own curve.
+  exp-roc-solo:
+    foreach: ${tier_core}
+    do:
+      cmd: >-
+        python -m src.torch.vit.compare_models
+        --vit-path ${item.checkpoint}
+        --subset test
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.model_type_args}
+        --output-dir artifacts/${key}/roc_solo_test
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/compare_models.py
+      - src/torch/vit/evaluate_aarp.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/roc_solo_test
+
   # IG attribution sections run on BOTH test and validation: with only ~17
   # positive AARPs total, the two splits can tell different stories and the
   # reports must show whether the channel/attribution findings hold on each.
@@ -308,6 +331,81 @@ stages:
       - src/torch/vit/analyze_shap.py
       outs:
       - artifacts/${key}/kshap_validation
+
+  # Higher-N variant of the SHAP battery (--max-samples 200 vs the default
+  # 50) -- separate outputs, doesn't replace the default-N results above.
+  # Not run for every tier_shap experiment by default; see ADR-0007.
+  exp-kshap-stats-highn:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.kshap --subset test
+        --trained-model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        ${item.model_type_args}
+        --max-samples 200
+        --output-json artifacts/${key}/shap_stats_highn_test.json
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/kshap.py
+      - aarp_ml/torch/dataset.py
+      - aarp_ml/torch/model.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/shap_stats_highn_test.json
+
+  exp-kshap-analyze-highn:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.analyze_shap --subset test
+        --input-json artifacts/${key}/shap_stats_highn_test.json
+        --output-dir artifacts/${key}/kshap_highn
+      deps:
+      - artifacts/${key}/shap_stats_highn_test.json
+      - src/torch/vit/analyze_shap.py
+      outs:
+      - artifacts/${key}/kshap_highn
+
+  exp-kshap-stats-highn-validation:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.kshap --subset validation
+        --trained-model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.channels_args}
+        ${item.model_type_args}
+        --max-samples 200
+        --output-json artifacts/${key}/shap_stats_highn_validation.json
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/kshap.py
+      - aarp_ml/torch/dataset.py
+      - aarp_ml/torch/model.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/shap_stats_highn_validation.json
+
+  exp-kshap-analyze-highn-validation:
+    foreach: ${tier_shap}
+    do:
+      cmd: >-
+        python -m src.torch.vit.analyze_shap --subset validation
+        --input-json artifacts/${key}/shap_stats_highn_validation.json
+        --output-dir artifacts/${key}/kshap_highn_validation
+      deps:
+      - artifacts/${key}/shap_stats_highn_validation.json
+      - src/torch/vit/analyze_shap.py
+      outs:
+      - artifacts/${key}/kshap_highn_validation
 
   # ── Single-run / data stages ───────────────────────────────────────────────
 
