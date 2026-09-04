@@ -407,6 +407,72 @@ stages:
       outs:
       - artifacts/${key}/kshap_highn_validation
 
+  # ── Robustness tier (foreach tier_robust) ───────────────────────────────────
+  # Promoted from standalone scripts, first time any of these three have run
+  # as a DVC stage for any registry experiment. None support --channels.
+
+  exp-model-randomization:
+    foreach: ${tier_robust}
+    do:
+      cmd: >-
+        python -m src.torch.vit.model_randomization_test
+        --model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.model_type_args}
+        --subset test
+        --output-dir artifacts/${key}/model_randomization
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/model_randomization_test.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/model_randomization
+
+  exp-shap-stability:
+    foreach: ${tier_robust}
+    do:
+      cmd: >-
+        python -m src.torch.vit.shap_stability_test
+        --model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.model_type_args}
+        --subset test
+        --output-dir artifacts/${key}/shap_stability
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - src/torch/vit/shap_stability_test.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/shap_stability
+
+  exp-shap-faithfulness:
+    foreach: ${tier_robust}
+    do:
+      cmd: >-
+        python -m src.torch.vit.shap_faithfulness_test
+        --model-path ${item.checkpoint}
+        --json-path ${item.json}
+        --stats-file ${item.stats}
+        ${item.model_type_args}
+        --subset test
+        --shap-json artifacts/${key}/shap_stats_test.json
+        --output-dir artifacts/${key}/shap_faithfulness
+      deps:
+      - ${item.checkpoint}
+      - ${item.json}
+      - ${item.stats}
+      - artifacts/${key}/shap_stats_test.json
+      - src/torch/vit/shap_faithfulness_test.py
+      - src/torch/vit/utils.py
+      outs:
+      - artifacts/${key}/shap_faithfulness
+
   # ── Single-run / data stages ───────────────────────────────────────────────
 
   xgb-feat-importance:

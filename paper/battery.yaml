@@ -155,28 +155,34 @@ shap_ranking_highn:
 model_randomization:
   caption: Attribution sanity — cascading randomization (SSIM / Spearman)
   path: artifacts/{exp}/model_randomization/
-  stage: "PROMOTE: src/torch/vit/model_randomization_test.py"
+  stage: exp-model-randomization (dvc.yaml)
   tier: robust
   keyed_on: experiment
-  status: needs-stage
+  status: staged
+  known_gap: no --channels support; registered for the two dropout03
+    checkpoints only (tier_robust), not the rest of the registry.
   paper: main
 
 shap_stability:
   caption: SHAP ranking stability (Kendall tau across backgrounds)
   path: artifacts/{exp}/shap_stability/
-  stage: "PROMOTE: src/torch/vit/shap_stability_test.py"
+  stage: exp-shap-stability (dvc.yaml)
   tier: robust
   keyed_on: experiment
-  status: needs-stage
+  status: staged
+  known_gap: same as model_randomization.
   paper: main
 
 shap_faithfulness:
-  caption: Performance degradation under channel-ablation ordering
+  caption: Performance degradation under channel-ablation ordering. Reads the
+    existing shap_stats_test.json (default-N, not the highn variant) as its
+    channel ordering -- depends on exp-kshap-stats having already run.
   path: artifacts/{exp}/shap_faithfulness/
-  stage: "PROMOTE: src/torch/vit/shap_faithfulness_test.py"
+  stage: exp-shap-faithfulness (dvc.yaml)
   tier: robust
   keyed_on: experiment
-  status: needs-stage
+  status: staged
+  known_gap: same --channels/registry-scope gap as model_randomization.
   paper: main
 
 # ── Report §5: Movies (tier: movies; canonical candidates only) ──────────────

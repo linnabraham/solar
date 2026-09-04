@@ -159,6 +159,15 @@ tier_shap:
   pretrained-vit-dropout03-epoch01-log: *pretrained-vit-dropout03-epoch01-log
   pretrained-vit-dropout03-epoch78-log: *pretrained-vit-dropout03-epoch78-log
 
+# tier_robust stages (model_randomization, shap_stability, shap_faithfulness)
+# were never promoted to DVC for ANY registry experiment before this -- scoped
+# to just the two dropout03 checkpoints for now, not retroactively for the
+# other 5. See ADR-0007 for the same scoping choice on the other new stages
+# added alongside this.
+tier_robust:
+  pretrained-vit-dropout03-epoch01-log: *pretrained-vit-dropout03-epoch01-log
+  pretrained-vit-dropout03-epoch78-log: *pretrained-vit-dropout03-epoch78-log
+
 # Baseline (fixed; not part of model selection). devoted-pond-14 confirmed
 # 2026-07-23 vs apricot-fog-13 (plots/xgb/evaluation/{run}/xgb_metrics.csv):
 # devoted-pond-14 test TSS=0.396 (recall .652, FAR .256, acc .712) beats
