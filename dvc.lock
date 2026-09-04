@@ -2474,3 +2474,83 @@ stages:
       md5: b23af86d55bc274ebd321fcba197d55a.dir
       size: 1518817
       nfiles: 3
+  exp-shap-faithfulness@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.shap_faithfulness_test --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl --model-type 
+      vit-pretrained --subset test --shap-json 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_test.json 
+      --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_faithfulness
+    deps:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_test.json
+      hash: md5
+      md5: 0b300b2c304f14d518f6f8d93dd7010c
+      size: 32154
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/shap_faithfulness_test.py
+      hash: md5
+      md5: 384e4c018fa791864a10282d499b6d17
+      size: 16959
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/shap_faithfulness
+      hash: md5
+      md5: a98016fa7efcd3f82b5a6ccec5ce401b.dir
+      size: 174282
+      nfiles: 2
+  exp-shap-faithfulness@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.shap_faithfulness_test --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --json-path solar_dataset.json --stats-file stats.pkl --model-type 
+      vit-pretrained --subset test --shap-json 
+      artifacts/pretrained-vit-dropout03-epoch78-log/shap_stats_test.json 
+      --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch78-log/shap_faithfulness
+    deps:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/shap_stats_test.json
+      hash: md5
+      md5: 2360d4b2efd5578ee370223ef3245b79
+      size: 32075
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/shap_faithfulness_test.py
+      hash: md5
+      md5: 384e4c018fa791864a10282d499b6d17
+      size: 16959
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/shap_faithfulness
+      hash: md5
+      md5: 6d07e6980b311e644f47974b1ae12873.dir
+      size: 197702
+      nfiles: 2
