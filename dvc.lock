@@ -1891,3 +1891,186 @@ stages:
       md5: b41b8f4227d8ea76935eff711c130229.dir
       size: 879728
       nfiles: 7
+  exp-kshap-stats@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.kshap --subset test --trained-model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl  --model-type 
+      vit-pretrained --output-json 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_test.json
+    deps:
+    - path: aarp_ml/torch/dataset.py
+      hash: md5
+      md5: e53e50869b060cd7c94f5b96f1c5610c
+      size: 4905
+    - path: aarp_ml/torch/model.py
+      hash: md5
+      md5: fd28eca9fc37c8f8d3fc365603e92995
+      size: 4575
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/kshap.py
+      hash: md5
+      md5: 8fd48cce0ea51ed52e2626b1981cabd9
+      size: 25479
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_test.json
+      hash: md5
+      md5: 0b300b2c304f14d518f6f8d93dd7010c
+      size: 32154
+  exp-kshap-analyze@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.analyze_shap --subset test --input-json 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_test.json 
+      --output-dir artifacts/pretrained-vit-dropout03-epoch01-log/kshap
+    deps:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_test.json
+      hash: md5
+      md5: 0b300b2c304f14d518f6f8d93dd7010c
+      size: 32154
+    - path: src/torch/vit/analyze_shap.py
+      hash: md5
+      md5: e9f41171c4358c425159b89872060eb0
+      size: 16747
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/kshap
+      hash: md5
+      md5: dd5197cc7167087704ac6bde326a9eed.dir
+      size: 306538
+      nfiles: 5
+  exp-kshap-stats@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.kshap --subset test --trained-model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --json-path solar_dataset.json --stats-file stats.pkl  --model-type 
+      vit-pretrained --output-json 
+      artifacts/pretrained-vit-dropout03-epoch78-log/shap_stats_test.json
+    deps:
+    - path: aarp_ml/torch/dataset.py
+      hash: md5
+      md5: e53e50869b060cd7c94f5b96f1c5610c
+      size: 4905
+    - path: aarp_ml/torch/model.py
+      hash: md5
+      md5: fd28eca9fc37c8f8d3fc365603e92995
+      size: 4575
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/kshap.py
+      hash: md5
+      md5: 8fd48cce0ea51ed52e2626b1981cabd9
+      size: 25479
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/shap_stats_test.json
+      hash: md5
+      md5: 2360d4b2efd5578ee370223ef3245b79
+      size: 32075
+  exp-kshap-analyze@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.analyze_shap --subset test --input-json 
+      artifacts/pretrained-vit-dropout03-epoch78-log/shap_stats_test.json 
+      --output-dir artifacts/pretrained-vit-dropout03-epoch78-log/kshap
+    deps:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/shap_stats_test.json
+      hash: md5
+      md5: 2360d4b2efd5578ee370223ef3245b79
+      size: 32075
+    - path: src/torch/vit/analyze_shap.py
+      hash: md5
+      md5: e9f41171c4358c425159b89872060eb0
+      size: 16747
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/kshap
+      hash: md5
+      md5: 378c92f804482ee3979b24c6678ab3cf.dir
+      size: 302586
+      nfiles: 5
+  exp-kshap-stats-validation@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.kshap --subset validation --trained-model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl  --model-type 
+      vit-pretrained --output-json 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_validation.json
+    deps:
+    - path: aarp_ml/torch/dataset.py
+      hash: md5
+      md5: e53e50869b060cd7c94f5b96f1c5610c
+      size: 4905
+    - path: aarp_ml/torch/model.py
+      hash: md5
+      md5: fd28eca9fc37c8f8d3fc365603e92995
+      size: 4575
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/kshap.py
+      hash: md5
+      md5: 8fd48cce0ea51ed52e2626b1981cabd9
+      size: 25479
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: 
+        artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_validation.json
+      hash: md5
+      md5: 668ca3961738533522b6723e1da7b185
+      size: 32172
+  exp-kshap-analyze-validation@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.analyze_shap --subset validation --input-json 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_validation.json 
+      --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch01-log/kshap_validation
+    deps:
+    - path: 
+        artifacts/pretrained-vit-dropout03-epoch01-log/shap_stats_validation.json
+      hash: md5
+      md5: 668ca3961738533522b6723e1da7b185
+      size: 32172
+    - path: src/torch/vit/analyze_shap.py
+      hash: md5
+      md5: e9f41171c4358c425159b89872060eb0
+      size: 16747
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/kshap_validation
+      hash: md5
+      md5: 77c0f1c121dcc1b34304c964ad92c024.dir
+      size: 302496
+      nfiles: 5
