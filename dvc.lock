@@ -2338,3 +2338,71 @@ stages:
       md5: 98c43a9e360f9d2bd3a51643430a1192.dir
       size: 428339
       nfiles: 5
+  exp-shap-stability@pretrained-vit-dropout03-epoch78-log:
+    cmd: python -m src.torch.vit.shap_stability_test --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      --json-path solar_dataset.json --stats-file stats.pkl --model-type 
+      vit-pretrained --subset test --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch78-log/shap_stability
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_78.pth
+      hash: md5
+      md5: 5073927a7e874bd2986eed6fbf5d7702
+      size: 3652599374
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/shap_stability_test.py
+      hash: md5
+      md5: 95951763f221e17930dc1f21263d2dee
+      size: 16458
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch78-log/shap_stability
+      hash: md5
+      md5: bdadfbcaa82f271ed983d3eaf951d15c.dir
+      size: 203394
+      nfiles: 3
+  exp-shap-stability@pretrained-vit-dropout03-epoch01-log:
+    cmd: python -m src.torch.vit.shap_stability_test --model-path 
+      outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      --json-path solar_dataset.json --stats-file stats.pkl --model-type 
+      vit-pretrained --subset test --output-dir 
+      artifacts/pretrained-vit-dropout03-epoch01-log/shap_stability
+    deps:
+    - path: 
+        outputs/pretrained-vit-solar-dataset-dropout03/epoch_checkpoints/epoch_01.pth
+      hash: md5
+      md5: 6dd97340ec59d7355525902130711824
+      size: 3652596110
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/shap_stability_test.py
+      hash: md5
+      md5: 95951763f221e17930dc1f21263d2dee
+      size: 16458
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats.pkl
+      hash: md5
+      md5: 054da1080a93ea66e8e70a3ecd48d1db
+      size: 500
+    outs:
+    - path: artifacts/pretrained-vit-dropout03-epoch01-log/shap_stability
+      hash: md5
+      md5: a101b08638caee245d4aa2c9b21d18d9.dir
+      size: 199129
+      nfiles: 3
