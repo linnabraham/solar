@@ -2861,3 +2861,163 @@ stages:
       md5: 4a008f4334a554d9bd5cbf0bd1c21e04.dir
       size: 292773
       nfiles: 5
+  exp-ig-attributions-validation@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.class_wise_distribution --subset validation 
+      --json-path solar_dataset.json --model-path 
+      outputs/glad-shape-197/trained_model.pth --stats-file stats_raw.pkl 
+      --output-neg artifacts/glad-shape-197-lin/attributions_neg_validation.pt 
+      --output-pos artifacts/glad-shape-197-lin/attributions_pos_validation.pt
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: f7054a7c84a387b1eafc13727020befe
+      size: 11321
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/attributions_neg_validation.pt
+      hash: md5
+      md5: 74251392f0c234659975e14361d0a030
+      size: 28887635504
+    - path: artifacts/glad-shape-197-lin/attributions_pos_validation.pt
+      hash: md5
+      md5: da232fc8e174b213c75fd2546329c86b
+      size: 23859770416
+  exp-ig-attributions-test@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.class_wise_distribution --subset test 
+      --json-path solar_dataset.json --model-path 
+      outputs/glad-shape-197/trained_model.pth --stats-file stats_raw.pkl 
+      --output-neg artifacts/glad-shape-197-lin/attributions_neg_test.pt 
+      --output-pos artifacts/glad-shape-197-lin/attributions_pos_test.pt
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: f7054a7c84a387b1eafc13727020befe
+      size: 11321
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/attributions_neg_test.pt
+      hash: md5
+      md5: 078427c812874334a05cd9aa53227225
+      size: 43943118872
+    - path: artifacts/glad-shape-197-lin/attributions_pos_test.pt
+      hash: md5
+      md5: 11c06553a203f82cba10d3c77fca76be
+      size: 22398401112
+  exp-ig-distribution-plots-validation@glad-shape-197-lin:
+    cmd: 'python -m src.torch.vit.plot_class_wise_distribution --subset validation
+      --json-path solar_dataset.json --attributions-neg artifacts/glad-shape-197-lin/attributions_neg_validation.pt
+      --attributions-pos artifacts/glad-shape-197-lin/attributions_pos_validation.pt
+      --output-dir artifacts/glad-shape-197-lin/distribution_validation '
+    deps:
+    - path: artifacts/glad-shape-197-lin/attributions_neg_validation.pt
+      hash: md5
+      md5: 74251392f0c234659975e14361d0a030
+      size: 28887635504
+    - path: artifacts/glad-shape-197-lin/attributions_pos_validation.pt
+      hash: md5
+      md5: da232fc8e174b213c75fd2546329c86b
+      size: 23859770416
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: f7054a7c84a387b1eafc13727020befe
+      size: 11321
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/plot_class_wise_distribution.py
+      hash: md5
+      md5: 001b4cc486bfe1a171da3b9923cad428
+      size: 14787
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    outs:
+    - path: artifacts/glad-shape-197-lin/distribution_validation
+      hash: md5
+      md5: c7cad30c2ef18a95ff70893c3007848f.dir
+      size: 833475
+      nfiles: 7
+  exp-ig-distribution-plots-test@glad-shape-197-lin:
+    cmd: 'python -m src.torch.vit.plot_class_wise_distribution --subset test --json-path
+      solar_dataset.json --attributions-neg artifacts/glad-shape-197-lin/attributions_neg_test.pt
+      --attributions-pos artifacts/glad-shape-197-lin/attributions_pos_test.pt --output-dir
+      artifacts/glad-shape-197-lin/distribution_test '
+    deps:
+    - path: artifacts/glad-shape-197-lin/attributions_neg_test.pt
+      hash: md5
+      md5: 078427c812874334a05cd9aa53227225
+      size: 43943118872
+    - path: artifacts/glad-shape-197-lin/attributions_pos_test.pt
+      hash: md5
+      md5: 11c06553a203f82cba10d3c77fca76be
+      size: 22398401112
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/class_wise_distribution.py
+      hash: md5
+      md5: f7054a7c84a387b1eafc13727020befe
+      size: 11321
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/plot_class_wise_distribution.py
+      hash: md5
+      md5: 001b4cc486bfe1a171da3b9923cad428
+      size: 14787
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    outs:
+    - path: artifacts/glad-shape-197-lin/distribution_test
+      hash: md5
+      md5: 38d9eefd45422723ed10bb29635a058e.dir
+      size: 854693
+      nfiles: 7
