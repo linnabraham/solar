@@ -1097,17 +1097,17 @@ stages:
   exp-kshap-stats@glad-shape-197-lin:
     cmd: python -m src.torch.vit.kshap --subset test --trained-model-path 
       outputs/glad-shape-197/trained_model.pth --json-path solar_dataset.json 
-      --stats-file stats_raw.pkl  --output-json 
+      --stats-file stats_raw.pkl   --output-json 
       artifacts/glad-shape-197-lin/shap_stats_test.json
     deps:
     - path: aarp_ml/torch/dataset.py
       hash: md5
-      md5: 0f90a90d485fe8dcf03ddbfd976783ca
-      size: 3852
+      md5: e53e50869b060cd7c94f5b96f1c5610c
+      size: 4905
     - path: aarp_ml/torch/model.py
       hash: md5
-      md5: d650942d2c5ce13b17d6b4ffbed9fa81
-      size: 1945
+      md5: fd28eca9fc37c8f8d3fc365603e92995
+      size: 4575
     - path: outputs/glad-shape-197/trained_model.pth
       hash: md5
       md5: 7dec6d8379098dbdadb7fb3a49fd350e
@@ -1118,12 +1118,12 @@ stages:
       size: 42253014
     - path: src/torch/vit/kshap.py
       hash: md5
-      md5: ebc4f2f6c9d33f801eb1db5523842fc1
-      size: 24248
+      md5: 8fd48cce0ea51ed52e2626b1981cabd9
+      size: 25479
     - path: src/torch/vit/utils.py
       hash: md5
-      md5: 11aabc3295fce81b2f89def9a029d839
-      size: 7547
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
     - path: stats_raw.pkl
       hash: md5
       md5: fe8e2d59c30489c29ec6e44ff8afb493
@@ -1131,8 +1131,8 @@ stages:
     outs:
     - path: artifacts/glad-shape-197-lin/shap_stats_test.json
       hash: md5
-      md5: 126562df2efd8aab7b0f4c5c0ed9fb36
-      size: 1316677
+      md5: abef789b34d1bc69ae03cdc3bd3d8915
+      size: 31997
   exp-eval-test@cv-fold0-7ch-normfix-l1-log:
     cmd: python -m src.torch.vit.test --subset test --trained-model 
       outputs/cv-fold0-94131171193211304335ch-normfix-l1/trained_model.pth 
@@ -2554,3 +2554,310 @@ stages:
       md5: 6d07e6980b311e644f47974b1ae12873.dir
       size: 197702
       nfiles: 2
+  exp-roc-solo@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.compare_models --vit-path 
+      outputs/glad-shape-197/trained_model.pth --subset test --json-path 
+      solar_dataset.json --stats-file stats_raw.pkl  --output-dir 
+      artifacts/glad-shape-197-lin/roc_solo_test
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/compare_models.py
+      hash: md5
+      md5: ae6c256931afb253fc3c5d7547b104b6
+      size: 17011
+    - path: src/torch/vit/evaluate_aarp.py
+      hash: md5
+      md5: b6d43ba2197f5f92257fbe1f72e85fd9
+      size: 30306
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/roc_solo_test
+      hash: md5
+      md5: b9d777492dfd47088518413b44e70459.dir
+      size: 63982
+      nfiles: 3
+  exp-roc@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.compare_models --vit-path 
+      outputs/glad-shape-197/trained_model.pth --xgb-path 
+      outputs/devoted-pond-14/best_xgboost_model.json --subset test --json-path 
+      solar_dataset.json --stats-file stats_raw.pkl  --output-dir 
+      artifacts/glad-shape-197-lin/roc_test
+    deps:
+    - path: outputs/devoted-pond-14/best_xgboost_model.json
+      hash: md5
+      md5: e8eb6d2c13466fcfb02ed6ec3670989f
+      size: 60468
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/compare_models.py
+      hash: md5
+      md5: ae6c256931afb253fc3c5d7547b104b6
+      size: 17011
+    - path: src/torch/vit/evaluate_aarp.py
+      hash: md5
+      md5: b6d43ba2197f5f92257fbe1f72e85fd9
+      size: 30306
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/roc_test
+      hash: md5
+      md5: da42673ee966e34be4b45d0351fe5ff3.dir
+      size: 76543
+      nfiles: 3
+  exp-kshap-stats-validation@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.kshap --subset validation --trained-model-path 
+      outputs/glad-shape-197/trained_model.pth --json-path solar_dataset.json 
+      --stats-file stats_raw.pkl   --output-json 
+      artifacts/glad-shape-197-lin/shap_stats_validation.json
+    deps:
+    - path: aarp_ml/torch/dataset.py
+      hash: md5
+      md5: e53e50869b060cd7c94f5b96f1c5610c
+      size: 4905
+    - path: aarp_ml/torch/model.py
+      hash: md5
+      md5: fd28eca9fc37c8f8d3fc365603e92995
+      size: 4575
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/kshap.py
+      hash: md5
+      md5: 8fd48cce0ea51ed52e2626b1981cabd9
+      size: 25479
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/shap_stats_validation.json
+      hash: md5
+      md5: f10f80a777fb6b7daade5433c60a8edb
+      size: 32000
+  exp-kshap-analyze-validation@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.analyze_shap --subset validation --input-json 
+      artifacts/glad-shape-197-lin/shap_stats_validation.json --output-dir 
+      artifacts/glad-shape-197-lin/kshap_validation
+    deps:
+    - path: artifacts/glad-shape-197-lin/shap_stats_validation.json
+      hash: md5
+      md5: f10f80a777fb6b7daade5433c60a8edb
+      size: 32000
+    - path: src/torch/vit/analyze_shap.py
+      hash: md5
+      md5: e9f41171c4358c425159b89872060eb0
+      size: 16747
+    outs:
+    - path: artifacts/glad-shape-197-lin/kshap_validation
+      hash: md5
+      md5: 8b86f5cd3594112afaea78049d0c2c33.dir
+      size: 308380
+      nfiles: 5
+  exp-prediction-plots@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.predictions_analyze --json-path 
+      solar_dataset.json --model-path outputs/glad-shape-197/trained_model.pth 
+      --stats-file stats_raw.pkl   --output-dir 
+      artifacts/glad-shape-197-lin/predictions
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/predictions_analyze.py
+      hash: md5
+      md5: 5a0df238b97e0daa92b31b33c51e7853
+      size: 16658
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/predictions
+      hash: md5
+      md5: 6a677ca97e97bc186e4da509937dd97a.dir
+      size: 1049029
+      nfiles: 14
+  exp-eval-test@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.test --subset test --trained-model 
+      outputs/glad-shape-197/trained_model.pth --json-path solar_dataset.json 
+      --stats-file stats_raw.pkl   --output-path 
+      artifacts/glad-shape-197-lin/cm_test.png --metrics-out 
+      metrics/glad-shape-197-lin/scores_test.json
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: b092de26cf756ec602d6f2e484c965dd
+      size: 14114
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/cm_test.png
+      hash: md5
+      md5: fbfd6b9a3b2541920a101b99e086b8a1
+      size: 13738
+    - path: metrics/glad-shape-197-lin/scores_test.json
+      hash: md5
+      md5: 1ad73959899727a0829844fbd24e436d
+      size: 374
+  exp-contour-grids@glad-shape-197-lin:
+    cmd:
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path outputs/glad-shape-197/trained_model.pth 
+      --stats-file stats_raw.pkl   --aarp-id 377 --output-path 
+      artifacts/glad-shape-197-lin/contour_grid/aarp377.png
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path outputs/glad-shape-197/trained_model.pth 
+      --stats-file stats_raw.pkl   --aarp-id 1449 --output-path 
+      artifacts/glad-shape-197-lin/contour_grid/aarp1449.png
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path outputs/glad-shape-197/trained_model.pth 
+      --stats-file stats_raw.pkl   --aarp-id 2026 --output-path 
+      artifacts/glad-shape-197-lin/contour_grid/aarp2026.png
+    - python -m src.torch.vit.plot_contour_image_grid --json-path 
+      solar_dataset.json --model-path outputs/glad-shape-197/trained_model.pth 
+      --stats-file stats_raw.pkl   --aarp-id 4296 --output-path 
+      artifacts/glad-shape-197-lin/contour_grid/aarp4296.png
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/ig.py
+      hash: md5
+      md5: 0ba5409c583b8a26b900d6e422467032
+      size: 7714
+    - path: src/torch/vit/plot_contour_image_grid.py
+      hash: md5
+      md5: 5d014f99733c28993615187812a12a66
+      size: 11308
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/contour_grid
+      hash: md5
+      md5: cc55a4cc49425ec5a7dd19bb5bba0e3d.dir
+      size: 68052671
+      nfiles: 4
+  exp-eval-validation@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.test --subset validation --trained-model 
+      outputs/glad-shape-197/trained_model.pth --json-path solar_dataset.json 
+      --stats-file stats_raw.pkl   --output-path 
+      artifacts/glad-shape-197-lin/cm_validation.png --metrics-out 
+      metrics/glad-shape-197-lin/scores_validation.json
+    deps:
+    - path: outputs/glad-shape-197/trained_model.pth
+      hash: md5
+      md5: 7dec6d8379098dbdadb7fb3a49fd350e
+      size: 95600921
+    - path: solar_dataset.json
+      hash: md5
+      md5: 4529d184ced5a18d8303bdad72af79b7
+      size: 42253014
+    - path: src/torch/vit/test.py
+      hash: md5
+      md5: b092de26cf756ec602d6f2e484c965dd
+      size: 14114
+    - path: src/torch/vit/utils.py
+      hash: md5
+      md5: 68b8e2721d93571d76e9a6a2b9b16497
+      size: 9789
+    - path: stats_raw.pkl
+      hash: md5
+      md5: fe8e2d59c30489c29ec6e44ff8afb493
+      size: 500
+    outs:
+    - path: artifacts/glad-shape-197-lin/cm_validation.png
+      hash: md5
+      md5: 17a46c75b00c61c9f48c168b06fbe718
+      size: 14313
+    - path: metrics/glad-shape-197-lin/scores_validation.json
+      hash: md5
+      md5: 43ae2109d90cf7f790d7d3e4a6e9afd1
+      size: 375
+  exp-kshap-analyze@glad-shape-197-lin:
+    cmd: python -m src.torch.vit.analyze_shap --subset test --input-json 
+      artifacts/glad-shape-197-lin/shap_stats_test.json --output-dir 
+      artifacts/glad-shape-197-lin/kshap
+    deps:
+    - path: artifacts/glad-shape-197-lin/shap_stats_test.json
+      hash: md5
+      md5: abef789b34d1bc69ae03cdc3bd3d8915
+      size: 31997
+    - path: src/torch/vit/analyze_shap.py
+      hash: md5
+      md5: e9f41171c4358c425159b89872060eb0
+      size: 16747
+    outs:
+    - path: artifacts/glad-shape-197-lin/kshap
+      hash: md5
+      md5: 4a008f4334a554d9bd5cbf0bd1c21e04.dir
+      size: 292773
+      nfiles: 5
